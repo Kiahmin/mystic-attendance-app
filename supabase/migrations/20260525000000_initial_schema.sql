@@ -17,7 +17,7 @@ create table students (
   id              uuid default gen_random_uuid() primary key,
   full_name       text not null,
   date_of_birth   date,
-  is_minor        boolean generated always as (date_of_birth > current_date - interval '18 years') stored,
+  is_minor        boolean,
   guardian_name   text,
   guardian_phone  text,
   contact_phone   text,
@@ -25,6 +25,19 @@ create table students (
   notes           text,
   created_at      timestamptz default now()
 );
+
+create or replace function set_student_is_minor()
+returns trigger as $$
+begin
+  new.is_minor := new.date_of_birth is not null
+    and new.date_of_birth > current_date - interval '18 years';
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger students_set_is_minor
+  before insert or update of date_of_birth on students
+  for each row execute function set_student_is_minor();
 
 create table classes (
   id          uuid default gen_random_uuid() primary key,
@@ -48,6 +61,29 @@ create table enrolments (
 -- Packages
 -- ---------------------------------------------------------------------------
 
+create or replace function compute_package_status(
+  p_is_paid boolean,
+  p_paused_at date,
+  p_resumed_at date,
+  p_expires_at date,
+  p_used_credits int,
+  p_total_credits int
+)
+returns text
+language sql
+stable
+as $$
+  select case
+    when not coalesce(p_is_paid, false) then 'unpaid'
+    when p_paused_at is not null
+         and p_resumed_at is null
+         and current_date >= p_paused_at then 'paused'
+    when p_expires_at is not null and p_expires_at < current_date then 'expired'
+    when p_used_credits >= p_total_credits then 'exhausted'
+    else 'active'
+  end;
+$$;
+
 create table packages (
   id                uuid default gen_random_uuid() primary key,
   student_id        uuid references students(id) on delete cascade,
@@ -66,17 +102,7 @@ create table packages (
   paused_reason     text,
   resumed_at        date,
   pause_used        boolean not null default false,
-  status            text generated always as (
-    case
-      when is_paid = false then 'unpaid'
-      when paused_at is not null
-           and resumed_at is null
-           and current_date >= paused_at then 'paused'
-      when expires_at is not null and expires_at < current_date then 'expired'
-      when used_credits >= total_credits then 'exhausted'
-      else 'active'
-    end
-  ) stored,
+  status            text,
   created_at        timestamptz default now(),
   check (not pause_used or paused_at is not null),
   check (
@@ -91,6 +117,25 @@ create table packages (
   check (is_paid = true or first_lesson_date is null),
   check (first_lesson_date is null or expires_at is not null)
 );
+
+create or replace function set_package_status()
+returns trigger as $$
+begin
+  new.status := compute_package_status(
+    new.is_paid,
+    new.paused_at,
+    new.resumed_at,
+    new.expires_at,
+    new.used_credits,
+    new.total_credits
+  );
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger packages_set_status
+  before insert or update on packages
+  for each row execute function set_package_status();
 
 -- ---------------------------------------------------------------------------
 -- Sessions & attendance
@@ -272,7 +317,9 @@ as $$
   from packages
   where student_id = p_student_id
     and is_paid = true
-    and status = 'active'
+    and compute_package_status(
+      is_paid, paused_at, resumed_at, expires_at, used_credits, total_credits
+    ) = 'active'
     and remaining_credits > 0
     and (expires_at is null or expires_at >= p_session_date)
   order by coalesce(first_lesson_date, created_at::date), created_at
@@ -299,7 +346,9 @@ as $$
       from packages
       where id = p_package_id
         and is_paid = true
-        and status = 'active'
+        and compute_package_status(
+          is_paid, paused_at, resumed_at, expires_at, used_credits, total_credits
+        ) = 'active'
         and remaining_credits > 0
     );
 $$;
