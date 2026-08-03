@@ -1,7 +1,13 @@
+import { isLoginEnabled } from '@/lib/auth/config'
+import { isStaffRole } from '@/lib/auth/roles'
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
+  if (!isLoginEnabled()) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -27,14 +33,42 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const { data } = await supabase.auth.getClaims()
-  const user = data?.claims
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/auth')
-  ) {
+  const pathname = request.nextUrl.pathname
+  const isAuthRoute =
+    pathname.startsWith('/auth') || pathname.startsWith('/login')
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!isStaffRole(profile?.role)) {
+      await supabase.auth.signOut()
+
+      if (!isAuthRoute) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/auth/login'
+        url.searchParams.set('error', 'staff_only')
+        return NextResponse.redirect(url)
+      }
+
+      return supabaseResponse
+    }
+
+    if (isAuthRoute) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/'
+      return NextResponse.redirect(url)
+    }
+  }
+
+  if (!user && !isAuthRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
     return NextResponse.redirect(url)
