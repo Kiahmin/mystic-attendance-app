@@ -19,6 +19,14 @@ export type PackageStatus =
   | "expired"
   | "exhausted";
 
+export type SkillLevel =
+  | "beginner"
+  | "intermediate"
+  | "advanced"
+  | "freestyle";
+
+export type DayOfWeek = "saturday" | "sunday";
+
 export interface Profile {
   id: string;
   full_name: string;
@@ -30,7 +38,7 @@ export interface Profile {
 export interface ClassGroup {
   id: string;
   name: string;
-  day_of_week: "saturday" | "sunday";
+  day_of_week: DayOfWeek;
   start_time: string;
   end_time: string;
   coach_id: string | null;
@@ -57,8 +65,39 @@ export interface Student {
   guardian_name: string | null;
   guardian_phone: string | null;
   contact_phone: string | null;
-  skill_level: string | null;
+  skill_level: SkillLevel | null;
   notes: string | null;
+}
+
+export interface Enrolment {
+  id: string;
+  student_id: string;
+  class_id: string;
+  enrolled_at: string;
+}
+
+export interface EnrolmentWithClass extends Enrolment {
+  classes: ClassGroup;
+}
+
+export interface StudentWithEnrolments extends Student {
+  enrolments: EnrolmentWithClass[];
+}
+
+export interface StudentListItem extends Student {
+  enrolment_count: number;
+}
+
+export interface ClassWithCoach extends ClassGroup {
+  coach: Pick<Profile, "id" | "full_name"> | null;
+}
+
+export interface EnrolmentWithStudent extends Enrolment {
+  students: Student;
+}
+
+export interface ClassDetail extends ClassWithCoach {
+  enrolments: EnrolmentWithStudent[];
 }
 
 export interface Package {
