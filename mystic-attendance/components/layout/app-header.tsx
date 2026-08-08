@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList, LayoutDashboard, LogOut } from "lucide-react";
+import {
+  ClipboardList,
+  GraduationCap,
+  LayoutDashboard,
+  LogOut,
+  Users,
+} from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
 import type { Profile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -19,6 +25,8 @@ export function AppHeader({ profile }: AppHeaderProps) {
   const links = isAdmin
     ? [
         { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/admin/students", label: "Students", icon: Users },
+        { href: "/admin/classes", label: "Classes", icon: GraduationCap },
         { href: "/coach", label: "Sessions", icon: ClipboardList },
       ]
     : [{ href: "/coach", label: "Sessions", icon: ClipboardList }];
@@ -47,7 +55,10 @@ export function AppHeader({ profile }: AppHeaderProps) {
 
       <nav className="mx-auto flex max-w-3xl gap-1 px-4 pb-3">
         {links.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
+          const active =
+            href === "/admin"
+              ? pathname === "/admin"
+              : pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
               key={href}
