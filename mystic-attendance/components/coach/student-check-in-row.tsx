@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useOptimistic, useTransition } from "react";
 import { Check, UserX, X } from "lucide-react";
 import type { AttendanceStatus, CheckInStudent } from "@/lib/types";
 import {
@@ -51,11 +51,14 @@ export function StudentCheckInRow({
   disabled,
 }: StudentCheckInRowProps) {
   const [pending, startTransition] = useTransition();
+  const [optimisticStatus, setOptimisticStatus] = useOptimistic(
+    entry.attendance?.status
+  );
   const warning = packageWarning(entry.package);
-  const currentStatus = entry.attendance?.status;
 
   function handleMark(status: AttendanceStatus) {
     startTransition(async () => {
+      setOptimisticStatus(status);
       await markAttendance(sessionId, entry.student.id, status);
     });
   }
@@ -99,17 +102,17 @@ export function StudentCheckInRow({
           </p>
         </div>
 
-        {currentStatus ? (
+        {optimisticStatus ? (
           <Badge
             variant={
-              currentStatus === "present"
+              optimisticStatus === "present"
                 ? "default"
-                : currentStatus === "walk_in"
+                : optimisticStatus === "walk_in"
                   ? "outline"
                   : "secondary"
             }
           >
-            {ATTENDANCE_STATUS_LABELS[currentStatus]}
+            {ATTENDANCE_STATUS_LABELS[optimisticStatus]}
           </Badge>
         ) : null}
       </div>
@@ -134,7 +137,7 @@ export function StudentCheckInRow({
       {!entry.isWalkIn ? (
         <div className="grid grid-cols-3 gap-2">
           {STATUS_BUTTONS.map(({ status, label, icon: Icon, tone }) => {
-            const active = currentStatus === status;
+            const active = optimisticStatus === status;
             return (
               <Button
                 key={status}
