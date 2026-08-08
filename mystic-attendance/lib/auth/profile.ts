@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { bypassProfile, isLoginEnabled } from "@/lib/auth/config";
 import { homePathForRole, isStaffRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -6,24 +7,24 @@ import { redirect } from "next/navigation";
 
 export { homePathForRole, isStaffRole, STAFF_ROLES } from "@/lib/auth/roles";
 
-export async function getSessionUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
+export const getSessionUser = cache(async (): Promise<{ id: string } | null> => {
+  if (!isLoginEnabled()) {
+    return { id: bypassProfile.id };
+  }
 
-export async function getProfile(): Promise<Profile | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  const sub = data?.claims?.sub;
+  return sub ? { id: sub } : null;
+});
+
+export const getProfile = cache(async (): Promise<Profile | null> => {
   if (!isLoginEnabled()) return bypassProfile;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getSessionUser();
   if (!user) return null;
 
+  const supabase = await createClient();
   const { data: profile, error } = await supabase
     .from("profiles")
     .select("id, full_name, role, phone, created_at")
@@ -35,18 +36,15 @@ export async function getProfile(): Promise<Profile | null> {
   }
 
   return profile;
-}
+});
 
-export async function getProfileLookupError(): Promise<string | null> {
+export const getProfileLookupError = cache(async (): Promise<string | null> => {
   if (!isLoginEnabled()) return null;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getSessionUser();
   if (!user) return null;
 
+  const supabase = await createClient();
   const { error } = await supabase
     .from("profiles")
     .select("id")
@@ -54,12 +52,22 @@ export async function getProfileLookupError(): Promise<string | null> {
     .maybeSingle();
 
   return error?.message ?? null;
-}
+});
 
 export async function requireProfile(): Promise<Profile> {
   const profile = await getProfile();
-  if (!profile || !isStaffRole(profile.role)) redirect("/auth/login");
-  return profile;
+  if (profile && isStaffRole(profile.role)) return profile;
+
+  if (isLoginEnabled()) {
+    const user = await getSessionUser();
+    if (user) {
+      const supabase = await createClient();
+      await supabase.auth.signOut();
+      redirect("/auth/login?error=staff_only");
+    }
+  }
+
+  redirect("/auth/login");
 }
 
 export async function requireRole(roles: Profile["role"][]): Promise<Profile> {
