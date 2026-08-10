@@ -11,7 +11,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const user = await getSessionUser();
   if (!user) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-muted/30 p-6">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
         <LoginForm
           initialError={
             error === "staff_only"
