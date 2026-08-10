@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface SessionCardProps {
   session: SessionWithClass;
@@ -21,6 +22,7 @@ interface SessionCardProps {
   expectedCount?: number;
   checkedInCount?: number;
   packageAlerts?: number;
+  variant?: "card" | "row";
 }
 
 export function SessionCard({
@@ -29,8 +31,74 @@ export function SessionCard({
   expectedCount,
   checkedInCount,
   packageAlerts,
+  variant = "card",
 }: SessionCardProps) {
   const { classes: classGroup } = session;
+  const expected = expectedCount ?? 0;
+  const checkedIn = checkedInCount ?? 0;
+  const progress =
+    expected > 0 ? Math.min(100, Math.round((checkedIn / expected) * 100)) : 0;
+
+  if (variant === "row") {
+    return (
+      <Link
+        href={href}
+        className={cn(
+          "grid gap-3 px-4 py-4 transition-colors hover:bg-muted/40 md:grid-cols-[1.4fr_1fr_0.8fr_1fr] md:items-center md:gap-4",
+          session.cancelled && "bg-destructive/5"
+        )}
+      >
+        <div className="min-w-0">
+          <p className="truncate font-medium">{classGroup.name}</p>
+          <p className="text-xs text-muted-foreground md:hidden">
+            {formatSessionTime(classGroup.start_time)} –{" "}
+            {formatSessionTime(classGroup.end_time)}
+          </p>
+        </div>
+        <p className="hidden text-sm text-muted-foreground md:block">
+          {formatSessionTime(classGroup.start_time)} –{" "}
+          {formatSessionTime(classGroup.end_time)}
+        </p>
+        <div className="space-y-1.5">
+          {expectedCount !== undefined ? (
+            <>
+              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>
+                  {checkedIn}/{expected}
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </>
+          ) : (
+            <span className="text-sm text-muted-foreground">—</span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {session.cancelled ? (
+            <Badge variant="destructive">
+              Cancelled
+              {session.cancellation_reason
+                ? ` · ${CANCELLATION_REASON_LABELS[session.cancellation_reason] ?? session.cancellation_reason}`
+                : ""}
+            </Badge>
+          ) : (
+            <Badge variant="success">Upcoming</Badge>
+          )}
+          {packageAlerts ? (
+            <Badge variant="warning">
+              {packageAlerts} alert{packageAlerts === 1 ? "" : "s"}
+            </Badge>
+          ) : null}
+          <ChevronRight className="ml-auto hidden size-4 text-muted-foreground md:block" />
+        </div>
+      </Link>
+    );
+  }
 
   return (
     <Link href={href} className="block">
@@ -70,8 +138,9 @@ export function SessionCard({
                 </Badge>
               ) : null}
               {packageAlerts ? (
-                <Badge variant="outline" className="border-amber-500 text-amber-700">
-                  {packageAlerts} package alert{packageAlerts === 1 ? "" : "s"}
+                <Badge variant="warning">
+                  {packageAlerts} package alert
+                  {packageAlerts === 1 ? "" : "s"}
                 </Badge>
               ) : null}
             </>

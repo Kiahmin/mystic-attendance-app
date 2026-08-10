@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { UserPlus } from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
 import type { CheckInStudent } from "@/lib/types";
 import { markWalkIn, searchStudentsForWalkIn } from "@/lib/actions/walk-in";
 import { StudentCheckInRow } from "@/components/coach/student-check-in-row";
@@ -44,6 +44,12 @@ export function AttendancePanel({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const checkedInCount = enrolledStudents.filter(
+    (entry) =>
+      entry.attendance?.status === "present" ||
+      entry.attendance?.status === "walk_in"
+  ).length;
 
   async function handleSearch(value: string) {
     setQuery(value);
@@ -96,9 +102,26 @@ export function AttendancePanel({
         </Alert>
       ) : null}
 
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl bg-muted px-4 py-3">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Enrolled
+          </p>
+          <p className="font-heading text-2xl font-semibold">
+            {enrolledStudents.length}
+          </p>
+        </div>
+        <div className="rounded-xl bg-muted px-4 py-3">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Checked In
+          </p>
+          <p className="font-heading text-2xl font-semibold">{checkedInCount}</p>
+        </div>
+      </div>
+
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Enrolled students</h2>
+          <h2 className="font-heading text-xl font-semibold">Roster</h2>
           <Dialog
             open={open}
             onOpenChange={(next) => {
@@ -130,12 +153,16 @@ export function AttendancePanel({
 
                 <div className="space-y-2">
                   <Label htmlFor="walk-in-search">Student name</Label>
-                  <Input
-                    id="walk-in-search"
-                    value={query}
-                    onChange={(event) => handleSearch(event.target.value)}
-                    placeholder="Start typing a name…"
-                  />
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="walk-in-search"
+                      value={query}
+                      onChange={(event) => handleSearch(event.target.value)}
+                      placeholder="Search & add walk-in…"
+                      className="pl-9"
+                    />
+                  </div>
                 </div>
 
                 {results.length > 0 ? (
@@ -214,7 +241,7 @@ export function AttendancePanel({
 
       {walkIns.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Walk-ins</h2>
+          <h2 className="font-heading text-lg font-semibold">Walk-ins</h2>
           {walkIns.map((entry) => (
             <StudentCheckInRow
               key={entry.student.id}
