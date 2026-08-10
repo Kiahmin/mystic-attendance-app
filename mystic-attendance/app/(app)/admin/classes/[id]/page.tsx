@@ -6,7 +6,7 @@ import { getClassById } from "@/lib/queries/classes";
 import { listCoaches } from "@/lib/queries/profiles";
 import { ClassForm } from "@/components/admin/class-form";
 import { ClassRoster } from "@/components/admin/class-roster";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
   CardContent,
@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export default async function AdminClassDetailPage({
   params,
@@ -32,51 +33,56 @@ export default async function AdminClassDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-3">
-        <Button variant="ghost" size="sm" asChild className="-ml-2">
-          <Link href="/admin/classes">
-            <ArrowLeft className="size-4" />
-            Classes
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {classDetail.name}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Edit schedule and manage the class roster.
-          </p>
-        </div>
+      <Link
+        href="/admin/classes"
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          "-ml-2 w-fit"
+        )}
+      >
+        <ArrowLeft className="size-4" />
+        Back to Classes
+      </Link>
+
+      <div>
+        <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">
+          {classDetail.name}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Edit schedule and manage the class roster.
+        </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Class details</CardTitle>
-          <CardDescription>
-            Name, day, time, and assigned coach.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ClassForm classGroup={classDetail} coaches={coaches} />
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Class details</CardTitle>
+            <CardDescription>
+              Name, day, time, and assigned coach.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClassForm classGroup={classDetail} coaches={coaches} />
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Roster</CardTitle>
-          <CardDescription>
-            {classDetail.enrolments.length} enrolled student
-            {classDetail.enrolments.length === 1 ? "" : "s"}. Enrol more from
-            a student&apos;s profile.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ClassRoster
-            classId={classDetail.id}
-            enrolments={classDetail.enrolments}
-          />
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Roster</CardTitle>
+            <CardDescription>
+              {classDetail.enrolments.length} enrolled student
+              {classDetail.enrolments.length === 1 ? "" : "s"}. Enrol more from
+              a student&apos;s profile.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClassRoster
+              classId={classDetail.id}
+              enrolments={classDetail.enrolments}
+            />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -10,13 +10,6 @@ import type { ClassWithCoach, Profile } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -38,7 +31,7 @@ export function ClassList({ classes, coaches }: ClassListProps) {
       <div className="flex justify-end">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="h-11">
               <Plus className="size-4" />
               Add class
             </Button>
@@ -56,52 +49,55 @@ export function ClassList({ classes, coaches }: ClassListProps) {
       </div>
 
       {classes.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-8 text-center">
+        <div className="rounded-xl border border-dashed bg-card p-8 text-center">
           <p className="font-medium">No classes yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Add a class group to enrol students.
           </p>
         </div>
       ) : (
-        <ul className="space-y-2">
-          {classes.map((cls) => (
-            <li key={cls.id}>
-              <Link href={`/admin/classes/${cls.id}`} className="block">
-                <Card
-                  className={
-                    cls.is_active
-                      ? "transition-colors hover:border-primary/30 hover:bg-muted/30"
-                      : "opacity-70 transition-colors hover:border-primary/30 hover:bg-muted/30"
-                  }
+        <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
+          <div className="hidden grid-cols-[1.5fr_1.2fr_1fr_auto] gap-4 border-b border-border/60 bg-muted/50 px-4 py-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase md:grid">
+            <span>Class</span>
+            <span>Schedule</span>
+            <span>Coach</span>
+            <span className="sr-only">Action</span>
+          </div>
+          <ul className="divide-y divide-border/60">
+            {classes.map((cls) => (
+              <li key={cls.id}>
+                <Link
+                  href={`/admin/classes/${cls.id}`}
+                  className={`grid gap-2 px-4 py-4 transition-colors hover:bg-muted/40 md:grid-cols-[1.5fr_1.2fr_1fr_auto] md:items-center md:gap-4 ${
+                    cls.is_active ? "" : "opacity-70"
+                  }`}
                 >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-base">{cls.name}</CardTitle>
-                        <CardDescription>
-                          {DAY_OF_WEEK_LABELS[cls.day_of_week]} ·{" "}
-                          {formatSessionTime(cls.start_time)} –{" "}
-                          {formatSessionTime(cls.end_time)}
-                        </CardDescription>
-                      </div>
-                      <ChevronRight className="mt-1 size-5 shrink-0 text-muted-foreground" />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex flex-wrap gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{cls.name}</p>
+                    {!cls.is_active ? (
+                      <Badge variant="secondary" className="mt-1">
+                        Inactive
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {DAY_OF_WEEK_LABELS[cls.day_of_week]} ·{" "}
+                    {formatSessionTime(cls.start_time)} –{" "}
+                    {formatSessionTime(cls.end_time)}
+                  </p>
+                  <div>
                     {cls.coach ? (
                       <Badge variant="secondary">{cls.coach.full_name}</Badge>
                     ) : (
                       <Badge variant="outline">No coach</Badge>
                     )}
-                    {!cls.is_active ? (
-                      <Badge variant="secondary">Inactive</Badge>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                  </div>
+                  <ChevronRight className="hidden size-4 text-muted-foreground md:block" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
