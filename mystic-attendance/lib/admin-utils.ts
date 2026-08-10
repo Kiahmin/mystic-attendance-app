@@ -33,6 +33,17 @@ export function isMinorDob(dateOfBirth: string | null | undefined): boolean {
   return todayUtc < cutoff;
 }
 
+/** Age in whole years from YYYY-MM-DD DOB as of today (Singapore), or null. */
+export function ageFromDob(dateOfBirth: string | null | undefined): number | null {
+  if (!dateOfBirth) return null;
+  const today = todayInSingapore();
+  const [y, m, d] = dateOfBirth.split("-").map(Number);
+  const [ty, tm, td] = today.split("-").map(Number);
+  let age = ty - y;
+  if (tm < m || (tm === m && td < d)) age -= 1;
+  return age >= 0 ? age : null;
+}
+
 export function normalizeTime(value: string): string {
   const trimmed = value.trim();
   // Accept HH:MM or HH:MM:SS

@@ -1,4 +1,5 @@
-import { AppHeader } from "@/components/layout/app-header";
+import { AdminShell } from "@/components/layout/admin-shell";
+import { CoachShell } from "@/components/layout/coach-shell";
 import { requireProfile } from "@/lib/auth/profile";
 
 export default async function AppLayout({
@@ -8,12 +9,9 @@ export default async function AppLayout({
 }) {
   const profile = await requireProfile();
 
-  return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <AppHeader profile={profile} />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
-        {children}
-      </main>
-    </div>
-  );
+  if (profile.role === "admin") {
+    return <AdminShell profile={profile}>{children}</AdminShell>;
+  }
+
+  return <CoachShell profile={profile}>{children}</CoachShell>;
 }

@@ -93,7 +93,7 @@ export function EnrolmentManager({
             return (
               <li
                 key={enrolment.id}
-                className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card px-3 py-3"
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium">{cls.name}</p>
