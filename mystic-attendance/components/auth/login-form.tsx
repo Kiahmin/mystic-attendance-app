@@ -82,9 +82,14 @@ export function LoginForm({ initialError = null }: LoginFormProps) {
   }
 
   return (
-    <Card className="w-full max-w-md border-border/60 shadow-sm">
-      <CardHeader className="space-y-1 text-center">
-        <CardTitle className="text-2xl">Mystic Skates</CardTitle>
+    <Card className="w-full max-w-md rounded-xl border-border/60 shadow-[0_8px_30px_rgba(26,27,34,0.06)]">
+      <CardHeader className="space-y-3 text-center">
+        <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+          MS
+        </div>
+        <CardTitle className="font-heading text-2xl text-primary">
+          Mystic Skates
+        </CardTitle>
         <CardDescription>Sign in to take attendance</CardDescription>
       </CardHeader>
       <CardContent>
@@ -104,6 +109,7 @@ export function LoginForm({ initialError = null }: LoginFormProps) {
               autoComplete="email"
               placeholder="coach@mystic.local"
               required
+              className="h-11"
             />
           </div>
 
@@ -115,10 +121,11 @@ export function LoginForm({ initialError = null }: LoginFormProps) {
               type="password"
               autoComplete="current-password"
               required
+              className="h-11"
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={pending}>
+          <Button type="submit" className="h-11 w-full" disabled={pending}>
             {pending ? "Signing in…" : "Sign in"}
           </Button>
         </form>

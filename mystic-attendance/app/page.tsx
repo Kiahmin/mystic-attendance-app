@@ -7,6 +7,7 @@ import {
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
   CardContent,
@@ -15,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { signOut } from "@/lib/actions/auth";
+import { cn } from "@/lib/utils";
 
 export default async function HomePage() {
   const user = await getSessionUser();
@@ -27,10 +29,10 @@ export default async function HomePage() {
 
   if (!profile || !isStaffRole(profile.role)) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-muted/30 p-6">
-        <Card className="w-full max-w-md">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
+        <Card className="w-full max-w-md rounded-xl">
           <CardHeader>
-            <CardTitle>Access denied</CardTitle>
+            <CardTitle className="font-heading">Access denied</CardTitle>
             <CardDescription>
               Only Mystic Skates staff accounts can use this app. Contact an
               admin if you need access.
@@ -42,9 +44,12 @@ export default async function HomePage() {
                 Sign out
               </Button>
             </form>
-            <Button asChild variant="link" className="h-auto p-0">
-              <Link href="/auth/login">Back to login</Link>
-            </Button>
+            <Link
+              href="/auth/login"
+              className={cn(buttonVariants({ variant: "link" }), "h-auto p-0")}
+            >
+              Back to login
+            </Link>
           </CardContent>
         </Card>
       </main>

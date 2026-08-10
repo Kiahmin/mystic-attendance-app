@@ -1,0 +1,96 @@
+import {
+  ClipboardList,
+  GraduationCap,
+  LayoutDashboard,
+  LogOut,
+  Users,
+} from "lucide-react";
+import { signOut } from "@/lib/actions/auth";
+import { isNavActive } from "@/lib/navigation";
+import type { Profile } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+interface AdminSidebarProps {
+  profile: Profile;
+  pathname: string;
+  className?: string;
+}
+
+const LINKS = [
+  {
+    href: "/admin",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    exact: true,
+  },
+  { href: "/admin/students", label: "Students", icon: Users, exact: false },
+  {
+    href: "/admin/classes",
+    label: "Classes",
+    icon: GraduationCap,
+    exact: false,
+  },
+  { href: "/coach", label: "Sessions", icon: ClipboardList, exact: false },
+] as const;
+
+export function AdminSidebar({
+  profile,
+  pathname,
+  className,
+}: AdminSidebarProps) {
+  return (
+    <aside
+      className={cn(
+        "flex h-full flex-col bg-sidebar text-sidebar-foreground",
+        className
+      )}
+    >
+      <div className="flex items-center gap-3 border-b border-sidebar-border px-4 py-5">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+          MS
+        </div>
+        <div className="min-w-0 leading-tight">
+          <p className="truncate text-sm font-semibold">Mystic Skates</p>
+          <p className="truncate text-xs text-muted-foreground">Admin Portal</p>
+        </div>
+      </div>
+
+      <nav className="flex flex-1 flex-col gap-1 p-3">
+        {LINKS.map(({ href, label, icon: Icon, exact }) => {
+          const active = isNavActive(pathname, href, exact);
+          return (
+            // Native <a> forces a layout refresh so the active state updates.
+            <a
+              key={href}
+              href={href}
+              className={cn(
+                "inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                active
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              )}
+            >
+              <Icon className="size-4 shrink-0" />
+              {label}
+            </a>
+          );
+        })}
+      </nav>
+
+      <div className="border-t border-sidebar-border p-3">
+        <p className="mb-2 truncate px-3 text-xs text-muted-foreground">
+          {profile.full_name}
+        </p>
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="inline-flex h-9 w-full items-center justify-start gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-destructive"
+          >
+            <LogOut className="size-4" />
+            Logout
+          </button>
+        </form>
+      </div>
+    </aside>
+  );
+}
