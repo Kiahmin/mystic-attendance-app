@@ -204,11 +204,37 @@ export async function getSessionCheckInList(
       const { data } = await supabase
         .from("packages")
         .select(
-          "id, student_id, total_credits, used_credits, remaining_credits, is_paid, first_lesson_date, expires_at, status"
+          `
+          id,
+          student_id,
+          total_credits,
+          used_credits,
+          remaining_credits,
+          forfeited_credits,
+          forfeited_at,
+          payment_method,
+          amount_sgd,
+          is_paid,
+          first_lesson_date,
+          expires_at,
+          paused_at,
+          pause_ends_at,
+          paused_reason,
+          resumed_at,
+          pause_used,
+          status,
+          created_at
+        `
         )
         .eq("id", chargeablePackageId)
         .single();
-      pkg = (data as Package) ?? null;
+      pkg = data
+        ? ({
+            ...(data as Package),
+            amount_sgd:
+              data.amount_sgd == null ? null : Number(data.amount_sgd),
+          } as Package)
+        : null;
     }
 
     return {
