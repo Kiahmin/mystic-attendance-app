@@ -100,16 +100,32 @@ export interface ClassDetail extends ClassWithCoach {
   enrolments: EnrolmentWithStudent[];
 }
 
+export type PaymentMethod = "cash" | "bank_transfer" | "paynow";
+
 export interface Package {
   id: string;
   student_id: string;
   total_credits: number;
   used_credits: number;
   remaining_credits: number;
+  forfeited_credits: number | null;
+  forfeited_at: string | null;
+  payment_method: PaymentMethod | null;
+  amount_sgd: number | null;
   is_paid: boolean;
   first_lesson_date: string | null;
   expires_at: string | null;
+  paused_at: string | null;
+  pause_ends_at: string | null;
+  paused_reason: string | null;
+  resumed_at: string | null;
+  pause_used: boolean;
   status: PackageStatus;
+  created_at: string;
+}
+
+export interface PackageWithStudent extends Package {
+  students: Pick<Student, "id" | "full_name" | "contact_phone">;
 }
 
 export interface Attendance {
