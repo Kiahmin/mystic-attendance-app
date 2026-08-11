@@ -3,6 +3,7 @@ import {
   GraduationCap,
   LayoutDashboard,
   LogOut,
+  Package,
   Users,
 } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
@@ -28,6 +29,12 @@ const LINKS = [
     href: "/admin/classes",
     label: "Classes",
     icon: GraduationCap,
+    exact: false,
+  },
+  {
+    href: "/admin/packages",
+    label: "Packages",
+    icon: Package,
     exact: false,
   },
   { href: "/coach", label: "Sessions", icon: ClipboardList, exact: false },
