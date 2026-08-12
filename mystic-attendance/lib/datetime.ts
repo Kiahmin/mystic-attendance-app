@@ -38,3 +38,12 @@ export function addCalendarDays(date: string, days: number): string {
 export function isOnOrBeforeDaysFromToday(date: string, days: number): boolean {
   return date <= addCalendarDays(todayInSingapore(), days);
 }
+
+/** Whole calendar days from `start` to `end` (`YYYY-MM-DD`). */
+export function calendarDaysBetween(start: string, end: string): number {
+  const [ys, ms, ds] = start.split("-").map(Number);
+  const [ye, me, de] = end.split("-").map(Number);
+  const a = Date.UTC(ys, ms - 1, ds);
+  const b = Date.UTC(ye, me - 1, de);
+  return Math.round((b - a) / (24 * 60 * 60 * 1000));
+}
