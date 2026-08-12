@@ -142,7 +142,9 @@ export interface Attendance {
 }
 
 export interface SessionWithClass extends Session {
-  classes: ClassGroup;
+  classes: ClassGroup & {
+    coach?: Pick<Profile, "id" | "full_name"> | null;
+  };
 }
 
 export interface CheckInStudent {
@@ -158,4 +160,5 @@ export interface DashboardSession {
   expectedCount: number;
   checkedInCount: number;
   packageAlerts: number;
+  coachName: string | null;
 }
