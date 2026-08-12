@@ -4,9 +4,11 @@ import { ArrowLeft, UserRound } from "lucide-react";
 import { requireRole } from "@/lib/auth/profile";
 import { ageFromDob, SKILL_LEVEL_LABELS } from "@/lib/admin-utils";
 import { listClasses } from "@/lib/queries/classes";
+import { listPackagesForStudent } from "@/lib/queries/packages";
 import { getStudentById } from "@/lib/queries/students";
 import { EnrolmentManager } from "@/components/admin/enrolment-manager";
 import { StudentForm } from "@/components/admin/student-form";
+import { StudentPackages } from "@/components/admin/student-packages";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -27,9 +29,10 @@ export default async function AdminStudentDetailPage({
   await requireRole(["admin"]);
   const { id } = await params;
 
-  const [student, classes] = await Promise.all([
+  const [student, classes, packages] = await Promise.all([
     getStudentById(id),
     listClasses({ activeOnly: true }),
+    listPackagesForStudent(id),
   ]);
 
   if (!student) notFound();
@@ -109,6 +112,18 @@ export default async function AdminStudentDetailPage({
               enrolments={student.enrolments}
               availableClasses={classes}
             />
+          </CardContent>
+        </Card>
+
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle>Packages</CardTitle>
+            <CardDescription>
+              Lesson credits, payment status, expiry, and pauses.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <StudentPackages studentId={student.id} packages={packages} />
           </CardContent>
         </Card>
 

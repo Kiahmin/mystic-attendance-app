@@ -8,7 +8,6 @@ import { getTodaySessionsForDashboard } from "@/lib/queries/sessions";
 import { SessionCard } from "@/components/coach/session-card";
 import { MetricCard } from "@/components/layout/metric-card";
 import { PageHeader } from "@/components/layout/page-header";
-import { buttonVariants } from "@/components/ui/button-variants";
 
 export default async function AdminDashboardPage() {
   await requireRole(["admin"]);
@@ -61,6 +60,17 @@ export default async function AdminDashboardPage() {
           icon={<AlertTriangle />}
         />
       </div>
+
+      {totalAlerts > 0 ? (
+        <p className="-mt-4 text-sm">
+          <a
+            href="/admin/packages"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Review packages needing attention
+          </a>
+        </p>
+      ) : null}
 
       <section className="space-y-4">
         <div className="flex items-end justify-between gap-3">
