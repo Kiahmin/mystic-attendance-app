@@ -1,13 +1,123 @@
 import { todayInSingapore } from "@/lib/datetime";
 import { createClient } from "@/lib/supabase/server";
 import { packageWarning } from "@/lib/attendance-utils";
+import { weekendDatesInCurrentWeek } from "@/lib/session-utils";
 import type {
   CheckInStudent,
   DashboardSession,
   Package,
+  Profile,
   SessionWithClass,
   Student,
 } from "@/lib/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+function asSingle<T>(value: T | T[] | null | undefined): T | null {
+  if (value == null) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+type SessionClassRow = SessionWithClass["classes"] & {
+  profiles?:
+    | Pick<Profile, "id" | "full_name">
+    | Pick<Profile, "id" | "full_name">[]
+    | null;
+};
+
+function mapSessionWithClass(
+  row: SessionWithClass & { classes: SessionClassRow }
+): { session: SessionWithClass; coachName: string | null } {
+  const coach = asSingle(row.classes.profiles);
+  return {
+    session: {
+      ...row,
+      classes: {
+        id: row.classes.id,
+        name: row.classes.name,
+        day_of_week: row.classes.day_of_week,
+        start_time: row.classes.start_time,
+        end_time: row.classes.end_time,
+        coach_id: row.classes.coach_id,
+        is_active: row.classes.is_active,
+        coach,
+      },
+    },
+    coachName: coach?.full_name ?? null,
+  };
+}
+
+async function enrichDashboardSession(
+  supabase: SupabaseClient,
+  sessionWithClass: SessionWithClass,
+  coachName: string | null
+): Promise<DashboardSession> {
+  const { count: expectedCount } = await supabase
+    .from("enrolments")
+    .select("*", { count: "exact", head: true })
+    .eq("class_id", sessionWithClass.class_id);
+
+  const { count: checkedInCount } = await supabase
+    .from("attendance")
+    .select("*", { count: "exact", head: true })
+    .eq("session_id", sessionWithClass.id)
+    .in("status", ["present", "walk_in"]);
+
+  const { data: enrolments } = await supabase
+    .from("enrolments")
+    .select("student_id")
+    .eq("class_id", sessionWithClass.class_id);
+
+  let packageAlerts = 0;
+  for (const enrolment of enrolments ?? []) {
+    const { data: packageId } = await supabase.rpc(
+      "resolve_chargeable_package",
+      {
+        p_student_id: enrolment.student_id,
+        p_session_date: sessionWithClass.session_date,
+      }
+    );
+
+    if (!packageId) {
+      packageAlerts += 1;
+      continue;
+    }
+
+    const { data: pkg } = await supabase
+      .from("packages")
+      .select("status, remaining_credits, expires_at")
+      .eq("id", packageId)
+      .single();
+
+    if (pkg && packageWarning(pkg as Package) !== "none") {
+      packageAlerts += 1;
+    }
+  }
+
+  return {
+    session: sessionWithClass,
+    expectedCount: expectedCount ?? 0,
+    checkedInCount: checkedInCount ?? 0,
+    packageAlerts,
+    coachName,
+  };
+}
+
+const DASHBOARD_SESSION_SELECT = `
+  *,
+  classes (
+    id,
+    name,
+    day_of_week,
+    start_time,
+    end_time,
+    coach_id,
+    is_active,
+    profiles!coach_id (
+      id,
+      full_name
+    )
+  )
+`;
 
 export async function getCoachSessionsForToday(coachId: string) {
   const supabase = await createClient();
@@ -43,20 +153,7 @@ export async function getTodaySessionsForDashboard(coachId?: string) {
 
   let query = supabase
     .from("sessions")
-    .select(
-      `
-        *,
-        classes (
-          id,
-          name,
-          day_of_week,
-          start_time,
-          end_time,
-          coach_id,
-          is_active
-        )
-      `
-    )
+    .select(DASHBOARD_SESSION_SELECT)
     .eq("session_date", today);
 
   if (coachId) {
@@ -67,63 +164,48 @@ export async function getTodaySessionsForDashboard(coachId?: string) {
   if (error) throw error;
 
   const results: DashboardSession[] = [];
-
   for (const session of sessions ?? []) {
-    const sessionWithClass = session as SessionWithClass;
-
-    const { count: expectedCount } = await supabase
-      .from("enrolments")
-      .select("*", { count: "exact", head: true })
-      .eq("class_id", sessionWithClass.class_id);
-
-    const { count: checkedInCount } = await supabase
-      .from("attendance")
-      .select("*", { count: "exact", head: true })
-      .eq("session_id", sessionWithClass.id)
-      .in("status", ["present", "walk_in"]);
-
-    const { data: enrolments } = await supabase
-      .from("enrolments")
-      .select("student_id")
-      .eq("class_id", sessionWithClass.class_id);
-
-    let packageAlerts = 0;
-    for (const enrolment of enrolments ?? []) {
-      const { data: packageId } = await supabase.rpc(
-        "resolve_chargeable_package",
-        {
-          p_student_id: enrolment.student_id,
-          p_session_date: sessionWithClass.session_date,
-        }
-      );
-
-      if (!packageId) {
-        packageAlerts += 1;
-        continue;
-      }
-
-      const { data: pkg } = await supabase
-        .from("packages")
-        .select("status, remaining_credits, expires_at")
-        .eq("id", packageId)
-        .single();
-
-      if (pkg && packageWarning(pkg as Package) !== "none") {
-        packageAlerts += 1;
-      }
-    }
-
-    results.push({
-      session: sessionWithClass,
-      expectedCount: expectedCount ?? 0,
-      checkedInCount: checkedInCount ?? 0,
-      packageAlerts,
-    });
+    const { session: sessionWithClass, coachName } = mapSessionWithClass(
+      session as SessionWithClass & { classes: SessionClassRow }
+    );
+    results.push(
+      await enrichDashboardSession(supabase, sessionWithClass, coachName)
+    );
   }
 
   return results.sort((a, b) =>
     a.session.classes.start_time.localeCompare(b.session.classes.start_time)
   );
+}
+
+export async function getWeekSessionsForDashboard() {
+  const supabase = await createClient();
+  const { saturday, sunday } = weekendDatesInCurrentWeek();
+
+  const { data: sessions, error } = await supabase
+    .from("sessions")
+    .select(DASHBOARD_SESSION_SELECT)
+    .in("session_date", [saturday, sunday]);
+
+  if (error) throw error;
+
+  const results: DashboardSession[] = [];
+  for (const session of sessions ?? []) {
+    const { session: sessionWithClass, coachName } = mapSessionWithClass(
+      session as SessionWithClass & { classes: SessionClassRow }
+    );
+    results.push(
+      await enrichDashboardSession(supabase, sessionWithClass, coachName)
+    );
+  }
+
+  return results.sort((a, b) => {
+    const byDate = a.session.session_date.localeCompare(b.session.session_date);
+    if (byDate !== 0) return byDate;
+    return a.session.classes.start_time.localeCompare(
+      b.session.classes.start_time
+    );
+  });
 }
 
 export async function getSessionCheckInList(

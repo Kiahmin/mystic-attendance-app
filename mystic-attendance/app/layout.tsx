@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Montserrat } from "next/font/google";
-import { DevServiceWorkerCleanup } from "@/components/dev-service-worker-cleanup";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -56,9 +55,6 @@ export default function RootLayout({
       className={`${montserrat.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
-        {process.env.NODE_ENV === "development" ? (
-          <DevServiceWorkerCleanup />
-        ) : null}
         {children}
       </body>
     </html>
