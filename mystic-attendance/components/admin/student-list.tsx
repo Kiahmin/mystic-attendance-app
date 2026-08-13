@@ -58,7 +58,7 @@ export function StudentList({ students, initialSearch = "" }: StudentListProps) 
           <DialogTrigger asChild>
             <Button className="h-11">
               <Plus className="size-4" />
-              Add Skater
+              Add Student
             </Button>
           </DialogTrigger>
           <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl" showCloseButton>
