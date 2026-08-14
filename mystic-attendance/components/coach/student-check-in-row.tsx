@@ -92,8 +92,6 @@ export function StudentCheckInRow({
               </p>
               {entry.isWalkIn ? (
                 <Badge variant="warning">Walk-in</Badge>
-              ) : entry.rosterSource === "include" ? (
-                <Badge variant="warning">One-off</Badge>
               ) : null}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
