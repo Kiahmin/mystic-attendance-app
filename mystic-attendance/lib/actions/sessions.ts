@@ -10,13 +10,15 @@ import {
 } from "@/lib/session-utils";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { revalidateSessionAttendance } from "@/lib/revalidate-session";
 
 function revalidateSessionPaths(sessionId?: string) {
+  if (sessionId) {
+    revalidateSessionAttendance(sessionId);
+    return;
+  }
   revalidatePath("/admin");
   revalidatePath("/coach");
-  if (sessionId) {
-    revalidatePath(`/coach/sessions/${sessionId}`);
-  }
 }
 
 async function generateSessionsForDate(
