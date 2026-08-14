@@ -6,12 +6,10 @@ import type { SessionRosterStudent } from "@/lib/session-roster";
 import { searchStudents } from "@/lib/queries/sessions";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { revalidatePath } from "next/cache";
+import { revalidateSessionAttendance } from "@/lib/revalidate-session";
 
 function revalidateAttendeePaths(sessionId: string) {
-  revalidatePath("/admin");
-  revalidatePath("/coach");
-  revalidatePath(`/coach/sessions/${sessionId}`);
+  revalidateSessionAttendance(sessionId);
 }
 
 type SessionRow = {
