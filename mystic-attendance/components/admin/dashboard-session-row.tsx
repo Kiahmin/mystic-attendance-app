@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Ban, ChevronRight, ClipboardCheck } from "lucide-react";
+import { Ban, ChevronRight, ClipboardCheck, Users } from "lucide-react";
 import type { DashboardSession } from "@/lib/types";
 import {
   CANCELLATION_REASON_LABELS,
@@ -15,6 +15,7 @@ import {
   type SessionScheduleStatus,
 } from "@/lib/session-utils";
 import { CancelSessionDialog } from "@/components/admin/cancel-session-dialog";
+import { SessionAttendeesDialog } from "@/components/admin/session-attendees-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,7 @@ function statusBadgeVariant(
 
 export function DashboardSessionRow({ item }: DashboardSessionRowProps) {
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [attendeesOpen, setAttendeesOpen] = useState(false);
   const { session, expectedCount, checkedInCount, packageAlerts, coachName } =
     item;
   const classGroup = session.classes;
@@ -149,6 +151,18 @@ export function DashboardSessionRow({ item }: DashboardSessionRowProps) {
               type="button"
               variant="ghost"
               size="icon-sm"
+              title="Edit attendees"
+              onClick={() => setAttendeesOpen(true)}
+            >
+              <Users className="size-4" />
+              <span className="sr-only">Edit attendees</span>
+            </Button>
+          ) : null}
+          {!session.cancelled ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
               title="Cancel session"
               onClick={() => setCancelOpen(true)}
             >
@@ -166,6 +180,13 @@ export function DashboardSessionRow({ item }: DashboardSessionRowProps) {
           </Link>
         </div>
       </div>
+
+      <SessionAttendeesDialog
+        sessionId={session.id}
+        className={classGroup.name}
+        open={attendeesOpen}
+        onOpenChange={setAttendeesOpen}
+      />
 
       <CancelSessionDialog
         sessionId={session.id}
