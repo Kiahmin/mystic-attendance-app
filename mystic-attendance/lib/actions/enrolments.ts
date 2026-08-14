@@ -1,6 +1,7 @@
 "use server";
 
 import { requireRole } from "@/lib/auth/profile";
+import { searchStudents } from "@/lib/queries/sessions";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
@@ -57,4 +58,9 @@ export async function unenrolStudent(studentId: string, classId: string) {
 
   revalidateEnrolmentPaths(studentId, classId);
   return { success: true as const };
+}
+
+export async function searchStudentsForEnrolment(query: string) {
+  await requireRole(["admin"]);
+  return searchStudents(query);
 }
