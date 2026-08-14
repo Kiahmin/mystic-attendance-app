@@ -1,6 +1,7 @@
 "use server";
 
 import { requireRole } from "@/lib/auth/profile";
+import { loadEffectiveSessionRoster } from "@/lib/session-roster";
 import {
   CANCELLATION_REASONS,
   dayOfWeekForDate,
@@ -147,19 +148,23 @@ export async function cancelSession(
     return { error: updateError.message };
   }
 
-  const { data: enrolments, error: enrolmentError } = await supabase
-    .from("enrolments")
-    .select("student_id")
-    .eq("class_id", session.class_id);
-
-  if (enrolmentError) {
-    return { error: enrolmentError.message };
+  let roster;
+  try {
+    roster = await loadEffectiveSessionRoster(
+      supabase,
+      sessionId,
+      session.class_id as string
+    );
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Failed to load roster.",
+    };
   }
 
-  if (enrolments?.length) {
-    const rows = enrolments.map((row) => ({
+  if (roster.length) {
+    const rows = roster.map((entry) => ({
       session_id: sessionId,
-      student_id: row.student_id as string,
+      student_id: entry.studentId,
       status: "session_cancelled" as const,
       deduct_credit: false,
       marked_by: profile.id,
