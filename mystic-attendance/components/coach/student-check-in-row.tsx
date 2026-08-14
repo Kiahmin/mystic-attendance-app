@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useTransition } from "react";
-import { Check, UserRound, UserX, X } from "lucide-react";
+import { Check, UserMinus, UserRound, UserX, X } from "lucide-react";
 import type { AttendanceStatus, CheckInStudent } from "@/lib/types";
 import {
   ATTENDANCE_STATUS_LABELS,
@@ -17,6 +17,8 @@ interface StudentCheckInRowProps {
   sessionId: string;
   entry: CheckInStudent;
   disabled?: boolean;
+  onRemoveFromSession?: (studentId: string) => void;
+  removePending?: boolean;
 }
 
 const STATUS_BUTTONS: {
@@ -53,6 +55,8 @@ export function StudentCheckInRow({
   sessionId,
   entry,
   disabled,
+  onRemoveFromSession,
+  removePending,
 }: StudentCheckInRowProps) {
   const [pending, startTransition] = useTransition();
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(
@@ -88,6 +92,8 @@ export function StudentCheckInRow({
               </p>
               {entry.isWalkIn ? (
                 <Badge variant="warning">Walk-in</Badge>
+              ) : entry.rosterSource === "include" ? (
+                <Badge variant="warning">One-off</Badge>
               ) : null}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -106,19 +112,38 @@ export function StudentCheckInRow({
           </div>
         </div>
 
-        {optimisticStatus ? (
-          <Badge
-            variant={
-              optimisticStatus === "present"
-                ? "success"
-                : optimisticStatus === "no_show"
-                  ? "destructive"
-                  : "secondary"
-            }
-          >
-            {ATTENDANCE_STATUS_LABELS[optimisticStatus]}
-          </Badge>
-        ) : null}
+        <div className="flex shrink-0 items-start gap-2">
+          {optimisticStatus ? (
+            <Badge
+              variant={
+                optimisticStatus === "present"
+                  ? "success"
+                  : optimisticStatus === "no_show"
+                    ? "destructive"
+                    : "secondary"
+              }
+            >
+              {ATTENDANCE_STATUS_LABELS[optimisticStatus]}
+            </Badge>
+          ) : null}
+          {onRemoveFromSession && !entry.isWalkIn ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title={
+                entry.rosterSource === "include"
+                  ? "Remove one-off attendee"
+                  : "Exclude from this session"
+              }
+              disabled={disabled || removePending}
+              onClick={() => onRemoveFromSession(entry.student.id)}
+            >
+              <UserMinus className="size-4" />
+              <span className="sr-only">Remove from session</span>
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {warning !== "none" ? (

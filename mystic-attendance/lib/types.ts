@@ -147,12 +147,16 @@ export interface SessionWithClass extends Session {
   };
 }
 
+export type CheckInRosterSource = "enrolled" | "include";
+
 export interface CheckInStudent {
   student: Student;
   attendance: Attendance | null;
   package: Package | null;
   chargeablePackageId: string | null;
   isWalkIn: boolean;
+  /** Present for expected roster rows; null for walk-ins. */
+  rosterSource: CheckInRosterSource | null;
 }
 
 export interface DashboardSession {

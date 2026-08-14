@@ -1,6 +1,7 @@
 import { todayInSingapore } from "@/lib/datetime";
 import { createClient } from "@/lib/supabase/server";
 import { packageWarning } from "@/lib/attendance-utils";
+import { loadEffectiveSessionRoster } from "@/lib/session-roster";
 import { weekendDatesInCurrentWeek } from "@/lib/session-utils";
 import type {
   CheckInStudent,
@@ -51,10 +52,11 @@ async function enrichDashboardSession(
   sessionWithClass: SessionWithClass,
   coachName: string | null
 ): Promise<DashboardSession> {
-  const { count: expectedCount } = await supabase
-    .from("enrolments")
-    .select("*", { count: "exact", head: true })
-    .eq("class_id", sessionWithClass.class_id);
+  const roster = await loadEffectiveSessionRoster(
+    supabase,
+    sessionWithClass.id,
+    sessionWithClass.class_id
+  );
 
   const { count: checkedInCount } = await supabase
     .from("attendance")
@@ -62,17 +64,12 @@ async function enrichDashboardSession(
     .eq("session_id", sessionWithClass.id)
     .in("status", ["present", "walk_in"]);
 
-  const { data: enrolments } = await supabase
-    .from("enrolments")
-    .select("student_id")
-    .eq("class_id", sessionWithClass.class_id);
-
   let packageAlerts = 0;
-  for (const enrolment of enrolments ?? []) {
+  for (const entry of roster) {
     const { data: packageId } = await supabase.rpc(
       "resolve_chargeable_package",
       {
-        p_student_id: enrolment.student_id,
+        p_student_id: entry.studentId,
         p_session_date: sessionWithClass.session_date,
       }
     );
@@ -95,7 +92,7 @@ async function enrichDashboardSession(
 
   return {
     session: sessionWithClass,
-    expectedCount: expectedCount ?? 0,
+    expectedCount: roster.length,
     checkedInCount: checkedInCount ?? 0,
     packageAlerts,
     coachName,
@@ -242,21 +239,12 @@ export async function getSessionCheckInList(
 
   const sessionWithClass = session as SessionWithClass;
 
-  const { data: enrolments, error: enrolmentError } = await supabase
-    .from("enrolments")
-    .select(
-      `
-        student_id,
-        students (*)
-      `
-    )
-    .eq("class_id", sessionWithClass.class_id);
-
-  if (enrolmentError) throw enrolmentError;
-
-  const enrolledStudentIds = new Set(
-    (enrolments ?? []).map((row) => row.student_id as string)
+  const roster = await loadEffectiveSessionRoster(
+    supabase,
+    sessionId,
+    sessionWithClass.class_id
   );
+  const expectedStudentIds = new Set(roster.map((entry) => entry.studentId));
 
   const { data: attendanceRows, error: attendanceError } = await supabase
     .from("attendance")
@@ -271,7 +259,8 @@ export async function getSessionCheckInList(
 
   async function buildCheckIn(
     student: Student,
-    isWalkIn: boolean
+    isWalkIn: boolean,
+    rosterSource: CheckInStudent["rosterSource"] = null
   ): Promise<CheckInStudent> {
     const { data: chargeablePackageId } = await supabase.rpc(
       "resolve_chargeable_package",
@@ -325,23 +314,43 @@ export async function getSessionCheckInList(
       package: pkg,
       chargeablePackageId: (chargeablePackageId as string | null) ?? null,
       isWalkIn,
+      rosterSource,
     };
   }
 
-  const enrolledStudents: CheckInStudent[] = [];
-  for (const row of enrolments ?? []) {
-    const student = row.students as unknown as Student;
-    enrolledStudents.push(await buildCheckIn(student, false));
-  }
+  const expectedStudents: CheckInStudent[] = [];
+  if (roster.length > 0) {
+    const { data: students, error: studentsError } = await supabase
+      .from("students")
+      .select("*")
+      .in(
+        "id",
+        roster.map((entry) => entry.studentId)
+      );
 
-  enrolledStudents.sort((a, b) =>
-    a.student.full_name.localeCompare(b.student.full_name)
-  );
+    if (studentsError) throw studentsError;
+
+    const byId = new Map(
+      (students ?? []).map((row) => [row.id as string, row as Student])
+    );
+
+    for (const entry of roster) {
+      const student = byId.get(entry.studentId);
+      if (!student) continue;
+      expectedStudents.push(
+        await buildCheckIn(student, false, entry.source)
+      );
+    }
+
+    expectedStudents.sort((a, b) =>
+      a.student.full_name.localeCompare(b.student.full_name)
+    );
+  }
 
   const walkIns: CheckInStudent[] = [];
   for (const row of attendanceRows ?? []) {
     if (row.status !== "walk_in") continue;
-    if (enrolledStudentIds.has(row.student_id as string)) continue;
+    if (expectedStudentIds.has(row.student_id as string)) continue;
 
     const { data: student } = await supabase
       .from("students")
@@ -350,13 +359,13 @@ export async function getSessionCheckInList(
       .single();
 
     if (student) {
-      walkIns.push(await buildCheckIn(student as Student, true));
+      walkIns.push(await buildCheckIn(student as Student, true, null));
     }
   }
 
   return {
     session: sessionWithClass,
-    students: enrolledStudents,
+    students: expectedStudents,
     walkIns,
   };
 }
