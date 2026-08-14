@@ -37,7 +37,14 @@ const LINKS = [
     icon: Package,
     exact: false,
   },
-  { href: "/coach", label: "Sessions", icon: ClipboardList, exact: false },
+  {
+    href: "/coach",
+    label: "Sessions",
+    icon: ClipboardList,
+    exact: false,
+    /** Also highlight when viewing attendance under /admin/sessions. */
+    matchPrefixes: ["/admin/sessions"] as const,
+  },
 ] as const;
 
 export function AdminSidebar({
@@ -63,8 +70,18 @@ export function AdminSidebar({
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 p-3">
-        {LINKS.map(({ href, label, icon: Icon, exact }) => {
-          const active = isNavActive(pathname, href, exact);
+        {LINKS.map((link) => {
+          const { href, label, icon: Icon, exact } = link;
+          const matchPrefixes =
+            "matchPrefixes" in link ? link.matchPrefixes : undefined;
+          const active =
+            isNavActive(pathname, href, exact) ||
+            Boolean(
+              matchPrefixes?.some(
+                (prefix) =>
+                  pathname === prefix || pathname.startsWith(`${prefix}/`)
+              )
+            );
           return (
             // Native <a> forces a layout refresh so the active state updates.
             <a

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { defaultDeductCredit } from "@/lib/attendance-utils";
 import { requireProfile } from "@/lib/auth/profile";
 import type { AttendanceStatus, WalkInStatus } from "@/lib/types";
-import { revalidatePath } from "next/cache";
+import { revalidateSessionAttendance } from "@/lib/revalidate-session";
 
 async function resolveChargeablePackage(
   studentId: string,
@@ -70,9 +70,7 @@ export async function markAttendance(
     return { error: error.message };
   }
 
-  revalidatePath(`/coach/sessions/${sessionId}`);
-  revalidatePath("/coach");
-  revalidatePath("/admin");
+  revalidateSessionAttendance(sessionId);
   return { success: true };
 }
 
@@ -123,8 +121,7 @@ export async function markWalkIn(
     return { error: error.message };
   }
 
-  revalidatePath(`/coach/sessions/${sessionId}`);
-  revalidatePath("/coach");
+  revalidateSessionAttendance(sessionId);
   return { success: true };
 }
 
@@ -142,7 +139,6 @@ export async function clearAttendance(sessionId: string, studentId: string) {
     return { error: error.message };
   }
 
-  revalidatePath(`/coach/sessions/${sessionId}`);
-  revalidatePath("/coach");
+  revalidateSessionAttendance(sessionId);
   return { success: true };
 }
