@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Search, UserPlus } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Search, UserPlus, Users } from "lucide-react";
 import type { CheckInStudent } from "@/lib/types";
+import {
+  excludeStudentFromSession,
+  includeStudentInSession,
+  searchStudentsForSessionAttendees,
+} from "@/lib/actions/session-attendees";
 import { markWalkIn, searchStudentsForWalkIn } from "@/lib/actions/walk-in";
 import { StudentCheckInRow } from "@/components/coach/student-check-in-row";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -27,23 +33,34 @@ interface AttendancePanelProps {
   walkIns: CheckInStudent[];
 }
 
+type SearchHit = {
+  id: string;
+  full_name: string;
+  skill_level: string | null;
+};
+
 export function AttendancePanel({
   sessionId,
   cancelled,
   enrolledStudents,
   walkIns,
 }: AttendancePanelProps) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<
-    { id: string; full_name: string; skill_level: string | null }[]
-  >([]);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
-    null
-  );
-  const [declineReason, setDeclineReason] = useState("");
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  const [walkInOpen, setWalkInOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [walkInQuery, setWalkInQuery] = useState("");
+  const [walkInResults, setWalkInResults] = useState<SearchHit[]>([]);
+  const [selectedWalkInId, setSelectedWalkInId] = useState<string | null>(null);
+  const [declineReason, setDeclineReason] = useState("");
+
+  const [addQuery, setAddQuery] = useState("");
+  const [addResults, setAddResults] = useState<SearchHit[]>([]);
+  const [addSearching, setAddSearching] = useState(false);
+  const addSearchSeq = useRef(0);
 
   const checkedInCount = enrolledStudents.filter(
     (entry) =>
@@ -51,27 +68,70 @@ export function AttendancePanel({
       entry.attendance?.status === "walk_in"
   ).length;
 
-  async function handleSearch(value: string) {
-    setQuery(value);
-    setSelectedStudentId(null);
-    if (value.trim().length < 2) {
-      setResults([]);
+  const trimmedAddQuery = addQuery.trim();
+
+  useEffect(() => {
+    if (!addOpen) return;
+
+    if (!trimmedAddQuery) {
+      setAddResults([]);
+      setAddSearching(false);
       return;
     }
-    const students = await searchStudentsForWalkIn(value);
-    setResults(students);
-  }
 
-  function resetDialog() {
-    setQuery("");
-    setResults([]);
-    setSelectedStudentId(null);
+    const onRosterIds = new Set(enrolledStudents.map((e) => e.student.id));
+    const seq = ++addSearchSeq.current;
+    setAddSearching(true);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const students = await searchStudentsForSessionAttendees(
+            trimmedAddQuery
+          );
+          if (seq !== addSearchSeq.current) return;
+          setAddResults(students.filter((s) => !onRosterIds.has(s.id)));
+        } catch {
+          if (seq !== addSearchSeq.current) return;
+          setAddResults([]);
+        } finally {
+          if (seq === addSearchSeq.current) setAddSearching(false);
+        }
+      })();
+    }, 200);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [trimmedAddQuery, addOpen, enrolledStudents]);
+
+  function resetWalkInDialog() {
+    setWalkInQuery("");
+    setWalkInResults([]);
+    setSelectedWalkInId(null);
     setDeclineReason("");
     setError(null);
   }
 
+  function resetAddDialog() {
+    addSearchSeq.current += 1;
+    setAddQuery("");
+    setAddResults([]);
+    setAddSearching(false);
+    setError(null);
+  }
+
+  async function handleWalkInSearch(value: string) {
+    setWalkInQuery(value);
+    setSelectedWalkInId(null);
+    if (value.trim().length < 2) {
+      setWalkInResults([]);
+      return;
+    }
+    setWalkInResults(await searchStudentsForWalkIn(value));
+  }
+
   function handleWalkIn(walkInStatus: "admitted" | "declined") {
-    if (!selectedStudentId) {
+    if (!selectedWalkInId) {
       setError("Select a student first.");
       return;
     }
@@ -79,7 +139,7 @@ export function AttendancePanel({
     startTransition(async () => {
       const result = await markWalkIn(
         sessionId,
-        selectedStudentId,
+        selectedWalkInId,
         walkInStatus,
         declineReason
       );
@@ -87,8 +147,35 @@ export function AttendancePanel({
         setError(result.error);
         return;
       }
-      setOpen(false);
-      resetDialog();
+      setWalkInOpen(false);
+      resetWalkInDialog();
+      router.refresh();
+    });
+  }
+
+  function handleAddToRoster(studentId: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await includeStudentInSession(sessionId, studentId);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setAddOpen(false);
+      resetAddDialog();
+      router.refresh();
+    });
+  }
+
+  function handleRemoveFromRoster(studentId: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await excludeStudentFromSession(sessionId, studentId);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
     });
   }
 
@@ -102,10 +189,16 @@ export function AttendancePanel({
         </Alert>
       ) : null}
 
+      {error && !walkInOpen && !addOpen ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl bg-muted px-4 py-3">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Enrolled
+            Expected
           </p>
           <p className="font-heading text-2xl font-semibold">
             {enrolledStudents.length}
@@ -120,112 +213,201 @@ export function AttendancePanel({
       </div>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-heading text-xl font-semibold">Roster</h2>
-          <Dialog
-            open={open}
-            onOpenChange={(next) => {
-              setOpen(next);
-              if (!next) resetDialog();
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" disabled={cancelled}>
-                <UserPlus className="size-4" />
-                Walk-in
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Record walk-in</DialogTitle>
-                <DialogDescription>
-                  Search for an existing student profile, then admit or decline
-                  them.
-                </DialogDescription>
-              </DialogHeader>
+          <div className="flex flex-wrap items-center gap-2">
+            <Dialog
+              open={addOpen}
+              onOpenChange={(next) => {
+                setAddOpen(next);
+                if (!next) resetAddDialog();
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" disabled={cancelled}>
+                  <Users className="size-4" />
+                  Add student
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add to this session</DialogTitle>
+                  <DialogDescription>
+                    One-off for this session only. Class enrolments are
+                    unchanged.
+                  </DialogDescription>
+                </DialogHeader>
 
-              <div className="space-y-4">
-                {error ? (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                ) : null}
+                <div className="space-y-4">
+                  {error ? (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  ) : null}
 
-                <div className="space-y-2">
-                  <Label htmlFor="walk-in-search">Student name</Label>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="walk-in-search"
-                      value={query}
-                      onChange={(event) => handleSearch(event.target.value)}
-                      placeholder="Search & add walk-in…"
-                      className="pl-9"
+                  <div className="space-y-2">
+                    <Label htmlFor="add-roster-search">Student name</Label>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="add-roster-search"
+                        value={addQuery}
+                        onChange={(event) => setAddQuery(event.target.value)}
+                        placeholder="Type to search students…"
+                        className="pl-9"
+                        disabled={pending}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  {addSearching ? (
+                    <p className="text-sm text-muted-foreground">Searching…</p>
+                  ) : trimmedAddQuery && addResults.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No matching students.
+                    </p>
+                  ) : addResults.length > 0 ? (
+                    <ul className="max-h-48 space-y-2 overflow-y-auto rounded-lg border p-2">
+                      {addResults.map((student) => (
+                        <li
+                          key={student.id}
+                          className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">
+                              {student.full_name}
+                            </p>
+                            {student.skill_level ? (
+                              <p className="text-xs text-muted-foreground capitalize">
+                                {student.skill_level}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={pending}
+                            onClick={() => handleAddToRoster(student.id)}
+                          >
+                            <UserPlus className="size-4" />
+                            Add
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog
+              open={walkInOpen}
+              onOpenChange={(next) => {
+                setWalkInOpen(next);
+                if (!next) resetWalkInDialog();
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" disabled={cancelled}>
+                  <UserPlus className="size-4" />
+                  Walk-in
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Record walk-in</DialogTitle>
+                  <DialogDescription>
+                    Search for an existing student profile, then admit or
+                    decline them.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  {error ? (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="walk-in-search">Student name</Label>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="walk-in-search"
+                        value={walkInQuery}
+                        onChange={(event) =>
+                          void handleWalkInSearch(event.target.value)
+                        }
+                        placeholder="Search & add walk-in…"
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+
+                  {walkInResults.length > 0 ? (
+                    <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border p-2">
+                      {walkInResults.map((student) => (
+                        <button
+                          key={student.id}
+                          type="button"
+                          onClick={() => setSelectedWalkInId(student.id)}
+                          className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                            selectedWalkInId === student.id
+                              ? "bg-primary text-primary-foreground"
+                              : "hover:bg-muted"
+                          }`}
+                        >
+                          <span>{student.full_name}</span>
+                          {student.skill_level ? (
+                            <span className="text-xs capitalize opacity-80">
+                              {student.skill_level}
+                            </span>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="decline-reason">
+                      Decline reason (required if declining)
+                    </Label>
+                    <Textarea
+                      id="decline-reason"
+                      value={declineReason}
+                      onChange={(event) => setDeclineReason(event.target.value)}
+                      placeholder="e.g. Class at safety ratio limit"
                     />
                   </div>
                 </div>
 
-                {results.length > 0 ? (
-                  <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border p-2">
-                    {results.map((student) => (
-                      <button
-                        key={student.id}
-                        type="button"
-                        onClick={() => setSelectedStudentId(student.id)}
-                        className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                          selectedStudentId === student.id
-                            ? "bg-primary text-primary-foreground"
-                            : "hover:bg-muted"
-                        }`}
-                      >
-                        <span>{student.full_name}</span>
-                        {student.skill_level ? (
-                          <span className="text-xs capitalize opacity-80">
-                            {student.skill_level}
-                          </span>
-                        ) : null}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-
-                <div className="space-y-2">
-                  <Label htmlFor="decline-reason">
-                    Decline reason (required if declining)
-                  </Label>
-                  <Textarea
-                    id="decline-reason"
-                    value={declineReason}
-                    onChange={(event) => setDeclineReason(event.target.value)}
-                    placeholder="e.g. Class at safety ratio limit"
-                  />
-                </div>
-              </div>
-
-              <DialogFooter className="gap-2 sm:gap-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() => handleWalkIn("declined")}
-                >
-                  Decline
-                </Button>
-                <Button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => handleWalkIn("admitted")}
-                >
-                  Admit
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => handleWalkIn("declined")}
+                  >
+                    Decline
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => handleWalkIn("admitted")}
+                  >
+                    Admit
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {enrolledStudents.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No students enrolled in this class.
+            No expected students for this session.
           </p>
         ) : (
           enrolledStudents.map((entry) => (
@@ -234,6 +416,10 @@ export function AttendancePanel({
               sessionId={sessionId}
               entry={entry}
               disabled={cancelled}
+              onRemoveFromSession={
+                cancelled ? undefined : handleRemoveFromRoster
+              }
+              removePending={pending}
             />
           ))
         )}
