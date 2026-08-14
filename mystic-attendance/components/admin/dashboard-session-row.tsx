@@ -45,7 +45,7 @@ export function DashboardSessionRow({ item }: DashboardSessionRowProps) {
   const { session, expectedCount, checkedInCount, packageAlerts, coachName } =
     item;
   const classGroup = session.classes;
-  const href = `/coach/sessions/${session.id}`;
+  const href = `/admin/sessions/${session.id}`;
   const status = getSessionScheduleStatus(session);
   const expected = expectedCount;
   const checkedIn = checkedInCount;
