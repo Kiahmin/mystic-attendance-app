@@ -63,7 +63,7 @@ export default async function CoachHomePage() {
             <SessionCard
               key={item.session.id}
               session={item.session}
-              href={`/coach/sessions/${item.session.id}`}
+              href={`/admin/sessions/${item.session.id}`}
               expectedCount={item.expectedCount}
               checkedInCount={item.checkedInCount}
               packageAlerts={item.packageAlerts}
