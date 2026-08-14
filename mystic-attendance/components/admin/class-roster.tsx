@@ -10,12 +10,9 @@ import {
 } from "@/lib/actions/enrolments";
 import type { EnrolmentWithStudent } from "@/lib/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SKILL_LEVEL_LABELS } from "@/lib/admin-utils";
-import type { SkillLevel } from "@/lib/types";
 import Link from "next/link";
 
 type ClassRosterProps = {
@@ -171,25 +168,6 @@ export function ClassRoster({ classId, enrolments }: ClassRosterProps) {
                   >
                     {student.full_name}
                   </Link>
-                  <div className="mt-1 flex flex-wrap gap-1.5">
-                    {student.skill_level ? (
-                      <Badge variant="secondary">
-                        {
-                          SKILL_LEVEL_LABELS[
-                            student.skill_level as SkillLevel
-                          ]
-                        }
-                      </Badge>
-                    ) : null}
-                    {student.is_minor ? (
-                      <Badge
-                        variant="outline"
-                        className="border-amber-500 text-amber-700"
-                      >
-                        Minor
-                      </Badge>
-                    ) : null}
-                  </div>
                 </div>
                 <Button
                   type="button"
