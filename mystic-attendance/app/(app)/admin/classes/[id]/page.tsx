@@ -56,10 +56,7 @@ export default async function AdminClassDetailPage({
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Class details</CardTitle>
-            <CardDescription>
-              Name, day, time, and assigned coach.
-            </CardDescription>
+            <CardTitle>Details</CardTitle>
           </CardHeader>
           <CardContent>
             <ClassForm classGroup={classDetail} coaches={coaches} />
@@ -68,11 +65,10 @@ export default async function AdminClassDetailPage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Roster</CardTitle>
+            <CardTitle>Students</CardTitle>
             <CardDescription>
               {classDetail.enrolments.length} enrolled student
-              {classDetail.enrolments.length === 1 ? "" : "s"}. Enrol more from
-              a student&apos;s profile.
+              {classDetail.enrolments.length === 1 ? "" : "s"}.
             </CardDescription>
           </CardHeader>
           <CardContent>
