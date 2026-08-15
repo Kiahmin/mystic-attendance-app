@@ -106,7 +106,7 @@ export function PausePackageForm({ pkg }: PausePackageFormProps) {
           <div className="text-left sm:text-right">
             <div className="mb-1 flex flex-wrap items-center gap-2 sm:justify-end">
               <span className="rounded-md bg-muted px-2 py-1 text-xs font-semibold">
-                {packageLabel(pkg.total_credits)}
+                {packageLabel(pkg.total_credits, pkg.package_products)}
               </span>
               <PackageStatusBadge status={pkg.status} />
             </div>
