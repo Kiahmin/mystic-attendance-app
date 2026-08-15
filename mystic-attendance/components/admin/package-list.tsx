@@ -151,7 +151,7 @@ export function PackageList({
                     </div>
 
                     <p className="text-sm">
-                      {packageLabel(pkg.total_credits)}
+                      {packageLabel(pkg.total_credits, pkg.package_products)}
                     </p>
 
                     <p className="text-sm">
