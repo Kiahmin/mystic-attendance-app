@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
   Card,
@@ -12,6 +13,7 @@ interface MetricCardProps {
   icon?: React.ReactNode;
   accent?: "default" | "warning" | "destructive";
   className?: string;
+  href?: string;
 }
 
 const accentClasses = {
@@ -26,9 +28,18 @@ export function MetricCard({
   icon,
   accent = "default",
   className,
+  href,
 }: MetricCardProps) {
-  return (
-    <Card className={cn("rounded-xl", accentClasses[accent], className)}>
+  const card = (
+    <Card
+      className={cn(
+        "rounded-xl",
+        accentClasses[accent],
+        href &&
+          "cursor-pointer transition-colors hover:bg-muted/40",
+        className
+      )}
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {label}
@@ -44,4 +55,17 @@ export function MetricCard({
       </CardContent>
     </Card>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        {card}
+      </Link>
+    );
+  }
+
+  return card;
 }
