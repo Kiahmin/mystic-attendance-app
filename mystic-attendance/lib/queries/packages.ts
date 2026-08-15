@@ -2,14 +2,26 @@ import { createClient } from "@/lib/supabase/server";
 import { isAtRiskPackage } from "@/lib/package-utils";
 import type {
   Package,
+  PackageProduct,
   PackageStatus,
   PackageWithStudent,
   Student,
 } from "@/lib/types";
 
+const PACKAGE_PRODUCT_COLUMNS = `
+  id,
+  product_type,
+  label,
+  total_credits,
+  amount_sgd,
+  is_active,
+  sort_order
+`;
+
 const PACKAGE_COLUMNS = `
   id,
   student_id,
+  package_product_id,
   total_credits,
   used_credits,
   remaining_credits,
@@ -26,7 +38,10 @@ const PACKAGE_COLUMNS = `
   resumed_at,
   pause_used,
   status,
-  created_at
+  created_at,
+  package_products (
+    ${PACKAGE_PRODUCT_COLUMNS}
+  )
 `;
 
 function asSingle<T>(value: T | T[] | null | undefined): T | null {
@@ -34,12 +49,67 @@ function asSingle<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-function mapPackage(row: Package): Package {
+function mapPackageProduct(
+  row: PackageProduct | null | undefined
+): PackageProduct | null {
+  if (!row) return null;
   return {
     ...row,
-    amount_sgd:
-      row.amount_sgd == null ? null : Number(row.amount_sgd),
+    amount_sgd: Number(row.amount_sgd),
   };
+}
+
+function mapPackage(row: {
+  package_product_id?: string | null;
+  amount_sgd?: number | string | null;
+  package_products?: PackageProduct | PackageProduct[] | null;
+  [key: string]: unknown;
+}): Package {
+  const product = mapPackageProduct(asSingle(row.package_products));
+  return {
+    ...(row as unknown as Package),
+    package_product_id: row.package_product_id ?? null,
+    amount_sgd:
+      row.amount_sgd == null || row.amount_sgd === ""
+        ? null
+        : Number(row.amount_sgd),
+    package_products: product,
+  };
+}
+
+export async function listPackageProducts(options?: {
+  activeOnly?: boolean;
+}): Promise<PackageProduct[]> {
+  const supabase = await createClient();
+  let query = supabase
+    .from("package_products")
+    .select(PACKAGE_PRODUCT_COLUMNS)
+    .order("sort_order")
+    .order("total_credits");
+
+  if (options?.activeOnly !== false) {
+    query = query.eq("is_active", true);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return (data ?? []).map((row) => mapPackageProduct(row as PackageProduct)!);
+}
+
+export async function getPackageProductById(
+  id: string
+): Promise<PackageProduct | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("package_products")
+    .select(PACKAGE_PRODUCT_COLUMNS)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return mapPackageProduct(data as PackageProduct);
 }
 
 export async function listPackagesForStudent(
@@ -53,7 +123,7 @@ export async function listPackagesForStudent(
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data ?? []).map((row) => mapPackage(row as Package));
+  return (data ?? []).map((row) => mapPackage(row));
 }
 
 export async function getPackageById(id: string): Promise<Package | null> {
@@ -66,7 +136,7 @@ export async function getPackageById(id: string): Promise<Package | null> {
 
   if (error) throw error;
   if (!data) return null;
-  return mapPackage(data as Package);
+  return mapPackage(data);
 }
 
 export async function getPackageWithStudent(
@@ -91,11 +161,15 @@ export async function getPackageWithStudent(
   if (error) throw error;
   if (!data) return null;
 
-  const { students, ...pkg } = data as Package & {
+  const { students, ...pkg } = data as {
     students:
       | Pick<Student, "id" | "full_name" | "contact_phone">
       | Pick<Student, "id" | "full_name" | "contact_phone">[]
       | null;
+    package_product_id?: string | null;
+    amount_sgd?: number | string | null;
+    package_products?: PackageProduct | PackageProduct[] | null;
+    [key: string]: unknown;
   };
 
   const student = asSingle(students);
@@ -147,11 +221,15 @@ export async function listPackages(options?: {
 
   const packages = (data ?? [])
     .map((row) => {
-      const { students, ...pkg } = row as Package & {
+      const { students, ...pkg } = row as {
         students:
           | Pick<Student, "id" | "full_name" | "contact_phone">
           | Pick<Student, "id" | "full_name" | "contact_phone">[]
           | null;
+        package_product_id?: string | null;
+        amount_sgd?: number | string | null;
+        package_products?: PackageProduct | PackageProduct[] | null;
+        [key: string]: unknown;
       };
       const student = asSingle(students);
       if (!student) return null;
