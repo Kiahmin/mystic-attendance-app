@@ -25,7 +25,7 @@ function validateClassInput(input: ClassInput): string | null {
   if (!name) return "Class name is required.";
 
   if (!DAYS_OF_WEEK.includes(input.day_of_week)) {
-    return "Day must be Saturday or Sunday.";
+    return "Select a valid day of the week.";
   }
 
   const start = normalizeTime(input.start_time ?? "");
