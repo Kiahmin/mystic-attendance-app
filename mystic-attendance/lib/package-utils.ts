@@ -44,7 +44,7 @@ export const PACKAGE_STATUS_LABELS: Record<PackageStatus, string> = {
   active: "Active",
   paused: "Paused",
   expired: "Expired",
-  exhausted: "Exhausted",
+  exhausted: "Finished",
 };
 
 export const PAUSE_REASONS = [
