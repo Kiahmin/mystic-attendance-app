@@ -208,25 +208,35 @@ insert into packages (
 -- Sessions (upcoming Saturday class — dates in Asia/Singapore)
 -- ---------------------------------------------------------------------------
 
-insert into sessions (id, class_id, session_date)
+insert into sessions (id, class_id, session_date, coach_id, start_time, end_time)
 select
   '30303030-3030-3030-3030-303030303030',
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-  sg.today
-from (
+  c.id,
+  sg.today,
+  c.coach_id,
+  c.start_time,
+  c.end_time
+from classes c
+cross join (
   select (current_timestamp at time zone 'Asia/Singapore')::date as today
 ) sg
+where c.id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 union all
 select
   '40404040-4040-4040-4040-404040404040',
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  c.id,
   sg.today + (
     case
       when extract(dow from sg.today) <= 6
         then (6 - extract(dow from sg.today))::int
       else 7
     end
-  )
-from (
+  ),
+  c.coach_id,
+  c.start_time,
+  c.end_time
+from classes c
+cross join (
   select (current_timestamp at time zone 'Asia/Singapore')::date as today
-) sg;
+) sg
+where c.id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
