@@ -32,13 +32,13 @@ type PackageListProps = {
 };
 
 const FILTER_OPTIONS: { value: FilterValue; label: string }[] = [
-  { value: "at_risk", label: "Needs attention" },
+  { value: "at_risk", label: "Finishing" },
   { value: "all", label: "All packages" },
   { value: "active", label: "Active" },
   { value: "unpaid", label: "Unpaid" },
   { value: "paused", label: "Paused" },
   { value: "expired", label: "Expired" },
-  { value: "exhausted", label: "Exhausted" },
+  { value: "exhausted", label: "Finished" },
 ];
 
 export function PackageList({

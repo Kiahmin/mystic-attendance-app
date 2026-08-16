@@ -81,7 +81,7 @@ export default async function AdminDashboardPage() {
             href="/admin/packages?filter=at_risk"
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
-            Review packages needing attention
+            Review finishing packages
           </Link>
         </p>
       ) : null}
