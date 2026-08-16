@@ -3,17 +3,20 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ListFilter, Plus, Search } from "lucide-react";
 import { PackageStatusBadge } from "@/components/admin/package-status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   atRiskReason,
   formatAmountSgd,
@@ -23,17 +26,16 @@ import {
 } from "@/lib/package-utils";
 import type { PackageStatus, PackageWithStudent } from "@/lib/types";
 
-type FilterValue = "at_risk" | "all" | PackageStatus;
+type FilterValue = "at_risk" | PackageStatus;
 
 type PackageListProps = {
   packages: PackageWithStudent[];
-  initialFilter?: FilterValue;
+  initialFilter?: FilterValue[];
   initialSearch?: string;
 };
 
 const FILTER_OPTIONS: { value: FilterValue; label: string }[] = [
   { value: "at_risk", label: "Finishing" },
-  { value: "all", label: "All packages" },
   { value: "active", label: "Active" },
   { value: "unpaid", label: "Unpaid" },
   { value: "paused", label: "Paused" },
@@ -41,14 +43,26 @@ const FILTER_OPTIONS: { value: FilterValue; label: string }[] = [
   { value: "exhausted", label: "Finished" },
 ];
 
+function orderedFilters(filters: FilterValue[]): FilterValue[] {
+  return FILTER_OPTIONS.map((option) => option.value).filter((value) =>
+    filters.includes(value)
+  );
+}
+
+function selectedFilterOptions(filters: FilterValue[]) {
+  return FILTER_OPTIONS.filter((option) => filters.includes(option.value));
+}
+
 export function PackageList({
   packages,
-  initialFilter = "at_risk",
+  initialFilter = ["at_risk"],
   initialSearch = "",
 }: PackageListProps) {
   const router = useRouter();
   const [search, setSearch] = useState(initialSearch);
-  const [filter, setFilter] = useState<FilterValue>(initialFilter);
+  const [filter, setFilter] = useState<FilterValue[]>(
+    orderedFilters(initialFilter)
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -58,13 +72,26 @@ export function PackageList({
     );
   }, [packages, search]);
 
-  function updateFilter(next: FilterValue) {
-    setFilter(next);
+  const isFinishingOnly =
+    filter.length === 1 && filter[0] === "at_risk";
+  const selectedOptions = selectedFilterOptions(filter);
+
+  function updateFilter(next: FilterValue[]) {
+    const ordered = orderedFilters(next);
+    setFilter(ordered);
     const params = new URLSearchParams();
-    if (next !== "at_risk") params.set("filter", next);
+    const isDefault = ordered.length === 1 && ordered[0] === "at_risk";
+    if (!isDefault) params.set("filter", ordered.join(","));
     if (search.trim()) params.set("q", search.trim());
     const qs = params.toString();
     router.push(qs ? `/admin/packages?${qs}` : "/admin/packages");
+  }
+
+  function toggleFilter(value: FilterValue) {
+    const next = filter.includes(value)
+      ? filter.filter((item) => item !== value)
+      : [...filter, value];
+    updateFilter(next);
   }
 
   return (
@@ -81,21 +108,68 @@ export function PackageList({
               aria-label="Search packages"
             />
           </div>
-          <Select
-            value={filter}
-            onValueChange={(value) => updateFilter(value as FilterValue)}
-          >
-            <SelectTrigger className="h-11 w-full sm:w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FILTER_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-11 w-full justify-between gap-2 px-4 sm:w-auto"
+                aria-label="Filter packages, select one or more"
+              >
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <ListFilter className="size-4 shrink-0 text-muted-foreground" />
+                  {selectedOptions.length === 0 ? (
+                    <span className="truncate text-muted-foreground">
+                      All packages
+                    </span>
+                  ) : (
+                    <span className="flex min-w-0 items-center gap-1">
+                      <Badge
+                        variant="secondary"
+                        className="max-w-[7rem] truncate"
+                      >
+                        {selectedOptions[0].label}
+                      </Badge>
+                      {selectedOptions.length > 1 ? (
+                        <Badge variant="outline">
+                          +{selectedOptions.length - 1}
+                        </Badge>
+                      ) : null}
+                    </span>
+                  )}
+                </span>
+                <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel>Select one or more</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {FILTER_OPTIONS.map((option) => {
+                const checked = filter.includes(option.value);
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={option.value}
+                    checked={checked}
+                    onCheckedChange={() => toggleFilter(option.value)}
+                    onSelect={(event) => event.preventDefault()}
+                    className="pr-2 pl-2 [&_[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden"
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "flex size-4 shrink-0 items-center justify-center rounded-[4px] border",
+                        checked
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-muted-foreground/40 bg-background"
+                      )}
+                    >
+                      {checked ? <Check className="size-3" /> : null}
+                    </span>
+                    {option.label}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <Button asChild className="h-11 px-4">
@@ -112,7 +186,7 @@ export function PackageList({
             {search.trim() ? "No matching packages" : "No packages in this view"}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {filter === "at_risk"
+            {isFinishingOnly
               ? "Low-credit, expiring, expired, and unpaid packages will appear here."
               : "Assign a package to a student to get started."}
           </p>

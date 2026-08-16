@@ -2,11 +2,9 @@ import { requireRole } from "@/lib/auth/profile";
 import { listPackages, type PackageListFilter } from "@/lib/queries/packages";
 import { PackageList } from "@/components/admin/package-list";
 import { PageHeader } from "@/components/layout/page-header";
-import type { PackageStatus } from "@/lib/types";
 
-const FILTERS = new Set([
+const FILTERS = new Set<PackageListFilter>([
   "at_risk",
-  "all",
   "unpaid",
   "active",
   "paused",
@@ -14,11 +12,18 @@ const FILTERS = new Set([
   "exhausted",
 ]);
 
-function parseFilter(value: string | undefined): PackageListFilter {
-  if (value && FILTERS.has(value)) {
-    return value as PackageListFilter;
-  }
-  return "at_risk";
+function parseFilters(value: string | undefined): PackageListFilter[] {
+  if (value === undefined) return ["at_risk"];
+  if (value === "") return [];
+
+  const valid = value
+    .split(",")
+    .map((token) => token.trim())
+    .filter((token): token is PackageListFilter =>
+      FILTERS.has(token as PackageListFilter)
+    );
+
+  return valid.length > 0 ? valid : ["at_risk"];
 }
 
 export default async function AdminPackagesPage({
@@ -28,9 +33,9 @@ export default async function AdminPackagesPage({
 }) {
   await requireRole(["admin"]);
   const params = await searchParams;
-  const filter = parseFilter(params.filter);
+  const filters = parseFilters(params.filter);
   const packages = await listPackages({
-    filter,
+    filters,
     search: params.q,
   });
 
@@ -42,7 +47,7 @@ export default async function AdminPackagesPage({
       />
       <PackageList
         packages={packages}
-        initialFilter={filter === "at_risk" || filter === "all" ? filter : (filter as PackageStatus)}
+        initialFilter={filters}
         initialSearch={params.q ?? ""}
       />
     </div>

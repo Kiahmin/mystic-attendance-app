@@ -181,17 +181,18 @@ export async function getPackageWithStudent(
   };
 }
 
-export type PackageListFilter =
-  | "at_risk"
-  | "all"
-  | PackageStatus;
+export type PackageListFilter = "at_risk" | PackageStatus;
 
 export async function listPackages(options?: {
-  filter?: PackageListFilter;
+  filters?: PackageListFilter[];
   search?: string;
 }): Promise<PackageWithStudent[]> {
   const supabase = await createClient();
-  const filter = options?.filter ?? "at_risk";
+  const filters = options?.filters ?? ["at_risk"];
+  const hasAtRisk = filters.includes("at_risk");
+  const statuses = filters.filter(
+    (value): value is PackageStatus => value !== "at_risk"
+  );
 
   let query = supabase
     .from("packages")
@@ -207,8 +208,8 @@ export async function listPackages(options?: {
     )
     .order("created_at", { ascending: false });
 
-  if (filter !== "all" && filter !== "at_risk") {
-    query = query.eq("status", filter);
+  if (statuses.length > 0 && !hasAtRisk) {
+    query = query.in("status", statuses);
   }
 
   const trimmed = options?.search?.trim();
@@ -240,7 +241,12 @@ export async function listPackages(options?: {
     })
     .filter((item): item is PackageWithStudent => item !== null);
 
-  if (filter === "at_risk") {
+  if (hasAtRisk && statuses.length > 0) {
+    return packages.filter(
+      (pkg) => isAtRiskPackage(pkg) || statuses.includes(pkg.status)
+    );
+  }
+  if (hasAtRisk) {
     return packages.filter(isAtRiskPackage);
   }
 
