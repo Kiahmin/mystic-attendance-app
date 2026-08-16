@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, ChevronRight, ListFilter, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { PackageStatusBadge } from "@/components/admin/package-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,42 @@ function selectedFilterOptions(filters: FilterValue[]) {
   return FILTER_OPTIONS.filter((option) => filters.includes(option.value));
 }
 
+function FilterCheckbox({
+  checked,
+  label,
+  onToggle,
+}: {
+  checked: boolean | "indeterminate";
+  label: string;
+  onToggle: () => void;
+}) {
+  const isOn = checked === true;
+  const isIndeterminate = checked === "indeterminate";
+
+  return (
+    <DropdownMenuCheckboxItem
+      checked={checked}
+      onCheckedChange={onToggle}
+      onSelect={(event) => event.preventDefault()}
+      className="pr-2 pl-2 [&_[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-4 shrink-0 items-center justify-center rounded-[4px] border",
+          isOn || isIndeterminate
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-muted-foreground/40 bg-background"
+        )}
+      >
+        {isOn ? <Check className="size-3" /> : null}
+        {isIndeterminate ? <Minus className="size-3" /> : null}
+      </span>
+      {label}
+    </DropdownMenuCheckboxItem>
+  );
+}
+
 export function PackageList({
   packages,
   initialFilter = ["at_risk"],
@@ -75,6 +111,8 @@ export function PackageList({
   const isFinishingOnly =
     filter.length === 1 && filter[0] === "at_risk";
   const selectedOptions = selectedFilterOptions(filter);
+  const allSelected = selectedOptions.length === FILTER_OPTIONS.length;
+  const showingAll = selectedOptions.length === 0 || allSelected;
 
   function updateFilter(next: FilterValue[]) {
     const ordered = orderedFilters(next);
@@ -92,6 +130,12 @@ export function PackageList({
       ? filter.filter((item) => item !== value)
       : [...filter, value];
     updateFilter(next);
+  }
+
+  function toggleSelectAll() {
+    updateFilter(
+      allSelected ? [] : FILTER_OPTIONS.map((option) => option.value)
+    );
   }
 
   return (
@@ -117,7 +161,7 @@ export function PackageList({
               >
                 <span className="flex min-w-0 flex-1 items-center gap-2">
                   <ListFilter className="size-4 shrink-0 text-muted-foreground" />
-                  {selectedOptions.length === 0 ? (
+                  {showingAll ? (
                     <span className="truncate text-muted-foreground">
                       All packages
                     </span>
@@ -143,31 +187,26 @@ export function PackageList({
             <DropdownMenuContent align="start">
               <DropdownMenuLabel>Select one or more</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {FILTER_OPTIONS.map((option) => {
-                const checked = filter.includes(option.value);
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={option.value}
-                    checked={checked}
-                    onCheckedChange={() => toggleFilter(option.value)}
-                    onSelect={(event) => event.preventDefault()}
-                    className="pr-2 pl-2 [&_[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden"
-                  >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "flex size-4 shrink-0 items-center justify-center rounded-[4px] border",
-                        checked
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-muted-foreground/40 bg-background"
-                      )}
-                    >
-                      {checked ? <Check className="size-3" /> : null}
-                    </span>
-                    {option.label}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
+              <FilterCheckbox
+                checked={
+                  allSelected
+                    ? true
+                    : selectedOptions.length > 0
+                      ? "indeterminate"
+                      : false
+                }
+                label="Select all"
+                onToggle={toggleSelectAll}
+              />
+              <DropdownMenuSeparator />
+              {FILTER_OPTIONS.map((option) => (
+                <FilterCheckbox
+                  key={option.value}
+                  checked={filter.includes(option.value)}
+                  label={option.label}
+                  onToggle={() => toggleFilter(option.value)}
+                />
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
