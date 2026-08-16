@@ -278,6 +278,7 @@ export async function getSessionCheckInList(
           `
           id,
           student_id,
+          package_product_id,
           total_credits,
           used_credits,
           remaining_credits,
@@ -302,6 +303,9 @@ export async function getSessionCheckInList(
       pkg = data
         ? ({
             ...(data as Package),
+            package_product_id:
+              (data as { package_product_id?: string | null })
+                .package_product_id ?? null,
             amount_sgd:
               data.amount_sgd == null ? null : Number(data.amount_sgd),
           } as Package)

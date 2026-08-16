@@ -1,15 +1,30 @@
 import { packageWarning } from "@/lib/attendance-utils";
 import { formatCalendarDate, isOnOrBeforeDaysFromToday } from "@/lib/datetime";
-import type { Package, PackageStatus, PaymentMethod } from "@/lib/types";
+import type {
+  Package,
+  PackageProduct,
+  PackageProductType,
+  PackageStatus,
+  PaymentMethod,
+} from "@/lib/types";
 
-export const PACKAGE_SIZES = [4, 8, 12] as const;
+export const PACKAGE_SIZES = [1, 4, 8, 12] as const;
 export type PackageSize = (typeof PACKAGE_SIZES)[number];
 
-/** Default SGD prices for standard package sizes (design PKG-01/05). */
-export const PACKAGE_SIZE_PRICES: Record<PackageSize, number> = {
-  4: 120,
-  8: 220,
-  12: 300,
+export const PACKAGE_PRODUCT_TYPES: PackageProductType[] = [
+  "group",
+  "freestyle",
+  "private",
+  "trial_group",
+  "trial_private",
+];
+
+export const PACKAGE_PRODUCT_TYPE_LABELS: Record<PackageProductType, string> = {
+  group: "Group",
+  freestyle: "Freestyle",
+  private: "Private",
+  trial_group: "Trial (Group)",
+  trial_private: "Trial (Private)",
 };
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
@@ -29,7 +44,7 @@ export const PACKAGE_STATUS_LABELS: Record<PackageStatus, string> = {
   active: "Active",
   paused: "Paused",
   expired: "Expired",
-  exhausted: "Exhausted",
+  exhausted: "Finished",
 };
 
 export const PAUSE_REASONS = [
@@ -44,7 +59,24 @@ export type PauseReasonValue = (typeof PAUSE_REASONS)[number]["value"];
 export const LOW_CREDIT_THRESHOLD = 2;
 export const EXPIRING_WITHIN_DAYS = 14;
 
-export function packageLabel(totalCredits: number): string {
+export function isTrialProductType(productType: PackageProductType): boolean {
+  return productType === "trial_group" || productType === "trial_private";
+}
+
+export function defaultAmountForProduct(product: PackageProduct): number {
+  return Number(product.amount_sgd);
+}
+
+export function packageLabel(
+  totalCredits: number,
+  product?: Pick<PackageProduct, "product_type" | "label" | "total_credits"> | null
+): string {
+  if (product) {
+    if (isTrialProductType(product.product_type)) {
+      return product.label;
+    }
+    return `${product.label} · ${product.total_credits}-Lesson Pack`;
+  }
   return `${totalCredits}-Lesson Pack`;
 }
 

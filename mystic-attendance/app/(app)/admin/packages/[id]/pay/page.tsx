@@ -5,12 +5,10 @@ import { requireRole } from "@/lib/auth/profile";
 import { markPackagePaidFormAction } from "@/lib/actions/packages";
 import { getPackageWithStudent } from "@/lib/queries/packages";
 import {
-  PACKAGE_SIZE_PRICES,
-  PACKAGE_SIZES,
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHODS,
+  defaultAmountForProduct,
   packageLabel,
-  type PackageSize,
 } from "@/lib/package-utils";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -23,11 +21,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { Package } from "@/lib/types";
 
-function defaultAmount(totalCredits: number, amountSgd: number | null): string {
-  if (amountSgd != null && !Number.isNaN(amountSgd)) return String(amountSgd);
-  if (PACKAGE_SIZES.includes(totalCredits as PackageSize)) {
-    return String(PACKAGE_SIZE_PRICES[totalCredits as PackageSize]);
+function defaultAmount(pkg: Package): string {
+  if (pkg.amount_sgd != null && !Number.isNaN(pkg.amount_sgd)) {
+    return String(pkg.amount_sgd);
+  }
+  if (pkg.package_products) {
+    return String(defaultAmountForProduct(pkg.package_products));
   }
   return "";
 }
@@ -44,6 +45,7 @@ export default async function MarkPackagePaidPage({
   if (!pkg) notFound();
 
   const backHref = `/admin/students/${pkg.student_id}`;
+  const label = packageLabel(pkg.total_credits, pkg.package_products);
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -60,7 +62,7 @@ export default async function MarkPackagePaidPage({
         </Link>
         <PageHeader
           title="Mark Package as Paid"
-          description={`Log payment for ${pkg.students.full_name}'s ${packageLabel(pkg.total_credits)}.`}
+          description={`Log payment for ${pkg.students.full_name}'s ${label}.`}
         />
       </div>
 
@@ -123,7 +125,7 @@ export default async function MarkPackagePaidPage({
                   min={0}
                   step="0.01"
                   required
-                  defaultValue={defaultAmount(pkg.total_credits, pkg.amount_sgd)}
+                  defaultValue={defaultAmount(pkg)}
                   className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
               </div>
