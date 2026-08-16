@@ -90,7 +90,7 @@ function PackageCard({ pkg }: { pkg: Package }) {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="font-semibold text-primary">
-              {packageLabel(pkg.total_credits)}
+              {packageLabel(pkg.total_credits, pkg.package_products)}
             </h4>
             <StatusPill status={pkg.status} />
           </div>

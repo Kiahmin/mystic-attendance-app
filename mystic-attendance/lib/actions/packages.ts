@@ -8,12 +8,11 @@ import {
   todayInSingapore,
 } from "@/lib/datetime";
 import {
-  PACKAGE_SIZES,
   PAYMENT_METHODS,
   buildPauseReason,
   type PauseReasonValue,
-  type PackageSize,
 } from "@/lib/package-utils";
+import { getPackageProductById } from "@/lib/queries/packages";
 import { createClient } from "@/lib/supabase/server";
 import type { PaymentMethod } from "@/lib/types";
 import { revalidatePath } from "next/cache";
@@ -21,7 +20,7 @@ import { redirect } from "next/navigation";
 
 export type AssignPackageInput = {
   student_id: string;
-  total_credits: number;
+  package_product_id: string;
   is_paid: boolean;
   payment_method?: PaymentMethod | null;
   amount_sgd?: number | null;
@@ -51,10 +50,7 @@ function revalidatePackagePaths(studentId: string, packageId?: string) {
 
 function validateAssignInput(input: AssignPackageInput): string | null {
   if (!input.student_id) return "Student is required.";
-
-  if (!PACKAGE_SIZES.includes(input.total_credits as PackageSize)) {
-    return "Choose a package size of 4, 8, or 12 lessons.";
-  }
+  if (!input.package_product_id) return "Choose a package product.";
 
   if (input.is_paid) {
     if (!input.payment_method || !PAYMENT_METHODS.includes(input.payment_method)) {
@@ -77,12 +73,18 @@ export async function assignPackage(input: AssignPackageInput) {
   const validationError = validateAssignInput(input);
   if (validationError) return { error: validationError };
 
+  const product = await getPackageProductById(input.package_product_id);
+  if (!product || !product.is_active) {
+    return { error: "Selected package product is not available." };
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("packages")
     .insert({
       student_id: input.student_id,
-      total_credits: input.total_credits,
+      package_product_id: product.id,
+      total_credits: product.total_credits,
       is_paid: input.is_paid,
       payment_method: input.is_paid ? input.payment_method : null,
       amount_sgd: input.is_paid ? input.amount_sgd : input.amount_sgd ?? null,

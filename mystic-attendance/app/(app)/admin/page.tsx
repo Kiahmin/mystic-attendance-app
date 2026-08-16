@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 import { requireRole } from "@/lib/auth/profile";
 import { formatCalendarDate } from "@/lib/datetime";
 import {
@@ -70,17 +71,18 @@ export default async function AdminDashboardPage() {
           value={totalAlerts}
           accent={totalAlerts > 0 ? "warning" : "default"}
           icon={<AlertTriangle />}
+          href="/admin/packages?filter=at_risk"
         />
       </div>
 
       {totalAlerts > 0 ? (
         <p className="-mt-4 text-sm">
-          <a
-            href="/admin/packages"
+          <Link
+            href="/admin/packages?filter=at_risk"
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
-            Review packages needing attention
-          </a>
+            Review finishing packages
+          </Link>
         </p>
       ) : null}
 
