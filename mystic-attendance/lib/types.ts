@@ -25,7 +25,14 @@ export type SkillLevel =
   | "advanced"
   | "freestyle";
 
-export type DayOfWeek = "saturday" | "sunday";
+export type DayOfWeek =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
 
 export interface Profile {
   id: string;
@@ -49,6 +56,9 @@ export interface Session {
   id: string;
   class_id: string;
   session_date: string;
+  coach_id: string | null;
+  start_time: string | null;
+  end_time: string | null;
   cancelled: boolean;
   cancellation_reason: string | null;
   cancellation_note: string | null;
@@ -164,6 +174,7 @@ export interface SessionWithClass extends Session {
   classes: ClassGroup & {
     coach?: Pick<Profile, "id" | "full_name"> | null;
   };
+  coach?: Pick<Profile, "id" | "full_name"> | null;
 }
 
 export type CheckInRosterSource = "enrolled" | "include";
