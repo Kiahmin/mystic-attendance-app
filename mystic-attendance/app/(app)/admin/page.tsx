@@ -5,27 +5,37 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/profile";
-import { formatCalendarDate } from "@/lib/datetime";
+import { listCoaches } from "@/lib/queries/profiles";
 import {
   getTodaySessionsForDashboard,
   getWeekSessionsForDashboard,
 } from "@/lib/queries/sessions";
-import { weekendDatesInCurrentWeek } from "@/lib/session-utils";
+import {
+  resolveWeekDates,
+  weekDatesContaining,
+} from "@/lib/session-utils";
 import { DashboardSessionRow } from "@/components/admin/dashboard-session-row";
 import { GenerateSessionsButton } from "@/components/admin/generate-sessions-button";
+import { WeekNav } from "@/components/admin/week-nav";
 import { MetricCard } from "@/components/layout/metric-card";
 import { PageHeader } from "@/components/layout/page-header";
 
-export default async function AdminDashboardPage() {
+export default async function AdminDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ week?: string; weekend?: string }>;
+}) {
   await requireRole(["admin"]);
+  const params = await searchParams;
+  const { monday, sunday } = resolveWeekDates(params.week ?? params.weekend);
+  const currentWeek = weekDatesContaining();
+  const isCurrentWeek = monday === currentWeek.monday;
 
-  const [todaySessions, weekSessions] = await Promise.all([
+  const [todaySessions, weekSessions, coaches] = await Promise.all([
     getTodaySessionsForDashboard(),
-    getWeekSessionsForDashboard(),
+    getWeekSessionsForDashboard(monday, sunday),
+    listCoaches(),
   ]);
-
-  const { saturday, sunday } = weekendDatesInCurrentWeek();
-  const weekRangeLabel = `${formatCalendarDate(saturday)} – ${formatCalendarDate(sunday)}`;
 
   const totalExpected = todaySessions.reduce(
     (sum, item) => sum + item.expectedCount,
@@ -44,7 +54,7 @@ export default async function AdminDashboardPage() {
     <div className="space-y-8">
       <PageHeader
         title="Overview"
-        description="Today's metrics and this week's schedule."
+        description="Today's metrics and weekly schedule history."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -88,24 +98,24 @@ export default async function AdminDashboardPage() {
 
       <section className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="font-heading text-lg font-semibold">
-              This week&apos;s schedule
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Saturday–Sunday sessions for {weekRangeLabel}. Generate, monitor,
-              and cancel.
-            </p>
-          </div>
-          <GenerateSessionsButton />
+          <div className="flex flex-wrap items-center gap-3">
+              <h2 className="font-heading text-lg font-semibold">
+                {isCurrentWeek ? "This week's schedule" : "Week schedule"}
+              </h2>
+              <WeekNav
+                monday={monday}
+                sunday={sunday}
+                isCurrentWeek={isCurrentWeek}
+              />
+            </div>
+          <GenerateSessionsButton weekMonday={monday} />
         </div>
 
         {weekSessions.length === 0 ? (
           <div className="rounded-xl border border-dashed bg-card p-8 text-center">
-            <p className="font-medium">No sessions this weekend</p>
+            <p className="font-medium">No sessions this week</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Generate this week&apos;s sessions from active Saturday and Sunday
-              classes.
+              Generate this week&apos;s sessions from active classes.
             </p>
           </div>
         ) : (
@@ -122,7 +132,11 @@ export default async function AdminDashboardPage() {
             <ul className="divide-y divide-border/60">
               {weekSessions.map((item) => (
                 <li key={item.session.id}>
-                  <DashboardSessionRow item={item} />
+                  <DashboardSessionRow
+                    item={item}
+                    weekMonday={monday}
+                    coaches={coaches}
+                  />
                 </li>
               ))}
             </ul>

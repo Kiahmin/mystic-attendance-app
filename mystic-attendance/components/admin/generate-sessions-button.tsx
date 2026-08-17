@@ -8,7 +8,13 @@ import { formatCalendarDate } from "@/lib/datetime";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
-export function GenerateSessionsButton() {
+type GenerateSessionsButtonProps = {
+  weekMonday?: string;
+};
+
+export function GenerateSessionsButton({
+  weekMonday,
+}: GenerateSessionsButtonProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -19,7 +25,7 @@ export function GenerateSessionsButton() {
     setError(null);
 
     startTransition(async () => {
-      const result = await generateSessionsForWeek();
+      const result = await generateSessionsForWeek(weekMonday);
       if ("error" in result && result.error) {
         setError(result.error);
         return;
@@ -28,12 +34,12 @@ export function GenerateSessionsButton() {
       const created = result.created ?? 0;
       const skipped = result.skipped ?? 0;
       const range =
-        result.saturday && result.sunday
-          ? ` (${formatCalendarDate(result.saturday)} – ${formatCalendarDate(result.sunday)})`
+        result.monday && result.sunday
+          ? ` (${formatCalendarDate(result.monday)} – ${formatCalendarDate(result.sunday)})`
           : "";
 
       if (created === 0 && skipped === 0) {
-        setMessage(`No active weekend classes to schedule${range}.`);
+        setMessage(`No active classes to schedule${range}.`);
       } else if (created === 0) {
         setMessage(
           `All ${skipped} session${skipped === 1 ? "" : "s"} already exist${range}.`
@@ -59,7 +65,7 @@ export function GenerateSessionsButton() {
         disabled={pending}
       >
         <CalendarPlus className="size-4" />
-        {pending ? "Generating…" : "Generate this week’s sessions"}
+        {pending ? "Generating…" : "Generate this week's sessions"}
       </Button>
       {error ? (
         <Alert variant="destructive" className="max-w-sm">
