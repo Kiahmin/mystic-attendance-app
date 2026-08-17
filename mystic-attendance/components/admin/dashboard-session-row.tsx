@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Ban, ChevronRight, ClipboardCheck, Users } from "lucide-react";
-import type { DashboardSession } from "@/lib/types";
+import { Ban, ChevronRight, ClipboardCheck, UserRound, Users } from "lucide-react";
+import type { DashboardSession, Profile } from "@/lib/types";
 import {
   CANCELLATION_REASON_LABELS,
   formatDate,
@@ -11,10 +11,13 @@ import {
 } from "@/lib/attendance-utils";
 import {
   getSessionScheduleStatus,
+  sessionDisplayEnd,
+  sessionDisplayStart,
   SESSION_SCHEDULE_STATUS_LABELS,
   type SessionScheduleStatus,
 } from "@/lib/session-utils";
 import { CancelSessionDialog } from "@/components/admin/cancel-session-dialog";
+import { EditSessionCoachDialog } from "@/components/admin/edit-session-coach-dialog";
 import { SessionAttendeesDialog } from "@/components/admin/session-attendees-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +25,8 @@ import { cn } from "@/lib/utils";
 
 type DashboardSessionRowProps = {
   item: DashboardSession;
+  weekMonday: string;
+  coaches: Pick<Profile, "id" | "full_name">[];
 };
 
 function statusBadgeVariant(
@@ -39,13 +44,20 @@ function statusBadgeVariant(
   }
 }
 
-export function DashboardSessionRow({ item }: DashboardSessionRowProps) {
+export function DashboardSessionRow({
+  item,
+  weekMonday,
+  coaches,
+}: DashboardSessionRowProps) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [attendeesOpen, setAttendeesOpen] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(false);
   const { session, expectedCount, checkedInCount, packageAlerts, coachName } =
     item;
   const classGroup = session.classes;
-  const href = `/admin/sessions/${session.id}`;
+  const startTime = sessionDisplayStart(session);
+  const endTime = sessionDisplayEnd(session);
+  const href = `/admin/sessions/${session.id}?week=${weekMonday}`;
   const status = getSessionScheduleStatus(session);
   const expected = expectedCount;
   const checkedIn = checkedInCount;
@@ -80,8 +92,7 @@ export function DashboardSessionRow({ item }: DashboardSessionRowProps) {
           ) : (
             <p className="text-xs text-muted-foreground md:hidden">
               {formatDate(session.session_date)} ·{" "}
-              {formatSessionTime(classGroup.start_time)} –{" "}
-              {formatSessionTime(classGroup.end_time)}
+              {formatSessionTime(startTime)} – {formatSessionTime(endTime)}
               {coachName ? ` · ${coachName}` : ""}
             </p>
           )}
@@ -102,8 +113,7 @@ export function DashboardSessionRow({ item }: DashboardSessionRowProps) {
             session.cancelled && "line-through"
           )}
         >
-          {formatSessionTime(classGroup.start_time)} –{" "}
-          {formatSessionTime(classGroup.end_time)}
+          {formatSessionTime(startTime)} – {formatSessionTime(endTime)}
         </p>
 
         <p className="hidden truncate text-sm text-muted-foreground md:block">
@@ -146,6 +156,16 @@ export function DashboardSessionRow({ item }: DashboardSessionRowProps) {
               <span className="sr-only">Open attendance</span>
             </Link>
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title="Change coach"
+            onClick={() => setCoachOpen(true)}
+          >
+            <UserRound className="size-4" />
+            <span className="sr-only">Change coach</span>
+          </Button>
           {!session.cancelled ? (
             <Button
               type="button"
@@ -180,6 +200,15 @@ export function DashboardSessionRow({ item }: DashboardSessionRowProps) {
           </Link>
         </div>
       </div>
+
+      <EditSessionCoachDialog
+        sessionId={session.id}
+        className={classGroup.name}
+        coachId={session.coach_id}
+        coaches={coaches}
+        open={coachOpen}
+        onOpenChange={setCoachOpen}
+      />
 
       <SessionAttendeesDialog
         sessionId={session.id}
