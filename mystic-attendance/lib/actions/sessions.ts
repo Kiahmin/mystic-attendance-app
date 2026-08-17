@@ -5,7 +5,7 @@ import { loadEffectiveSessionRoster } from "@/lib/session-roster";
 import {
   CANCELLATION_REASONS,
   dayOfWeekForDate,
-  weekendDatesInCurrentWeek,
+  resolveWeekDates,
   type CancellationReason,
 } from "@/lib/session-utils";
 import { createClient } from "@/lib/supabase/server";
@@ -33,7 +33,7 @@ async function generateSessionsForDate(
 
   const { data: classes, error: classesError } = await supabase
     .from("classes")
-    .select("id")
+    .select("id, coach_id, start_time, end_time")
     .eq("is_active", true)
     .eq("day_of_week", dayOfWeek);
 
@@ -60,16 +60,21 @@ async function generateSessionsForDate(
   const existingClassIds = new Set(
     (existing ?? []).map((row) => row.class_id as string)
   );
-  const toCreate = classIds.filter((id) => !existingClassIds.has(id));
+  const toCreate = classes.filter(
+    (cls) => !existingClassIds.has(cls.id as string)
+  );
 
   if (toCreate.length === 0) {
     return { created: 0, skipped: classIds.length };
   }
 
   const { error: insertError } = await supabase.from("sessions").insert(
-    toCreate.map((class_id) => ({
-      class_id,
+    toCreate.map((cls) => ({
+      class_id: cls.id,
       session_date: sessionDate,
+      coach_id: cls.coach_id,
+      start_time: cls.start_time,
+      end_time: cls.end_time,
     }))
   );
 
@@ -83,14 +88,14 @@ async function generateSessionsForDate(
   };
 }
 
-export async function generateSessionsForWeek() {
+export async function generateSessionsForWeek(weekMonday?: string | null) {
   await requireRole(["admin"]);
 
-  const { saturday, sunday } = weekendDatesInCurrentWeek();
+  const { monday, sunday, dates } = resolveWeekDates(weekMonday);
   let created = 0;
   let skipped = 0;
 
-  for (const date of [saturday, sunday]) {
+  for (const date of dates) {
     const result = await generateSessionsForDate(date);
     if ("error" in result) {
       return { error: result.error };
@@ -100,7 +105,7 @@ export async function generateSessionsForWeek() {
   }
 
   revalidateSessionPaths();
-  return { created, skipped, saturday, sunday };
+  return { created, skipped, monday, sunday };
 }
 
 export async function cancelSession(
@@ -183,6 +188,43 @@ export async function cancelSession(
     if (attendanceError) {
       return { error: attendanceError.message };
     }
+  }
+
+  revalidateSessionPaths(sessionId);
+  return { success: true as const };
+}
+
+export async function updateSessionCoach(
+  sessionId: string,
+  coachId: string | null
+) {
+  await requireRole(["admin"]);
+
+  const supabase = await createClient();
+
+  if (coachId) {
+    const { data: coach, error: coachError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", coachId)
+      .eq("role", "coach")
+      .maybeSingle();
+
+    if (coachError) {
+      return { error: coachError.message };
+    }
+    if (!coach) {
+      return { error: "Select a valid coach." };
+    }
+  }
+
+  const { error } = await supabase
+    .from("sessions")
+    .update({ coach_id: coachId })
+    .eq("id", sessionId);
+
+  if (error) {
+    return { error: error.message };
   }
 
   revalidateSessionPaths(sessionId);

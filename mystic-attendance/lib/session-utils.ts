@@ -1,6 +1,7 @@
 import {
   addCalendarDays,
   APP_TIMEZONE,
+  isValidCalendarDate,
   todayInSingapore,
 } from "@/lib/datetime";
 import type { DayOfWeek, SessionWithClass } from "@/lib/types";
@@ -32,6 +33,11 @@ export const SESSION_SCHEDULE_STATUS_LABELS: Record<
 };
 
 const WEEKDAY_TO_DAY_OF_WEEK: Record<string, DayOfWeek | undefined> = {
+  Monday: "monday",
+  Tuesday: "tuesday",
+  Wednesday: "wednesday",
+  Thursday: "thursday",
+  Friday: "friday",
   Saturday: "saturday",
   Sunday: "sunday",
 };
@@ -53,27 +59,58 @@ function weekdayNameInSingapore(date: string): string {
   }).format(new Date(`${date}T12:00:00+08:00`));
 }
 
-/** Map a YYYY-MM-DD calendar date to class `day_of_week` (Sat/Sun only). */
+/** Map a YYYY-MM-DD calendar date to class `day_of_week`. */
 export function dayOfWeekForDate(date: string): DayOfWeek | null {
   return WEEKDAY_TO_DAY_OF_WEEK[weekdayNameInSingapore(date)] ?? null;
 }
 
-/**
- * Saturday and Sunday of the Singapore week containing `date`
- * (Mon–Fri → upcoming weekend; Sat/Sun → weekend in progress).
- */
-export function weekendDatesInCurrentWeek(date = todayInSingapore()): {
-  saturday: string;
+export type WeekDates = {
+  monday: string;
   sunday: string;
-} {
+  dates: string[];
+};
+
+/**
+ * Monday–Sunday of the Singapore week containing `date`.
+ */
+export function weekDatesContaining(date = todayInSingapore()): WeekDates {
   const weekday = weekdayNameInSingapore(date);
-  const index = WEEKDAY_INDEX[weekday] ?? 0;
-  // Days from Sunday=0: Sat is 6, Sun is 0.
-  // Offset to this week's Saturday: Mon(1)->5, ..., Fri(5)->1, Sat(6)->0, Sun(0)->-1
-  const daysToSaturday = index === 0 ? -1 : 6 - index;
-  const saturday = addCalendarDays(date, daysToSaturday);
-  const sunday = addCalendarDays(saturday, 1);
-  return { saturday, sunday };
+  const index = WEEKDAY_INDEX[weekday] ?? 1;
+  const daysToMonday = index === 0 ? -6 : 1 - index;
+  const monday = addCalendarDays(date, daysToMonday);
+  const dates = Array.from({ length: 7 }, (_, offset) =>
+    addCalendarDays(monday, offset)
+  );
+  return { monday, sunday: dates[6] ?? monday, dates };
+}
+
+/**
+ * Resolve a `?week=` (or legacy `?weekend=`) calendar date to that week's
+ * Monday–Sunday. Invalid or missing values fall back to the current week.
+ */
+export function resolveWeekDates(weekParam?: string | null): WeekDates {
+  const date =
+    weekParam && isValidCalendarDate(weekParam)
+      ? weekParam
+      : todayInSingapore();
+  return weekDatesContaining(date);
+}
+
+export function adminWeekHref(monday: string): string {
+  const current = weekDatesContaining().monday;
+  return monday === current ? "/admin" : `/admin?week=${monday}`;
+}
+
+export function sessionDisplayStart(
+  session: Pick<SessionWithClass, "start_time" | "classes">
+): string {
+  return session.start_time ?? session.classes.start_time;
+}
+
+export function sessionDisplayEnd(
+  session: Pick<SessionWithClass, "end_time" | "classes">
+): string {
+  return session.end_time ?? session.classes.end_time;
 }
 
 /** Current HH:MM:SS in Singapore. */
@@ -96,18 +133,21 @@ function normalizeTime(time: string): string {
 }
 
 export function getSessionScheduleStatus(
-  session: Pick<SessionWithClass, "cancelled" | "session_date" | "classes">,
+  session: Pick<
+    SessionWithClass,
+    "cancelled" | "session_date" | "start_time" | "end_time" | "classes"
+  >,
   today = todayInSingapore(),
   nowTime = nowTimeInSingapore()
 ): SessionScheduleStatus {
   if (session.cancelled) return "cancelled";
 
-  const { session_date: date, classes: classGroup } = session;
+  const { session_date: date } = session;
   if (date < today) return "completed";
   if (date > today) return "upcoming";
 
-  const start = normalizeTime(classGroup.start_time);
-  const end = normalizeTime(classGroup.end_time);
+  const start = normalizeTime(sessionDisplayStart(session));
+  const end = normalizeTime(sessionDisplayEnd(session));
   const now = normalizeTime(nowTime);
 
   if (now < start) return "upcoming";
