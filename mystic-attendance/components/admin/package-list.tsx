@@ -21,6 +21,7 @@ import {
   atRiskReason,
   formatAmountSgd,
   formatPackageExpiry,
+  isCustomisedPackage,
   packageLabel,
   PAYMENT_METHOD_LABELS,
 } from "@/lib/package-utils";
@@ -264,7 +265,12 @@ export function PackageList({
                     </div>
 
                     <p className="text-sm">
-                      {packageLabel(pkg.total_credits, pkg.package_products)}
+                      {packageLabel(pkg, pkg.package_products)}
+                      {isCustomisedPackage(pkg, pkg.package_products) ? (
+                        <span className="ml-2 inline-flex h-5 items-center rounded-full bg-muted px-2 text-xs font-medium text-muted-foreground align-middle">
+                          Custom
+                        </span>
+                      ) : null}
                     </p>
 
                     <p className="text-sm">

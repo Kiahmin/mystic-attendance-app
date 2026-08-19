@@ -136,6 +136,8 @@ export interface Package {
   total_credits: number;
   used_credits: number;
   remaining_credits: number;
+  bonus_credits: number;
+  customisation_notes: string | null;
   forfeited_credits: number | null;
   forfeited_at: string | null;
   payment_method: PaymentMethod | null;
