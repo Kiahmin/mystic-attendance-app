@@ -3,12 +3,16 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireRole } from "@/lib/auth/profile";
 import { markPackagePaidFormAction } from "@/lib/actions/packages";
-import { getPackageWithStudent } from "@/lib/queries/packages";
+import {
+  getPackageWithStudent,
+  countUnchargedAttendanceForStudent,
+} from "@/lib/queries/packages";
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHODS,
   defaultAmountForProduct,
   packageLabel,
+  unchargedClassesNote,
 } from "@/lib/package-utils";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -43,6 +47,14 @@ export default async function MarkPackagePaidPage({
   const pkg = await getPackageWithStudent(id);
 
   if (!pkg) notFound();
+
+  const unchargedCount = await countUnchargedAttendanceForStudent(
+    pkg.student_id
+  );
+  const backfillNote = unchargedClassesNote(
+    unchargedCount,
+    pkg.remaining_credits
+  );
 
   const backHref = `/admin/students/${pkg.student_id}`;
   const label = packageLabel(pkg, pkg.package_products);
@@ -129,6 +141,12 @@ export default async function MarkPackagePaidPage({
                   className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
               </div>
+
+              {backfillNote ? (
+                <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                  {backfillNote}
+                </p>
+              ) : null}
 
               <div className="flex flex-col gap-2 pt-2">
                 <button
