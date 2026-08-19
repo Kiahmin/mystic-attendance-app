@@ -1,7 +1,14 @@
 import { todayInSingapore } from "@/lib/datetime";
 import { createClient } from "@/lib/supabase/server";
 import { packageWarning } from "@/lib/attendance-utils";
-import { loadEffectiveSessionRoster } from "@/lib/session-roster";
+import {
+  pickChargeablePackage,
+  type ChargeablePackageFields,
+} from "@/lib/package-utils";
+import {
+  loadEffectiveSessionRoster,
+  loadEffectiveSessionRosters,
+} from "@/lib/session-roster";
 import { sessionDisplayStart } from "@/lib/session-utils";
 import type {
   CheckInStudent,
@@ -56,56 +63,150 @@ function mapSessionWithClass(
   };
 }
 
-async function enrichDashboardSession(
+const DASHBOARD_PACKAGE_SELECT = `
+  id,
+  student_id,
+  is_paid,
+  paused_at,
+  resumed_at,
+  expires_at,
+  used_credits,
+  total_credits,
+  remaining_credits,
+  first_lesson_date,
+  created_at,
+  status
+`;
+
+const CHECKIN_PACKAGE_SELECT = `
+  id,
+  student_id,
+  package_product_id,
+  total_credits,
+  used_credits,
+  remaining_credits,
+  forfeited_credits,
+  forfeited_at,
+  payment_method,
+  amount_sgd,
+  is_paid,
+  first_lesson_date,
+  expires_at,
+  paused_at,
+  pause_ends_at,
+  paused_reason,
+  resumed_at,
+  pause_used,
+  status,
+  created_at
+`;
+
+type DashboardPackageRow = ChargeablePackageFields & {
+  status: Package["status"];
+};
+
+function groupByStudentId<T extends { student_id: string }>(
+  rows: T[]
+): Map<string, T[]> {
+  const byStudent = new Map<string, T[]>();
+  for (const row of rows) {
+    const list = byStudent.get(row.student_id);
+    if (list) list.push(row);
+    else byStudent.set(row.student_id, [row]);
+  }
+  return byStudent;
+}
+
+function mapPackageRow(data: Record<string, unknown>): Package {
+  return {
+    ...(data as unknown as Package),
+    package_product_id:
+      (data.package_product_id as string | null | undefined) ?? null,
+    amount_sgd: data.amount_sgd == null ? null : Number(data.amount_sgd),
+  };
+}
+
+async function enrichDashboardSessions(
   supabase: SupabaseClient,
-  sessionWithClass: SessionWithClass,
-  coachName: string | null
-): Promise<DashboardSession> {
-  const roster = await loadEffectiveSessionRoster(
+  rows: Array<
+    SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+  >
+): Promise<DashboardSession[]> {
+  const mapped = rows.map((row) => mapSessionWithClass(row));
+  const rosters = await loadEffectiveSessionRosters(
     supabase,
-    sessionWithClass.id,
-    sessionWithClass.class_id
+    mapped.map(({ session }) => ({
+      sessionId: session.id,
+      classId: session.class_id,
+    }))
   );
 
-  const { count: checkedInCount } = await supabase
-    .from("attendance")
-    .select("*", { count: "exact", head: true })
-    .eq("session_id", sessionWithClass.id)
-    .in("status", ["present", "walk_in"]);
+  const sessionIds = mapped.map(({ session }) => session.id);
+  const studentIds = [
+    ...new Set(
+      [...rosters.values()].flatMap((roster) =>
+        roster.map((entry) => entry.studentId)
+      )
+    ),
+  ];
 
-  let packageAlerts = 0;
-  for (const entry of roster) {
-    const { data: packageId } = await supabase.rpc(
-      "resolve_chargeable_package",
-      {
-        p_student_id: entry.studentId,
-        p_session_date: sessionWithClass.session_date,
-      }
+  const [attendanceResult, packagesResult] = await Promise.all([
+    sessionIds.length === 0
+      ? Promise.resolve({ data: [] as { session_id: string }[], error: null })
+      : supabase
+          .from("attendance")
+          .select("session_id")
+          .in("session_id", sessionIds)
+          .in("status", ["present", "walk_in"]),
+    studentIds.length === 0
+      ? Promise.resolve({ data: [] as DashboardPackageRow[], error: null })
+      : supabase
+          .from("packages")
+          .select(DASHBOARD_PACKAGE_SELECT)
+          .in("student_id", studentIds)
+          .eq("is_paid", true)
+          .gt("remaining_credits", 0),
+  ]);
+
+  if (attendanceResult.error) throw attendanceResult.error;
+  if (packagesResult.error) throw packagesResult.error;
+
+  const checkedInBySession = new Map<string, number>();
+  for (const row of attendanceResult.data ?? []) {
+    const sessionId = row.session_id as string;
+    checkedInBySession.set(
+      sessionId,
+      (checkedInBySession.get(sessionId) ?? 0) + 1
     );
-
-    if (!packageId) {
-      packageAlerts += 1;
-      continue;
-    }
-
-    const { data: pkg } = await supabase
-      .from("packages")
-      .select("status, remaining_credits, expires_at")
-      .eq("id", packageId)
-      .single();
-
-    if (pkg && packageWarning(pkg as Package) !== "none") {
-      packageAlerts += 1;
-    }
   }
 
-  return {
-    session: sessionWithClass,
-    expectedCount: roster.length,
-    checkedInCount: checkedInCount ?? 0,
-    packageAlerts,
-    coachName,
-  };
+  const packagesByStudent = groupByStudentId(
+    (packagesResult.data ?? []) as DashboardPackageRow[]
+  );
+  const today = todayInSingapore();
+
+  return mapped.map(({ session, coachName }) => {
+    const roster = rosters.get(session.id) ?? [];
+    let packageAlerts = 0;
+    for (const entry of roster) {
+      const pkg = pickChargeablePackage(
+        packagesByStudent.get(entry.studentId) ?? [],
+        session.session_date,
+        today
+      );
+      if (!pkg || packageWarning(pkg) !== "none") {
+        packageAlerts += 1;
+      }
+    }
+
+    return {
+      session,
+      expectedCount: roster.length,
+      checkedInCount: checkedInBySession.get(session.id) ?? 0,
+      packageAlerts,
+      coachName,
+    };
+  });
 }
 
 const DASHBOARD_SESSION_SELECT = `
@@ -169,15 +270,12 @@ export async function getTodaySessionsForDashboard(coachId?: string) {
   const { data: sessions, error } = await query;
   if (error) throw error;
 
-  const results: DashboardSession[] = [];
-  for (const session of sessions ?? []) {
-    const { session: sessionWithClass, coachName } = mapSessionWithClass(
-      session as SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
-    );
-    results.push(
-      await enrichDashboardSession(supabase, sessionWithClass, coachName)
-    );
-  }
+  const results = await enrichDashboardSessions(
+    supabase,
+    (sessions ?? []) as Array<
+      SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+    >
+  );
 
   return results.sort((a, b) =>
     sessionDisplayStart(a.session).localeCompare(sessionDisplayStart(b.session))
@@ -198,15 +296,12 @@ export async function getWeekSessionsForDashboard(
 
   if (error) throw error;
 
-  const results: DashboardSession[] = [];
-  for (const session of sessions ?? []) {
-    const { session: sessionWithClass, coachName } = mapSessionWithClass(
-      session as SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
-    );
-    results.push(
-      await enrichDashboardSession(supabase, sessionWithClass, coachName)
-    );
-  }
+  const results = await enrichDashboardSessions(
+    supabase,
+    (sessions ?? []) as Array<
+      SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+    >
+  );
 
   return results.sort((a, b) => {
     const byDate = a.session.session_date.localeCompare(b.session.session_date);
@@ -257,132 +352,103 @@ export async function getSessionCheckInList(
     session as SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
   );
 
-  const roster = await loadEffectiveSessionRoster(
-    supabase,
-    sessionId,
-    sessionWithClass.class_id
-  );
+  const [roster, attendanceResult] = await Promise.all([
+    loadEffectiveSessionRoster(
+      supabase,
+      sessionId,
+      sessionWithClass.class_id
+    ),
+    supabase.from("attendance").select("*").eq("session_id", sessionId),
+  ]);
+
+  if (attendanceResult.error) throw attendanceResult.error;
+  const attendanceRows = attendanceResult.data ?? [];
   const expectedStudentIds = new Set(roster.map((entry) => entry.studentId));
 
-  const { data: attendanceRows, error: attendanceError } = await supabase
-    .from("attendance")
-    .select("*")
-    .eq("session_id", sessionId);
-
-  if (attendanceError) throw attendanceError;
-
   const attendanceByStudent = new Map(
-    (attendanceRows ?? []).map((row) => [row.student_id as string, row])
+    attendanceRows.map((row) => [row.student_id as string, row])
   );
 
-  async function buildCheckIn(
+  const walkInStudentIds = attendanceRows
+    .filter(
+      (row) =>
+        row.status === "walk_in" &&
+        !expectedStudentIds.has(row.student_id as string)
+    )
+    .map((row) => row.student_id as string);
+
+  const studentIds = [
+    ...new Set([
+      ...roster.map((entry) => entry.studentId),
+      ...walkInStudentIds,
+    ]),
+  ];
+
+  const [studentsResult, packagesResult] = await Promise.all([
+    studentIds.length === 0
+      ? Promise.resolve({ data: [] as Student[], error: null })
+      : supabase.from("students").select("*").in("id", studentIds),
+    studentIds.length === 0
+      ? Promise.resolve({ data: [] as Package[], error: null })
+      : supabase
+          .from("packages")
+          .select(CHECKIN_PACKAGE_SELECT)
+          .in("student_id", studentIds)
+          .eq("is_paid", true)
+          .gt("remaining_credits", 0),
+  ]);
+
+  if (studentsResult.error) throw studentsResult.error;
+  if (packagesResult.error) throw packagesResult.error;
+
+  const studentsById = new Map(
+    (studentsResult.data ?? []).map((row) => [row.id as string, row as Student])
+  );
+  const packagesByStudent = groupByStudentId(
+    (packagesResult.data ?? []).map((row) =>
+      mapPackageRow(row as unknown as Record<string, unknown>)
+    )
+  );
+  const today = todayInSingapore();
+
+  function buildCheckIn(
     student: Student,
     isWalkIn: boolean,
     rosterSource: CheckInStudent["rosterSource"] = null
-  ): Promise<CheckInStudent> {
-    const { data: chargeablePackageId } = await supabase.rpc(
-      "resolve_chargeable_package",
-      {
-        p_student_id: student.id,
-        p_session_date: sessionWithClass.session_date,
-      }
+  ): CheckInStudent {
+    const pkg = pickChargeablePackage(
+      packagesByStudent.get(student.id) ?? [],
+      sessionWithClass.session_date,
+      today
     );
-
-    let pkg: Package | null = null;
-    if (chargeablePackageId) {
-      const { data } = await supabase
-        .from("packages")
-        .select(
-          `
-          id,
-          student_id,
-          package_product_id,
-          total_credits,
-          used_credits,
-          remaining_credits,
-          forfeited_credits,
-          forfeited_at,
-          payment_method,
-          amount_sgd,
-          is_paid,
-          first_lesson_date,
-          expires_at,
-          paused_at,
-          pause_ends_at,
-          paused_reason,
-          resumed_at,
-          pause_used,
-          status,
-          created_at
-        `
-        )
-        .eq("id", chargeablePackageId)
-        .single();
-      pkg = data
-        ? ({
-            ...(data as Package),
-            package_product_id:
-              (data as { package_product_id?: string | null })
-                .package_product_id ?? null,
-            amount_sgd:
-              data.amount_sgd == null ? null : Number(data.amount_sgd),
-          } as Package)
-        : null;
-    }
 
     return {
       student,
-      attendance: (attendanceByStudent.get(student.id) as CheckInStudent["attendance"]) ?? null,
+      attendance:
+        (attendanceByStudent.get(student.id) as CheckInStudent["attendance"]) ??
+        null,
       package: pkg,
-      chargeablePackageId: (chargeablePackageId as string | null) ?? null,
+      chargeablePackageId: pkg?.id ?? null,
       isWalkIn,
       rosterSource,
     };
   }
 
   const expectedStudents: CheckInStudent[] = [];
-  if (roster.length > 0) {
-    const { data: students, error: studentsError } = await supabase
-      .from("students")
-      .select("*")
-      .in(
-        "id",
-        roster.map((entry) => entry.studentId)
-      );
-
-    if (studentsError) throw studentsError;
-
-    const byId = new Map(
-      (students ?? []).map((row) => [row.id as string, row as Student])
-    );
-
-    for (const entry of roster) {
-      const student = byId.get(entry.studentId);
-      if (!student) continue;
-      expectedStudents.push(
-        await buildCheckIn(student, false, entry.source)
-      );
-    }
-
-    expectedStudents.sort((a, b) =>
-      a.student.full_name.localeCompare(b.student.full_name)
-    );
+  for (const entry of roster) {
+    const student = studentsById.get(entry.studentId);
+    if (!student) continue;
+    expectedStudents.push(buildCheckIn(student, false, entry.source));
   }
+  expectedStudents.sort((a, b) =>
+    a.student.full_name.localeCompare(b.student.full_name)
+  );
 
   const walkIns: CheckInStudent[] = [];
-  for (const row of attendanceRows ?? []) {
-    if (row.status !== "walk_in") continue;
-    if (expectedStudentIds.has(row.student_id as string)) continue;
-
-    const { data: student } = await supabase
-      .from("students")
-      .select("*")
-      .eq("id", row.student_id)
-      .single();
-
-    if (student) {
-      walkIns.push(await buildCheckIn(student as Student, true, null));
-    }
+  for (const studentId of walkInStudentIds) {
+    const student = studentsById.get(studentId);
+    if (!student) continue;
+    walkIns.push(buildCheckIn(student, true, null));
   }
 
   return {
