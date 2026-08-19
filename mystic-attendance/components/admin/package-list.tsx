@@ -25,9 +25,10 @@ import {
   packageLabel,
   PAYMENT_METHOD_LABELS,
 } from "@/lib/package-utils";
-import type { PackageStatus, PackageWithStudent } from "@/lib/types";
+import type { PackageListFilter } from "@/lib/queries/packages";
+import type { PackageWithStudent } from "@/lib/types";
 
-type FilterValue = "at_risk" | PackageStatus;
+type FilterValue = PackageListFilter;
 
 type PackageListProps = {
   packages: PackageWithStudent[];
@@ -36,12 +37,12 @@ type PackageListProps = {
 };
 
 const FILTER_OPTIONS: { value: FilterValue; label: string }[] = [
-  { value: "at_risk", label: "Finishing" },
+  { value: "finishing", label: "Finishing" },
   { value: "active", label: "Active" },
   { value: "unpaid", label: "Unpaid" },
   { value: "paused", label: "Paused" },
   { value: "expired", label: "Expired" },
-  { value: "exhausted", label: "Finished" },
+  { value: "finished", label: "Finished" },
 ];
 
 function orderedFilters(filters: FilterValue[]): FilterValue[] {
@@ -92,7 +93,7 @@ function FilterCheckbox({
 
 export function PackageList({
   packages,
-  initialFilter = ["at_risk"],
+  initialFilter = ["finishing"],
   initialSearch = "",
 }: PackageListProps) {
   const router = useRouter();
@@ -110,7 +111,7 @@ export function PackageList({
   }, [packages, search]);
 
   const isFinishingOnly =
-    filter.length === 1 && filter[0] === "at_risk";
+    filter.length === 1 && filter[0] === "finishing";
   const selectedOptions = selectedFilterOptions(filter);
   const allSelected = selectedOptions.length === FILTER_OPTIONS.length;
   const showingAll = selectedOptions.length === 0 || allSelected;
@@ -119,7 +120,7 @@ export function PackageList({
     const ordered = orderedFilters(next);
     setFilter(ordered);
     const params = new URLSearchParams();
-    const isDefault = ordered.length === 1 && ordered[0] === "at_risk";
+    const isDefault = ordered.length === 1 && ordered[0] === "finishing";
     if (!isDefault) params.set("filter", ordered.join(","));
     if (search.trim()) params.set("q", search.trim());
     const qs = params.toString();
@@ -227,7 +228,7 @@ export function PackageList({
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             {isFinishingOnly
-              ? "Low-credit, expiring, expired, and unpaid packages will appear here."
+              ? "Active packages with 2 or fewer credits, or expiring within 14 days, will appear here."
               : "Assign a package to a student to get started."}
           </p>
         </div>
