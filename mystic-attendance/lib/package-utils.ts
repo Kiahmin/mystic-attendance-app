@@ -1,4 +1,3 @@
-import { packageWarning } from "@/lib/attendance-utils";
 import {
   formatCalendarDate,
   isOnOrBeforeDaysFromToday,
@@ -152,17 +151,12 @@ export function formatPackageExpiry(expiresAt: string | null): string {
   return formatCalendarDate(expiresAt);
 }
 
-export function isAtRiskPackage(pkg: Package): boolean {
-  const warning = packageWarning(pkg);
-  if (warning !== "none") return true;
+export function isFinishingPackage(pkg: Package): boolean {
+  if (pkg.status !== "active") return false;
+  if (pkg.remaining_credits <= LOW_CREDIT_THRESHOLD) return true;
   return (
-    pkg.status === "expired" ||
-    pkg.status === "unpaid" ||
-    (pkg.status === "active" &&
-      pkg.remaining_credits <= LOW_CREDIT_THRESHOLD) ||
-    (pkg.expires_at != null &&
-      isOnOrBeforeDaysFromToday(pkg.expires_at, EXPIRING_WITHIN_DAYS) &&
-      pkg.status === "active")
+    pkg.expires_at != null &&
+    isOnOrBeforeDaysFromToday(pkg.expires_at, EXPIRING_WITHIN_DAYS)
   );
 }
 
