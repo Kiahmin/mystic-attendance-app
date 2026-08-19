@@ -15,9 +15,22 @@ export const SKILL_LEVEL_LABELS: Record<SkillLevel, string> = {
   freestyle: "Freestyle",
 };
 
-export const DAYS_OF_WEEK: DayOfWeek[] = ["saturday", "sunday"];
+export const DAYS_OF_WEEK: DayOfWeek[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
 
 export const DAY_OF_WEEK_LABELS: Record<DayOfWeek, string> = {
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
   saturday: "Saturday",
   sunday: "Sunday",
 };

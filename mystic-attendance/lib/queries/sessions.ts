@@ -2,7 +2,7 @@ import { todayInSingapore } from "@/lib/datetime";
 import { createClient } from "@/lib/supabase/server";
 import { packageWarning } from "@/lib/attendance-utils";
 import { loadEffectiveSessionRoster } from "@/lib/session-roster";
-import { weekendDatesInCurrentWeek } from "@/lib/session-utils";
+import { sessionDisplayStart } from "@/lib/session-utils";
 import type {
   CheckInStudent,
   DashboardSession,
@@ -25,13 +25,22 @@ type SessionClassRow = SessionWithClass["classes"] & {
     | null;
 };
 
+type SessionCoachRow = {
+  profiles?:
+    | Pick<Profile, "id" | "full_name">
+    | Pick<Profile, "id" | "full_name">[]
+    | null;
+};
+
 function mapSessionWithClass(
-  row: SessionWithClass & { classes: SessionClassRow }
+  row: SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
 ): { session: SessionWithClass; coachName: string | null } {
-  const coach = asSingle(row.classes.profiles);
+  const coach =
+    asSingle(row.profiles) ?? asSingle(row.classes.profiles);
   return {
     session: {
       ...row,
+      coach,
       classes: {
         id: row.classes.id,
         name: row.classes.name,
@@ -40,7 +49,7 @@ function mapSessionWithClass(
         end_time: row.classes.end_time,
         coach_id: row.classes.coach_id,
         is_active: row.classes.is_active,
-        coach,
+        coach: asSingle(row.classes.profiles),
       },
     },
     coachName: coach?.full_name ?? null,
@@ -101,6 +110,10 @@ async function enrichDashboardSession(
 
 const DASHBOARD_SESSION_SELECT = `
   *,
+  profiles!sessions_coach_id_fkey (
+    id,
+    full_name
+  ),
   classes (
     id,
     name,
@@ -108,11 +121,7 @@ const DASHBOARD_SESSION_SELECT = `
     start_time,
     end_time,
     coach_id,
-    is_active,
-    profiles!coach_id (
-      id,
-      full_name
-    )
+    is_active
   )
 `;
 
@@ -137,7 +146,7 @@ export async function getCoachSessionsForToday(coachId: string) {
       `
     )
     .eq("session_date", today)
-    .eq("classes.coach_id", coachId)
+    .eq("coach_id", coachId)
     .order("session_date", { ascending: true });
 
   if (error) throw error;
@@ -154,7 +163,7 @@ export async function getTodaySessionsForDashboard(coachId?: string) {
     .eq("session_date", today);
 
   if (coachId) {
-    query = query.eq("classes.coach_id", coachId);
+    query = query.eq("coach_id", coachId);
   }
 
   const { data: sessions, error } = await query;
@@ -163,7 +172,7 @@ export async function getTodaySessionsForDashboard(coachId?: string) {
   const results: DashboardSession[] = [];
   for (const session of sessions ?? []) {
     const { session: sessionWithClass, coachName } = mapSessionWithClass(
-      session as SessionWithClass & { classes: SessionClassRow }
+      session as SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
     );
     results.push(
       await enrichDashboardSession(supabase, sessionWithClass, coachName)
@@ -171,25 +180,28 @@ export async function getTodaySessionsForDashboard(coachId?: string) {
   }
 
   return results.sort((a, b) =>
-    a.session.classes.start_time.localeCompare(b.session.classes.start_time)
+    sessionDisplayStart(a.session).localeCompare(sessionDisplayStart(b.session))
   );
 }
 
-export async function getWeekSessionsForDashboard() {
+export async function getWeekSessionsForDashboard(
+  monday: string,
+  sunday: string
+) {
   const supabase = await createClient();
-  const { saturday, sunday } = weekendDatesInCurrentWeek();
 
   const { data: sessions, error } = await supabase
     .from("sessions")
     .select(DASHBOARD_SESSION_SELECT)
-    .in("session_date", [saturday, sunday]);
+    .gte("session_date", monday)
+    .lte("session_date", sunday);
 
   if (error) throw error;
 
   const results: DashboardSession[] = [];
   for (const session of sessions ?? []) {
     const { session: sessionWithClass, coachName } = mapSessionWithClass(
-      session as SessionWithClass & { classes: SessionClassRow }
+      session as SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
     );
     results.push(
       await enrichDashboardSession(supabase, sessionWithClass, coachName)
@@ -199,8 +211,8 @@ export async function getWeekSessionsForDashboard() {
   return results.sort((a, b) => {
     const byDate = a.session.session_date.localeCompare(b.session.session_date);
     if (byDate !== 0) return byDate;
-    return a.session.classes.start_time.localeCompare(
-      b.session.classes.start_time
+    return sessionDisplayStart(a.session).localeCompare(
+      sessionDisplayStart(b.session)
     );
   });
 }
@@ -219,6 +231,10 @@ export async function getSessionCheckInList(
     .select(
       `
         *,
+        profiles!sessions_coach_id_fkey (
+          id,
+          full_name
+        ),
         classes (
           id,
           name,
@@ -237,7 +253,9 @@ export async function getSessionCheckInList(
     throw new Error("Session not found");
   }
 
-  const sessionWithClass = session as SessionWithClass;
+  const { session: sessionWithClass } = mapSessionWithClass(
+    session as SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+  );
 
   const roster = await loadEffectiveSessionRoster(
     supabase,

@@ -6,6 +6,10 @@ import {
   CANCELLATION_REASON_LABELS,
 } from "@/lib/attendance-utils";
 import type { CheckInStudent, SessionWithClass } from "@/lib/types";
+import {
+  sessionDisplayEnd,
+  sessionDisplayStart,
+} from "@/lib/session-utils";
 import { AttendancePanel } from "@/components/coach/attendance-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -60,8 +64,11 @@ export function SessionAttendanceView({
           </div>
           <p className="text-sm text-muted-foreground">
             {formatDate(session.session_date)} ·{" "}
-            {formatSessionTime(classGroup.start_time)} –{" "}
-            {formatSessionTime(classGroup.end_time)}
+            {formatSessionTime(sessionDisplayStart(session))} –{" "}
+            {formatSessionTime(sessionDisplayEnd(session))}
+            {session.coach?.full_name
+              ? ` · ${session.coach.full_name}`
+              : ""}
           </p>
         </CardHeader>
         {session.cancelled ? (

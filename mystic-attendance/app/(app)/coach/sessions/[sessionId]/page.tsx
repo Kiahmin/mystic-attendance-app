@@ -23,9 +23,8 @@ export default async function CoachSessionPage({ params }: SessionPageProps) {
   }
 
   const { session, students, walkIns } = data;
-  const { classes: classGroup } = session;
 
-  if (classGroup.coach_id && classGroup.coach_id !== profile.id) {
+  if (session.coach_id && session.coach_id !== profile.id) {
     notFound();
   }
 

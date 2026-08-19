@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { DAYS_OF_WEEK } from "@/lib/admin-utils";
 import type {
   ClassDetail,
   ClassGroup,
@@ -71,9 +72,20 @@ export async function listClasses(options?: {
   const { data, error } = await query;
   if (error) throw error;
 
-  return (data ?? []).map((row) =>
-    mapClassWithCoach(row as Parameters<typeof mapClassWithCoach>[0])
-  );
+  const dayRank = new Map(DAYS_OF_WEEK.map((day, index) => [day, index]));
+
+  return (data ?? [])
+    .map((row) =>
+      mapClassWithCoach(row as Parameters<typeof mapClassWithCoach>[0])
+    )
+    .sort((a, b) => {
+      const byDay =
+        (dayRank.get(a.day_of_week) ?? 99) - (dayRank.get(b.day_of_week) ?? 99);
+      if (byDay !== 0) return byDay;
+      const byTime = a.start_time.localeCompare(b.start_time);
+      if (byTime !== 0) return byTime;
+      return a.name.localeCompare(b.name);
+    });
 }
 
 export async function getClassById(id: string): Promise<ClassDetail | null> {

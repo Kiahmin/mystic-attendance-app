@@ -2,6 +2,10 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { SessionWithClass } from "@/lib/types";
 import {
+  sessionDisplayEnd,
+  sessionDisplayStart,
+} from "@/lib/session-utils";
+import {
   formatDate,
   formatSessionTime,
   CANCELLATION_REASON_LABELS,
@@ -34,6 +38,8 @@ export function SessionCard({
   variant = "card",
 }: SessionCardProps) {
   const { classes: classGroup } = session;
+  const startTime = sessionDisplayStart(session);
+  const endTime = sessionDisplayEnd(session);
   const expected = expectedCount ?? 0;
   const checkedIn = checkedInCount ?? 0;
   const progress =
@@ -51,13 +57,13 @@ export function SessionCard({
         <div className="min-w-0">
           <p className="truncate font-medium">{classGroup.name}</p>
           <p className="text-xs text-muted-foreground md:hidden">
-            {formatSessionTime(classGroup.start_time)} –{" "}
-            {formatSessionTime(classGroup.end_time)}
+            {formatSessionTime(startTime)} –{" "}
+            {formatSessionTime(endTime)}
           </p>
         </div>
         <p className="hidden text-sm text-muted-foreground md:block">
-          {formatSessionTime(classGroup.start_time)} –{" "}
-          {formatSessionTime(classGroup.end_time)}
+          {formatSessionTime(startTime)} –{" "}
+          {formatSessionTime(endTime)}
         </p>
         <div className="space-y-1.5">
           {expectedCount !== undefined ? (
@@ -115,8 +121,8 @@ export function SessionCard({
               <CardTitle className="text-lg">{classGroup.name}</CardTitle>
               <CardDescription>
                 {formatDate(session.session_date)} ·{" "}
-                {formatSessionTime(classGroup.start_time)} –{" "}
-                {formatSessionTime(classGroup.end_time)}
+                {formatSessionTime(startTime)} –{" "}
+                {formatSessionTime(endTime)}
               </CardDescription>
             </div>
             <ChevronRight className="mt-1 size-5 shrink-0 text-muted-foreground" />
