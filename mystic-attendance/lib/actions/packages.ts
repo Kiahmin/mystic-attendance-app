@@ -24,6 +24,9 @@ export type AssignPackageInput = {
   is_paid: boolean;
   payment_method?: PaymentMethod | null;
   amount_sgd?: number | null;
+  custom_total_credits?: number | null;
+  bonus_credits?: number;
+  customisation_notes?: string | null;
 };
 
 export type PausePackageInput = {
@@ -48,9 +51,32 @@ function revalidatePackagePaths(studentId: string, packageId?: string) {
   }
 }
 
+function isPositiveInt(value: number): boolean {
+  return Number.isInteger(value) && value >= 1;
+}
+
+function isNonNegativeInt(value: number): boolean {
+  return Number.isInteger(value) && value >= 0;
+}
+
 function validateAssignInput(input: AssignPackageInput): string | null {
   if (!input.student_id) return "Student is required.";
   if (!input.package_product_id) return "Choose a package product.";
+
+  if (input.custom_total_credits != null) {
+    if (
+      Number.isNaN(input.custom_total_credits) ||
+      !isPositiveInt(input.custom_total_credits)
+    ) {
+      return "Custom lesson count must be a whole number of at least 1.";
+    }
+  }
+
+  if (input.bonus_credits != null) {
+    if (Number.isNaN(input.bonus_credits) || !isNonNegativeInt(input.bonus_credits)) {
+      return "Complimentary credits must be a whole number of 0 or more.";
+    }
+  }
 
   if (input.is_paid) {
     if (!input.payment_method || !PAYMENT_METHODS.includes(input.payment_method)) {
@@ -78,13 +104,23 @@ export async function assignPackage(input: AssignPackageInput) {
     return { error: "Selected package product is not available." };
   }
 
+  const bonusCredits = input.bonus_credits ?? 0;
+  const baseCredits = input.custom_total_credits ?? product.total_credits;
+  const totalCredits = baseCredits + bonusCredits;
+
+  if (totalCredits < 1) {
+    return { error: "Package must have at least 1 credit." };
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("packages")
     .insert({
       student_id: input.student_id,
       package_product_id: product.id,
-      total_credits: product.total_credits,
+      total_credits: totalCredits,
+      bonus_credits: bonusCredits,
+      customisation_notes: emptyToNull(input.customisation_notes),
       is_paid: input.is_paid,
       payment_method: input.is_paid ? input.payment_method : null,
       amount_sgd: input.is_paid ? input.amount_sgd : input.amount_sgd ?? null,

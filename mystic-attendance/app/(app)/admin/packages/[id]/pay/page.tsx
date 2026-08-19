@@ -45,7 +45,7 @@ export default async function MarkPackagePaidPage({
   if (!pkg) notFound();
 
   const backHref = `/admin/students/${pkg.student_id}`;
-  const label = packageLabel(pkg.total_credits, pkg.package_products);
+  const label = packageLabel(pkg, pkg.package_products);
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
