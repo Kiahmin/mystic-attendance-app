@@ -258,3 +258,39 @@ export async function listPackages(options?: {
 
   return packages;
 }
+
+export async function countUnchargedAttendanceForStudent(
+  studentId: string
+): Promise<number> {
+  if (!studentId) return 0;
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("attendance")
+    .select("id", { count: "exact", head: true })
+    .eq("student_id", studentId)
+    .is("package_id", null)
+    .eq("deduct_credit", true);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function countUnchargedAttendanceByStudent(): Promise<
+  Record<string, number>
+> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("attendance")
+    .select("student_id")
+    .is("package_id", null)
+    .eq("deduct_credit", true);
+
+  if (error) throw error;
+
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const studentId = row.student_id as string;
+    counts[studentId] = (counts[studentId] ?? 0) + 1;
+  }
+  return counts;
+}

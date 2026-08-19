@@ -266,3 +266,20 @@ export function buildPauseReason(
   const trimmed = note?.trim();
   return trimmed ? `${label}: ${trimmed}` : label;
 }
+
+export function unchargedClassesNote(
+  uncharged: number,
+  remainingCredits: number
+): string | null {
+  if (uncharged <= 0) return null;
+  const classWord = uncharged === 1 ? "class" : "classes";
+  const applied = Math.min(uncharged, Math.max(remainingCredits, 0));
+  const leftover = uncharged - applied;
+  if (applied <= 0) {
+    return `${uncharged} uncharged ${classWord} found; none can be applied (no credits remaining).`;
+  }
+  if (leftover <= 0) {
+    return `${uncharged} uncharged ${classWord} will be applied (oldest first).`;
+  }
+  return `${uncharged} uncharged ${classWord} found; the oldest ${applied} will be applied (${leftover} left uncharged).`;
+}

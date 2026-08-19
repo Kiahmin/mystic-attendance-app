@@ -17,6 +17,24 @@ import { createClient } from "@/lib/supabase/server";
 import type { PaymentMethod } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+async function backfillUnchargedAttendance(
+  supabase: SupabaseClient,
+  packageId: string
+): Promise<{ backfillError?: string }> {
+  const { error } = await supabase.rpc("backfill_uncharged_attendance", {
+    p_package_id: packageId,
+  });
+
+  if (error) {
+    return {
+      backfillError: `The package was saved, but uncharged classes could not be applied: ${error.message}`,
+    };
+  }
+
+  return {};
+}
 
 export type AssignPackageInput = {
   student_id: string;
@@ -132,8 +150,17 @@ export async function assignPackage(input: AssignPackageInput) {
     return { error: error.message };
   }
 
-  revalidatePackagePaths(input.student_id, data.id as string);
-  return { success: true as const, id: data.id as string };
+  const packageId = data.id as string;
+  if (input.is_paid) {
+    const backfill = await backfillUnchargedAttendance(supabase, packageId);
+    if (backfill.backfillError) {
+      revalidatePackagePaths(input.student_id, packageId);
+      return { error: backfill.backfillError, id: packageId };
+    }
+  }
+
+  revalidatePackagePaths(input.student_id, packageId);
+  return { success: true as const, id: packageId };
 }
 
 export async function markPackagePaidFormAction(formData: FormData) {
@@ -207,7 +234,11 @@ export async function markPackagePaid(
 
   if (error) return { error: error.message };
 
+  const backfill = await backfillUnchargedAttendance(supabase, packageId);
   revalidatePackagePaths(existing.student_id as string, packageId);
+  if (backfill.backfillError) {
+    return { error: backfill.backfillError };
+  }
   return { success: true as const };
 }
 
