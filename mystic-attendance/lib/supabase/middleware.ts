@@ -2,22 +2,16 @@ import { isLoginEnabled } from "@/lib/auth/config";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-function nextWithPathname(request: NextRequest) {
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-pathname", request.nextUrl.pathname);
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+function nextWithRequest(request: NextRequest) {
+  return NextResponse.next({ request });
 }
 
 export async function updateSession(request: NextRequest) {
   if (!isLoginEnabled()) {
-    return nextWithPathname(request);
+    return nextWithRequest(request);
   }
 
-  let supabaseResponse = nextWithPathname(request);
+  let supabaseResponse = nextWithRequest(request);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,7 +25,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          supabaseResponse = nextWithPathname(request);
+          supabaseResponse = nextWithRequest(request);
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );

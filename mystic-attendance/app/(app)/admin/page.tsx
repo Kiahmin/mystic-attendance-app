@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/profile";
+import { todayInSingapore } from "@/lib/datetime";
 import { listCoaches } from "@/lib/queries/profiles";
 import {
   getTodaySessionsForDashboard,
@@ -31,11 +32,15 @@ export default async function AdminDashboardPage({
   const currentWeek = weekDatesContaining();
   const isCurrentWeek = monday === currentWeek.monday;
 
-  const [todaySessions, weekSessions, coaches] = await Promise.all([
-    getTodaySessionsForDashboard(),
+  const [todayOnly, weekSessions, coaches] = await Promise.all([
+    isCurrentWeek ? Promise.resolve(null) : getTodaySessionsForDashboard(),
     getWeekSessionsForDashboard(monday, sunday),
     listCoaches(),
   ]);
+  const today = todayInSingapore();
+  const todaySessions =
+    todayOnly ??
+    weekSessions.filter((item) => item.session.session_date === today);
 
   const totalExpected = todaySessions.reduce(
     (sum, item) => sum + item.expectedCount,

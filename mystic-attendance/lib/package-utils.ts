@@ -1,5 +1,9 @@
 import { packageWarning } from "@/lib/attendance-utils";
-import { formatCalendarDate, isOnOrBeforeDaysFromToday } from "@/lib/datetime";
+import {
+  formatCalendarDate,
+  isOnOrBeforeDaysFromToday,
+  todayInSingapore,
+} from "@/lib/datetime";
 import type {
   Package,
   PackageProduct,
@@ -127,6 +131,63 @@ export function atRiskReason(pkg: Package): string | null {
 
 export function canPausePackage(pkg: Package): boolean {
   return !pkg.pause_used && pkg.is_paid && pkg.status === "active";
+}
+
+/** Fields needed to match `resolve_chargeable_package` in SQL. */
+export type ChargeablePackageFields = {
+  id: string;
+  student_id: string;
+  is_paid: boolean;
+  paused_at: string | null;
+  resumed_at: string | null;
+  expires_at: string | null;
+  used_credits: number;
+  total_credits: number;
+  remaining_credits: number;
+  first_lesson_date: string | null;
+  created_at: string;
+};
+
+/**
+ * Live status used by `resolve_chargeable_package` (recomputed from today,
+ * not the stored `packages.status` column).
+ */
+function livePackageStatus(
+  pkg: ChargeablePackageFields,
+  today: string
+): PackageStatus {
+  if (!pkg.is_paid) return "unpaid";
+  if (pkg.paused_at != null && pkg.resumed_at == null && today >= pkg.paused_at) {
+    return "paused";
+  }
+  if (pkg.expires_at != null && pkg.expires_at < today) return "expired";
+  if (pkg.used_credits >= pkg.total_credits) return "exhausted";
+  return "active";
+}
+
+function chargeableSortKey(pkg: ChargeablePackageFields): string {
+  const firstLesson = pkg.first_lesson_date ?? pkg.created_at.slice(0, 10);
+  return `${firstLesson}\t${pkg.created_at}`;
+}
+
+/** Same selection as `resolve_chargeable_package(student, session_date)`. */
+export function pickChargeablePackage<T extends ChargeablePackageFields>(
+  packages: T[],
+  sessionDate: string,
+  today: string = todayInSingapore()
+): T | null {
+  const eligible = packages.filter(
+    (pkg) =>
+      pkg.is_paid &&
+      livePackageStatus(pkg, today) === "active" &&
+      pkg.remaining_credits > 0 &&
+      (pkg.expires_at == null || pkg.expires_at >= sessionDate)
+  );
+  if (eligible.length === 0) return null;
+  eligible.sort((a, b) =>
+    chargeableSortKey(a).localeCompare(chargeableSortKey(b))
+  );
+  return eligible[0];
 }
 
 /** True when a pause is recorded and not yet resumed (scheduled or in progress). */
