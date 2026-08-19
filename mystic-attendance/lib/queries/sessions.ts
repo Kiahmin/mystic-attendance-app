@@ -122,6 +122,9 @@ function mapPackageRow(data: Record<string, unknown>): Package {
     ...(data as unknown as Package),
     package_product_id:
       (data.package_product_id as string | null | undefined) ?? null,
+    bonus_credits: Number(data.bonus_credits ?? 0),
+    customisation_notes:
+      (data.customisation_notes as string | null | undefined) ?? null,
     amount_sgd: data.amount_sgd == null ? null : Number(data.amount_sgd),
   };
 }
