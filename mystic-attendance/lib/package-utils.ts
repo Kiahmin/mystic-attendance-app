@@ -71,17 +71,75 @@ export function defaultAmountForProduct(product: PackageProduct): number {
   return Number(product.amount_sgd);
 }
 
+export type PackageLabelSource = {
+  total_credits: number;
+  bonus_credits?: number | null;
+};
+
+export type PackageCustomisationSource = PackageLabelSource & {
+  customisation_notes?: string | null;
+};
+
+export function packageBaseCredits(pkg: PackageLabelSource): number {
+  return pkg.total_credits - (pkg.bonus_credits ?? 0);
+}
+
+export function isCustomPackageCount(
+  pkg: PackageLabelSource,
+  product?: Pick<PackageProduct, "total_credits"> | null
+): boolean {
+  if (!product) return false;
+  return packageBaseCredits(pkg) !== product.total_credits;
+}
+
+export function isCustomisedPackage(
+  pkg: PackageCustomisationSource,
+  product?: Pick<PackageProduct, "total_credits"> | null
+): boolean {
+  return (
+    (pkg.bonus_credits ?? 0) > 0 ||
+    Boolean(pkg.customisation_notes?.trim()) ||
+    isCustomPackageCount(pkg, product)
+  );
+}
+
+export function packageCreditBreakdown(
+  pkg: PackageLabelSource,
+  product?: Pick<PackageProduct, "total_credits"> | null
+): string | null {
+  const bonus = pkg.bonus_credits ?? 0;
+  const base = packageBaseCredits(pkg);
+  const custom = isCustomPackageCount(pkg, product);
+  if (!custom && bonus === 0) return null;
+
+  const lessonWord = base === 1 ? "lesson" : "lessons";
+  const basePart = custom
+    ? `${base} ${lessonWord} (custom)`
+    : `${base} ${lessonWord}`;
+  if (bonus > 0) {
+    return `${basePart} + ${bonus} complimentary`;
+  }
+  return basePart;
+}
+
 export function packageLabel(
-  totalCredits: number,
+  pkg: PackageLabelSource,
   product?: Pick<PackageProduct, "product_type" | "label" | "total_credits"> | null
 ): string {
+  const bonus = pkg.bonus_credits ?? 0;
+  const base = packageBaseCredits(pkg);
+  const bonusSuffix = bonus > 0 ? ` + ${bonus} complimentary` : "";
+
   if (product) {
-    if (isTrialProductType(product.product_type)) {
-      return product.label;
+    if (
+      isTrialProductType(product.product_type) &&
+      base === product.total_credits
+    ) {
+      return `${product.label}${bonusSuffix}`;
     }
-    return `${product.label} · ${product.total_credits}-Lesson Pack`;
+    return `${product.label} · ${base}-Lesson Pack${bonusSuffix}`;
   }
-  return `${totalCredits}-Lesson Pack`;
+  return `${base}-Lesson Pack${bonusSuffix}`;
 }
 
 export function formatAmountSgd(amount: number | null | undefined): string {

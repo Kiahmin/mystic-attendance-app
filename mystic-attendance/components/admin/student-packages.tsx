@@ -9,6 +9,8 @@ import {
   canResumePackage,
   formatAmountSgd,
   formatPackageExpiry,
+  isCustomisedPackage,
+  packageCreditBreakdown,
   packageLabel,
 } from "@/lib/package-utils";
 import type { Package, PackageStatus } from "@/lib/types";
@@ -83,6 +85,7 @@ function PackageCard({ pkg }: { pkg: Package }) {
     pkg.pause_ends_at && pkg.pause_ends_at <= todayInSingapore()
       ? pkg.pause_ends_at
       : todayInSingapore();
+  const creditBreakdown = packageCreditBreakdown(pkg, pkg.package_products);
 
   return (
     <div className="rounded-xl border border-border/70 bg-card p-5 shadow-sm">
@@ -90,10 +93,18 @@ function PackageCard({ pkg }: { pkg: Package }) {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="font-semibold text-primary">
-              {packageLabel(pkg.total_credits, pkg.package_products)}
+              {packageLabel(pkg, pkg.package_products)}
             </h4>
             <StatusPill status={pkg.status} />
+            {isCustomisedPackage(pkg, pkg.package_products) ? (
+              <span className="inline-flex h-5 items-center rounded-full bg-muted px-2 text-xs font-medium text-muted-foreground">
+                Custom
+              </span>
+            ) : null}
           </div>
+          {creditBreakdown ? (
+            <p className="text-xs text-muted-foreground">{creditBreakdown}</p>
+          ) : null}
           <p className="text-xs text-muted-foreground">
             {assignedDate
               ? `Assigned ${formatCalendarDate(assignedDate)}`
@@ -185,6 +196,15 @@ function PackageCard({ pkg }: { pkg: Package }) {
           ) : null}
         </div>
       </div>
+
+      {pkg.customisation_notes ? (
+        <div className="mt-3 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+          <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+            Customisation notes
+          </p>
+          <p className="mt-1 text-foreground">{pkg.customisation_notes}</p>
+        </div>
+      ) : null}
 
       {pkg.paused_at ? (
         <div className="mt-3 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">

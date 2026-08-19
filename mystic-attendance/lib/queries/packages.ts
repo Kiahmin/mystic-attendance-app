@@ -25,6 +25,8 @@ const PACKAGE_COLUMNS = `
   total_credits,
   used_credits,
   remaining_credits,
+  bonus_credits,
+  customisation_notes,
   forfeited_credits,
   forfeited_at,
   payment_method,
@@ -62,6 +64,8 @@ function mapPackageProduct(
 function mapPackage(row: {
   package_product_id?: string | null;
   amount_sgd?: number | string | null;
+  bonus_credits?: number | string | null;
+  customisation_notes?: string | null;
   package_products?: PackageProduct | PackageProduct[] | null;
   [key: string]: unknown;
 }): Package {
@@ -69,6 +73,8 @@ function mapPackage(row: {
   return {
     ...(row as unknown as Package),
     package_product_id: row.package_product_id ?? null,
+    bonus_credits: Number(row.bonus_credits ?? 0),
+    customisation_notes: row.customisation_notes ?? null,
     amount_sgd:
       row.amount_sgd == null || row.amount_sgd === ""
         ? null

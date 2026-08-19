@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Info, UserRound } from "lucide-react";
+import { CheckCircle2, ChevronDown, Info, UserRound } from "lucide-react";
 import { assignPackage } from "@/lib/actions/packages";
 import {
   PACKAGE_PRODUCT_TYPE_LABELS,
@@ -13,6 +13,8 @@ import {
   defaultAmountForProduct,
   formatAmountSgd,
   isTrialProductType,
+  packageCreditBreakdown,
+  packageLabel,
 } from "@/lib/package-utils";
 import type { PackageProduct, PackageProductType, PaymentMethod, Student } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -20,6 +22,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -82,11 +85,38 @@ export function AssignPackageForm({
   const [amount, setAmount] = useState(
     selectedProduct ? String(defaultAmountForProduct(selectedProduct)) : ""
   );
+  const [customBase, setCustomBase] = useState(
+    selectedProduct ? String(selectedProduct.total_credits) : ""
+  );
+  const [bonusCredits, setBonusCredits] = useState("0");
+  const [notes, setNotes] = useState("");
+  const [customiseOpen, setCustomiseOpen] = useState(false);
 
   const selectedStudent = useMemo(
     () => students.find((s) => s.id === studentId) ?? null,
     [students, studentId]
   );
+
+  const previewCredits = useMemo(() => {
+    const catalogBase = selectedProduct?.total_credits ?? 0;
+    const parsedCustom = Number(customBase);
+    const base =
+      Number.isInteger(parsedCustom) && parsedCustom >= 1
+        ? parsedCustom
+        : catalogBase;
+    const parsedBonus = bonusCredits.trim() === "" ? 0 : Number(bonusCredits);
+    const bonus =
+      Number.isInteger(parsedBonus) && parsedBonus >= 0 ? parsedBonus : 0;
+    return {
+      total_credits: base + bonus,
+      bonus_credits: bonus,
+      base,
+    };
+  }, [selectedProduct, customBase, bonusCredits]);
+
+  const previewBreakdown = selectedProduct
+    ? packageCreditBreakdown(previewCredits, selectedProduct)
+    : null;
 
   function handleProductTypeChange(next: PackageProductType) {
     setProductType(next);
@@ -98,11 +128,13 @@ export function AssignPackageForm({
     setAmount(
       nextProduct ? String(defaultAmountForProduct(nextProduct)) : ""
     );
+    setCustomBase(nextProduct ? String(nextProduct.total_credits) : "");
   }
 
   function handleProductChange(nextProduct: PackageProduct) {
     setProductId(nextProduct.id);
     setAmount(String(defaultAmountForProduct(nextProduct)));
+    setCustomBase(String(nextProduct.total_credits));
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -124,6 +156,29 @@ export function AssignPackageForm({
       return;
     }
 
+    const parsedBonus =
+      bonusCredits.trim() === "" ? 0 : Number(bonusCredits);
+    if (!Number.isInteger(parsedBonus) || parsedBonus < 0) {
+      setError("Complimentary credits must be a whole number of 0 or more.");
+      return;
+    }
+
+    let customTotalCredits: number | null = null;
+    if (customBase.trim() !== "") {
+      const parsedCustom = Number(customBase);
+      if (!Number.isInteger(parsedCustom) || parsedCustom < 1) {
+        setError("Lesson count must be a whole number of at least 1.");
+        return;
+      }
+      customTotalCredits =
+        parsedCustom === selectedProduct.total_credits ? null : parsedCustom;
+    }
+
+    if ((customTotalCredits ?? selectedProduct.total_credits) + parsedBonus < 1) {
+      setError("Package must have at least 1 credit.");
+      return;
+    }
+
     startTransition(async () => {
       const result = await assignPackage({
         student_id: studentId,
@@ -131,6 +186,9 @@ export function AssignPackageForm({
         is_paid: isPaid,
         payment_method: isPaid ? paymentMethod : null,
         amount_sgd: amountSgd,
+        custom_total_credits: customTotalCredits,
+        bonus_credits: parsedBonus,
+        customisation_notes: notes,
       });
 
       if (result.error) {
@@ -194,8 +252,8 @@ export function AssignPackageForm({
           <CardHeader>
             <CardTitle className="text-lg">Package Selection</CardTitle>
             <CardDescription>
-              Choose a product tier and size. Validity starts on the first
-              attended lesson.
+              Choose a product tier, then adjust lesson count or add
+              complimentary credits as required.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -230,6 +288,13 @@ export function AssignPackageForm({
             >
               {productsForType.map((option) => {
                 const selected = selectedProduct?.id === option.id;
+                const displayCredits = selected
+                  ? previewCredits.total_credits
+                  : option.total_credits;
+                const isAdjusted =
+                  selected &&
+                  (previewCredits.bonus_credits > 0 ||
+                    previewCredits.base !== option.total_credits);
                 return (
                   <button
                     key={option.id}
@@ -246,7 +311,7 @@ export function AssignPackageForm({
                       <span className="font-semibold">
                         {isTrialProductType(option.product_type)
                           ? option.label
-                          : `${option.total_credits} Lessons`}
+                          : `${displayCredits} Lessons`}
                       </span>
                       <CheckCircle2
                         className={cn(
@@ -255,6 +320,11 @@ export function AssignPackageForm({
                         )}
                       />
                     </div>
+                    {isAdjusted ? (
+                      <span className="text-xs text-muted-foreground">
+                        {previewBreakdown ?? "Customised"}
+                      </span>
+                    ) : null}
                     <span className="mt-auto pt-4 text-2xl font-semibold text-primary">
                       {formatAmountSgd(defaultAmountForProduct(option))}{" "}
                       <span className="text-sm font-normal text-muted-foreground">
@@ -270,6 +340,73 @@ export function AssignPackageForm({
               <p className="text-sm text-muted-foreground">
                 No active products for this type.
               </p>
+            ) : null}
+
+            {selectedProduct ? (
+              <div className="rounded-xl border border-border/70 bg-muted/20">
+                <button
+                  type="button"
+                  onClick={() => setCustomiseOpen((open) => !open)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                  aria-expanded={customiseOpen}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Customise this pack</p>
+                  </div>
+                  <ChevronDown
+                    className={cn(
+                      "size-4 shrink-0 text-muted-foreground transition-transform",
+                      customiseOpen && "rotate-180"
+                    )}
+                  />
+                </button>
+                {customiseOpen ? (
+                  <div className="space-y-4 border-t border-border/60 px-4 py-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="custom-base">Lesson count</Label>
+                        <Input
+                          id="custom-base"
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={customBase}
+                          onChange={(e) => setCustomBase(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="bonus-credits">
+                          Complimentary credits
+                        </Label>
+                        <Input
+                          id="bonus-credits"
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={bonusCredits}
+                          onChange={(e) => setBonusCredits(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="customisation-notes">Notes</Label>
+                      <Textarea
+                        id="customisation-notes"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Comments"
+                      />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {packageLabel(previewCredits, selectedProduct)}
+                      {previewBreakdown ? ` · ${previewBreakdown}` : ""}
+                      {" · "}
+                      {previewCredits.total_credits} credit
+                      {previewCredits.total_credits === 1 ? "" : "s"} total
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
 
             <div className="flex items-start gap-3 rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
