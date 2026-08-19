@@ -54,24 +54,72 @@ export async function loadEffectiveSessionRoster(
   sessionId: string,
   classId: string
 ): Promise<SessionRosterEntry[]> {
+  const rosters = await loadEffectiveSessionRosters(supabase, [
+    { sessionId, classId },
+  ]);
+  return rosters.get(sessionId) ?? [];
+}
+
+/** Load expected rosters for many sessions in two queries. */
+export async function loadEffectiveSessionRosters(
+  supabase: SupabaseClient,
+  sessions: { sessionId: string; classId: string }[]
+): Promise<Map<string, SessionRosterEntry[]>> {
+  const result = new Map<string, SessionRosterEntry[]>();
+  if (sessions.length === 0) return result;
+
+  const classIds = [...new Set(sessions.map((session) => session.classId))];
+  const sessionIds = [...new Set(sessions.map((session) => session.sessionId))];
+
   const [
     { data: enrolments, error: enrolmentError },
     { data: overrides, error: overrideError },
   ] = await Promise.all([
-    supabase.from("enrolments").select("student_id").eq("class_id", classId),
+    supabase
+      .from("enrolments")
+      .select("student_id, class_id")
+      .in("class_id", classIds),
     supabase
       .from("session_attendee_overrides")
-      .select("student_id, kind")
-      .eq("session_id", sessionId),
+      .select("student_id, kind, session_id")
+      .in("session_id", sessionIds),
   ]);
 
   if (enrolmentError) throw enrolmentError;
   if (overrideError) throw overrideError;
 
-  return computeEffectiveRoster(
-    (enrolments ?? []).map((row) => row.student_id as string),
-    (overrides ?? []) as OverrideRow[]
-  );
+  const enrolmentsByClass = new Map<string, string[]>();
+  for (const row of enrolments ?? []) {
+    const classId = row.class_id as string;
+    const studentId = row.student_id as string;
+    const list = enrolmentsByClass.get(classId);
+    if (list) list.push(studentId);
+    else enrolmentsByClass.set(classId, [studentId]);
+  }
+
+  const overridesBySession = new Map<string, OverrideRow[]>();
+  for (const row of overrides ?? []) {
+    const sessionId = row.session_id as string;
+    const entry: OverrideRow = {
+      student_id: row.student_id as string,
+      kind: row.kind as OverrideRow["kind"],
+    };
+    const list = overridesBySession.get(sessionId);
+    if (list) list.push(entry);
+    else overridesBySession.set(sessionId, [entry]);
+  }
+
+  for (const session of sessions) {
+    result.set(
+      session.sessionId,
+      computeEffectiveRoster(
+        enrolmentsByClass.get(session.classId) ?? [],
+        overridesBySession.get(session.sessionId) ?? []
+      )
+    );
+  }
+
+  return result;
 }
 
 export async function loadEffectiveSessionRosterStudents(

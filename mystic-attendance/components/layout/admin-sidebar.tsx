@@ -1,3 +1,7 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   GraduationCap,
   LayoutDashboard,
@@ -12,8 +16,8 @@ import { cn } from "@/lib/utils";
 
 interface AdminSidebarProps {
   profile: Profile;
-  pathname: string;
   className?: string;
+  onNavigate?: () => void;
 }
 
 const LINKS = [
@@ -40,9 +44,11 @@ const LINKS = [
 
 export function AdminSidebar({
   profile,
-  pathname,
   className,
+  onNavigate,
 }: AdminSidebarProps) {
+  const pathname = usePathname();
+
   return (
     <aside
       className={cn(
@@ -65,10 +71,10 @@ export function AdminSidebar({
           const { href, label, icon: Icon, exact } = link;
           const active = isNavActive(pathname, href, exact);
           return (
-            // Native <a> forces a layout refresh so the active state updates.
-            <a
+            <Link
               key={href}
               href={href}
+              onClick={onNavigate}
               className={cn(
                 "inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                 active
@@ -78,7 +84,7 @@ export function AdminSidebar({
             >
               <Icon className="size-4 shrink-0" />
               {label}
-            </a>
+            </Link>
           );
         })}
       </nav>

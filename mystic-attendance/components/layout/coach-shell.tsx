@@ -1,7 +1,10 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ClipboardList, LogOut, UserRound } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
 import { isNavActive } from "@/lib/navigation";
-import { getPathname } from "@/lib/navigation-server";
 import type { Profile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -10,8 +13,8 @@ interface CoachShellProps {
   children: React.ReactNode;
 }
 
-export async function CoachShell({ profile, children }: CoachShellProps) {
-  const pathname = await getPathname();
+export function CoachShell({ profile, children }: CoachShellProps) {
+  const pathname = usePathname();
   const sessionsActive = isNavActive(pathname, "/coach");
 
   return (
@@ -39,7 +42,7 @@ export async function CoachShell({ profile, children }: CoachShellProps) {
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/90">
         <div className="mx-auto flex max-w-lg items-stretch justify-around px-2 pb-[env(safe-area-inset-bottom)] pt-1">
-          <a
+          <Link
             href="/coach"
             className={cn(
               "flex min-w-[4.5rem] flex-col items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
@@ -50,7 +53,7 @@ export async function CoachShell({ profile, children }: CoachShellProps) {
           >
             <ClipboardList className="size-5" />
             Sessions
-          </a>
+          </Link>
           <form action={signOut} className="flex">
             <button
               type="submit"
