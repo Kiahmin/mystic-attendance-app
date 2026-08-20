@@ -12,6 +12,7 @@ import {
   getWeekSessionsForDashboard,
 } from "@/lib/queries/sessions";
 import {
+  getSessionScheduleStatus,
   resolveWeekDates,
   weekDatesContaining,
 } from "@/lib/session-utils";
@@ -141,6 +142,7 @@ export default async function AdminDashboardPage({
                     item={item}
                     weekMonday={monday}
                     coaches={coaches}
+                    scheduleStatus={getSessionScheduleStatus(item.session)}
                   />
                 </li>
               ))}

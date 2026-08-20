@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Ban, ChevronRight, ClipboardCheck, UserRound, Users } from "lucide-react";
 import type { DashboardSession, Profile } from "@/lib/types";
@@ -27,6 +27,7 @@ type DashboardSessionRowProps = {
   item: DashboardSession;
   weekMonday: string;
   coaches: Pick<Profile, "id" | "full_name">[];
+  scheduleStatus: SessionScheduleStatus;
 };
 
 function statusBadgeVariant(
@@ -48,17 +49,22 @@ export function DashboardSessionRow({
   item,
   weekMonday,
   coaches,
+  scheduleStatus,
 }: DashboardSessionRowProps) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [attendeesOpen, setAttendeesOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
+  const [status, setStatus] = useState(scheduleStatus);
   const { session, expectedCount, checkedInCount, packageAlerts, coachName } =
     item;
   const classGroup = session.classes;
   const startTime = sessionDisplayStart(session);
   const endTime = sessionDisplayEnd(session);
   const href = `/admin/sessions/${session.id}?week=${weekMonday}`;
-  const status = getSessionScheduleStatus(session);
+
+  useEffect(() => {
+    setStatus(getSessionScheduleStatus(session));
+  }, [session, scheduleStatus]);
   const expected = expectedCount;
   const checkedIn = checkedInCount;
   const progress =
