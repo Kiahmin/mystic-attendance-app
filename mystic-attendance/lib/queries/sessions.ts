@@ -17,6 +17,7 @@ import type {
   Profile,
   SessionWithClass,
   Student,
+  StudentSearchHit,
 } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -461,18 +462,21 @@ export async function getSessionCheckInList(
   };
 }
 
-export async function searchStudents(query: string, limit = 8) {
+export async function searchStudents(
+  query: string,
+  limit = 8
+): Promise<StudentSearchHit[]> {
   const supabase = await createClient();
   const trimmed = query.trim();
   if (!trimmed) return [];
 
   const { data, error } = await supabase
     .from("students")
-    .select("id, full_name, skill_level")
+    .select("id, full_name, skill_level, is_trial")
     .ilike("full_name", `%${trimmed}%`)
     .order("full_name")
     .limit(limit);
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as StudentSearchHit[];
 }

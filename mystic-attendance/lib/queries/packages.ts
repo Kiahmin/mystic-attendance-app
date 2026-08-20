@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { isFinishingPackage } from "@/lib/package-utils";
+import {
+  isFinishingPackage,
+  isTrialProductType,
+  packageIsTrialProduct,
+} from "@/lib/package-utils";
 import type {
   Package,
   PackageProduct,
@@ -101,6 +105,18 @@ export async function listPackageProducts(options?: {
   if (error) throw error;
 
   return (data ?? []).map((row) => mapPackageProduct(row as PackageProduct)!);
+}
+
+export async function listTrialPackageProducts(): Promise<PackageProduct[]> {
+  const products = await listPackageProducts({ activeOnly: true });
+  return products.filter((product) => isTrialProductType(product.product_type));
+}
+
+export async function studentHasTrialProductPackage(
+  studentId: string
+): Promise<boolean> {
+  const packages = await listPackagesForStudent(studentId);
+  return packages.some(packageIsTrialProduct);
 }
 
 export async function getPackageProductById(
