@@ -10,6 +10,7 @@ import {
   searchStudentsForSessionAttendees,
 } from "@/lib/actions/session-attendees";
 import type { SessionRosterStudent } from "@/lib/session-roster";
+import type { StudentSearchHit } from "@/lib/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,9 +44,7 @@ export function SessionAttendeesDialog({
   const [attendees, setAttendees] = useState<SessionRosterStudent[]>([]);
   const [cancelled, setCancelled] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<
-    { id: string; full_name: string; skill_level: string | null }[]
-  >([]);
+  const [results, setResults] = useState<StudentSearchHit[]>([]);
   const [searching, setSearching] = useState(false);
   const searchSeq = useRef(0);
   const trimmedQuery = query.trim();
@@ -201,9 +200,14 @@ export function SessionAttendeesDialog({
                     className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2 last:border-b-0"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {student.full_name}
-                      </p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <p className="truncate text-sm font-medium">
+                          {student.full_name}
+                        </p>
+                        {student.is_trial ? (
+                          <Badge variant="warning">Trial</Badge>
+                        ) : null}
+                      </div>
                       {student.skill_level ? (
                         <p className="text-xs text-muted-foreground capitalize">
                           {student.skill_level}
@@ -244,9 +248,14 @@ export function SessionAttendeesDialog({
                     className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card px-3 py-2.5"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {entry.student.full_name}
-                      </p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <p className="truncate text-sm font-medium">
+                          {entry.student.full_name}
+                        </p>
+                        {entry.student.is_trial ? (
+                          <Badge variant="warning">Trial</Badge>
+                        ) : null}
+                      </div>
                       <Badge
                         variant={
                           entry.source === "include" ? "warning" : "secondary"

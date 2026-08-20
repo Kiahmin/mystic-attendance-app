@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Search, UserPlus, Users } from "lucide-react";
-import type { CheckInStudent } from "@/lib/types";
+import type { CheckInStudent, StudentSearchHit } from "@/lib/types";
 import {
   excludeStudentFromSession,
   includeStudentInSession,
@@ -12,6 +12,7 @@ import {
 import { markWalkIn, searchStudentsForWalkIn } from "@/lib/actions/walk-in";
 import { StudentCheckInRow } from "@/components/coach/student-check-in-row";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,12 +34,6 @@ interface AttendancePanelProps {
   walkIns: CheckInStudent[];
 }
 
-type SearchHit = {
-  id: string;
-  full_name: string;
-  skill_level: string | null;
-};
-
 export function AttendancePanel({
   sessionId,
   cancelled,
@@ -53,12 +48,12 @@ export function AttendancePanel({
   const [error, setError] = useState<string | null>(null);
 
   const [walkInQuery, setWalkInQuery] = useState("");
-  const [walkInResults, setWalkInResults] = useState<SearchHit[]>([]);
+  const [walkInResults, setWalkInResults] = useState<StudentSearchHit[]>([]);
   const [selectedWalkInId, setSelectedWalkInId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
 
   const [addQuery, setAddQuery] = useState("");
-  const [addResults, setAddResults] = useState<SearchHit[]>([]);
+  const [addResults, setAddResults] = useState<StudentSearchHit[]>([]);
   const [addSearching, setAddSearching] = useState(false);
   const addSearchSeq = useRef(0);
 
@@ -275,9 +270,14 @@ export function AttendancePanel({
                           className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5"
                         >
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">
-                              {student.full_name}
-                            </p>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <p className="truncate text-sm font-medium">
+                                {student.full_name}
+                              </p>
+                              {student.is_trial ? (
+                                <Badge variant="warning">Trial</Badge>
+                              ) : null}
+                            </div>
                             {student.skill_level ? (
                               <p className="text-xs text-muted-foreground capitalize">
                                 {student.skill_level}
@@ -359,7 +359,20 @@ export function AttendancePanel({
                               : "hover:bg-muted"
                           }`}
                         >
-                          <span>{student.full_name}</span>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="truncate">{student.full_name}</span>
+                            {student.is_trial ? (
+                              <Badge
+                                variant={
+                                  selectedWalkInId === student.id
+                                    ? "secondary"
+                                    : "warning"
+                                }
+                              >
+                                Trial
+                              </Badge>
+                            ) : null}
+                          </span>
                           {student.skill_level ? (
                             <span className="text-xs capitalize opacity-80">
                               {student.skill_level}

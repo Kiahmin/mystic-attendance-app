@@ -90,6 +90,9 @@ export function StudentCheckInRow({
               <p className="font-heading font-semibold">
                 {entry.student.full_name}
               </p>
+              {entry.student.is_trial ? (
+                <Badge variant="warning">Trial</Badge>
+              ) : null}
               {entry.isWalkIn ? (
                 <Badge variant="warning">Walk-in</Badge>
               ) : null}

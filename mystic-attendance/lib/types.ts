@@ -77,7 +77,13 @@ export interface Student {
   contact_phone: string | null;
   skill_level: SkillLevel | null;
   notes: string | null;
+  is_trial: boolean;
 }
+
+export type StudentSearchHit = Pick<
+  Student,
+  "id" | "full_name" | "skill_level" | "is_trial"
+>;
 
 export interface Enrolment {
   id: string;

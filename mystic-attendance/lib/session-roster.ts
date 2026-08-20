@@ -9,7 +9,7 @@ export type SessionRosterEntry = {
 };
 
 export type SessionRosterStudent = {
-  student: Pick<Student, "id" | "full_name" | "skill_level">;
+  student: Pick<Student, "id" | "full_name" | "skill_level" | "is_trial">;
   source: SessionRosterSource;
 };
 
@@ -132,7 +132,7 @@ export async function loadEffectiveSessionRosterStudents(
 
   const { data: students, error } = await supabase
     .from("students")
-    .select("id, full_name, skill_level")
+    .select("id, full_name, skill_level, is_trial")
     .in(
       "id",
       roster.map((entry) => entry.studentId)
@@ -143,7 +143,7 @@ export async function loadEffectiveSessionRosterStudents(
   const byId = new Map(
     (students ?? []).map((s) => [
       s.id as string,
-      s as Pick<Student, "id" | "full_name" | "skill_level">,
+      s as Pick<Student, "id" | "full_name" | "skill_level" | "is_trial">,
     ])
   );
 
