@@ -15,6 +15,7 @@ import {
   isTrialProductType,
   packageCreditBreakdown,
   packageLabel,
+  unchargedClassesNote,
 } from "@/lib/package-utils";
 import type { PackageProduct, PackageProductType, PaymentMethod, Student } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ import {
 type AssignPackageFormProps = {
   students: Pick<Student, "id" | "full_name" | "contact_phone">[];
   products: PackageProduct[];
+  unchargedByStudent: Record<string, number>;
   initialStudentId?: string;
   cancelHref: string;
 };
@@ -48,6 +50,7 @@ type AssignPackageFormProps = {
 export function AssignPackageForm({
   students,
   products,
+  unchargedByStudent,
   initialStudentId,
   cancelHref,
 }: AssignPackageFormProps) {
@@ -117,6 +120,14 @@ export function AssignPackageForm({
   const previewBreakdown = selectedProduct
     ? packageCreditBreakdown(previewCredits, selectedProduct)
     : null;
+
+  const backfillNote =
+    isPaid && studentId
+      ? unchargedClassesNote(
+          unchargedByStudent[studentId] ?? 0,
+          previewCredits.total_credits
+        )
+      : null;
 
   function handleProductTypeChange(next: PackageProductType) {
     setProductType(next);
@@ -514,6 +525,12 @@ export function AssignPackageForm({
                   />
                 </div>
               </>
+            ) : null}
+
+            {isPaid && backfillNote ? (
+              <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                {backfillNote}
+              </p>
             ) : null}
           </CardContent>
         </Card>

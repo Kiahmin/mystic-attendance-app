@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { isAtRiskPackage } from "@/lib/package-utils";
+import { isFinishingPackage } from "@/lib/package-utils";
 import type {
   Package,
   PackageProduct,
@@ -187,18 +187,23 @@ export async function getPackageWithStudent(
   };
 }
 
-export type PackageListFilter = "at_risk" | PackageStatus;
+export type PackageListFilter =
+  | "finishing"
+  | "finished"
+  | Exclude<PackageStatus, "exhausted">;
 
 export async function listPackages(options?: {
   filters?: PackageListFilter[];
   search?: string;
 }): Promise<PackageWithStudent[]> {
   const supabase = await createClient();
-  const filters = options?.filters ?? ["at_risk"];
-  const hasAtRisk = filters.includes("at_risk");
-  const statuses = filters.filter(
-    (value): value is PackageStatus => value !== "at_risk"
-  );
+  const filters = options?.filters ?? ["finishing"];
+  const hasFinishing = filters.includes("finishing");
+  const statuses = filters.flatMap((value): PackageStatus[] => {
+    if (value === "finishing") return [];
+    if (value === "finished") return ["exhausted"];
+    return [value];
+  });
 
   let query = supabase
     .from("packages")
@@ -214,7 +219,7 @@ export async function listPackages(options?: {
     )
     .order("created_at", { ascending: false });
 
-  if (statuses.length > 0 && !hasAtRisk) {
+  if (statuses.length > 0 && !hasFinishing) {
     query = query.in("status", statuses);
   }
 
@@ -247,14 +252,50 @@ export async function listPackages(options?: {
     })
     .filter((item): item is PackageWithStudent => item !== null);
 
-  if (hasAtRisk && statuses.length > 0) {
+  if (hasFinishing && statuses.length > 0) {
     return packages.filter(
-      (pkg) => isAtRiskPackage(pkg) || statuses.includes(pkg.status)
+      (pkg) => isFinishingPackage(pkg) || statuses.includes(pkg.status)
     );
   }
-  if (hasAtRisk) {
-    return packages.filter(isAtRiskPackage);
+  if (hasFinishing) {
+    return packages.filter(isFinishingPackage);
   }
 
   return packages;
+}
+
+export async function countUnchargedAttendanceForStudent(
+  studentId: string
+): Promise<number> {
+  if (!studentId) return 0;
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("attendance")
+    .select("id", { count: "exact", head: true })
+    .eq("student_id", studentId)
+    .is("package_id", null)
+    .eq("deduct_credit", true);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function countUnchargedAttendanceByStudent(): Promise<
+  Record<string, number>
+> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("attendance")
+    .select("student_id")
+    .is("package_id", null)
+    .eq("deduct_credit", true);
+
+  if (error) throw error;
+
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const studentId = row.student_id as string;
+    counts[studentId] = (counts[studentId] ?? 0) + 1;
+  }
+  return counts;
 }

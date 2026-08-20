@@ -1,4 +1,3 @@
-import { packageWarning } from "@/lib/attendance-utils";
 import {
   formatCalendarDate,
   isOnOrBeforeDaysFromToday,
@@ -152,17 +151,12 @@ export function formatPackageExpiry(expiresAt: string | null): string {
   return formatCalendarDate(expiresAt);
 }
 
-export function isAtRiskPackage(pkg: Package): boolean {
-  const warning = packageWarning(pkg);
-  if (warning !== "none") return true;
+export function isFinishingPackage(pkg: Package): boolean {
+  if (pkg.status !== "active") return false;
+  if (pkg.remaining_credits <= LOW_CREDIT_THRESHOLD) return true;
   return (
-    pkg.status === "expired" ||
-    pkg.status === "unpaid" ||
-    (pkg.status === "active" &&
-      pkg.remaining_credits <= LOW_CREDIT_THRESHOLD) ||
-    (pkg.expires_at != null &&
-      isOnOrBeforeDaysFromToday(pkg.expires_at, EXPIRING_WITHIN_DAYS) &&
-      pkg.status === "active")
+    pkg.expires_at != null &&
+    isOnOrBeforeDaysFromToday(pkg.expires_at, EXPIRING_WITHIN_DAYS)
   );
 }
 
@@ -265,4 +259,21 @@ export function buildPauseReason(
     PAUSE_REASONS.find((item) => item.value === reason)?.label ?? reason;
   const trimmed = note?.trim();
   return trimmed ? `${label}: ${trimmed}` : label;
+}
+
+export function unchargedClassesNote(
+  uncharged: number,
+  remainingCredits: number
+): string | null {
+  if (uncharged <= 0) return null;
+  const classWord = uncharged === 1 ? "class" : "classes";
+  const applied = Math.min(uncharged, Math.max(remainingCredits, 0));
+  const leftover = uncharged - applied;
+  if (applied <= 0) {
+    return `${uncharged} uncharged ${classWord} found; none can be applied (no credits remaining).`;
+  }
+  if (leftover <= 0) {
+    return `${uncharged} uncharged ${classWord} will be applied (oldest first).`;
+  }
+  return `${uncharged} uncharged ${classWord} found; the oldest ${applied} will be applied (${leftover} left uncharged).`;
 }
