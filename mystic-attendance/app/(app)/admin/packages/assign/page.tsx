@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { requireRole } from "@/lib/auth/profile";
-import { listPackageProducts } from "@/lib/queries/packages";
+import {
+  countUnchargedAttendanceByStudent,
+  listPackageProducts,
+} from "@/lib/queries/packages";
 import { listStudents } from "@/lib/queries/students";
 import { AssignPackageForm } from "@/components/admin/assign-package-form";
 import { PageHeader } from "@/components/layout/page-header";
@@ -15,9 +18,10 @@ export default async function AssignPackagePage({
 }) {
   await requireRole(["admin"]);
   const params = await searchParams;
-  const [students, products] = await Promise.all([
+  const [students, products, unchargedByStudent] = await Promise.all([
     listStudents(),
     listPackageProducts({ activeOnly: true }),
+    countUnchargedAttendanceByStudent(),
   ]);
   const studentId = params.studentId;
   const cancelHref = studentId
@@ -45,6 +49,7 @@ export default async function AssignPackagePage({
       <AssignPackageForm
         students={students}
         products={products}
+        unchargedByStudent={unchargedByStudent}
         initialStudentId={studentId}
         cancelHref={cancelHref}
       />
