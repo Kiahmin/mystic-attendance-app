@@ -476,7 +476,7 @@ export async function getSessionCheckInList(
   const expectedStudents: CheckInStudent[] = [];
   for (const entry of roster) {
     const student = studentsById.get(entry.studentId);
-    if (!student) continue;
+    if (!student || student.archived_at) continue;
     expectedStudents.push(buildCheckIn(student, false, entry.source));
   }
   for (const studentId of formerStudentIds) {
@@ -513,6 +513,7 @@ export async function searchStudents(
   const { data, error } = await supabase
     .from("students")
     .select("id, full_name, skill_level, is_trial")
+    .is("archived_at", null)
     .ilike("full_name", `%${trimmed}%`)
     .order("full_name")
     .limit(limit);

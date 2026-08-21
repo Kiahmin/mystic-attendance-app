@@ -102,6 +102,7 @@ function toStudentRow(input: StudentInput) {
 
 function revalidateStudentPaths(studentId?: string) {
   revalidatePath("/admin/students");
+  revalidatePath("/admin/classes");
   revalidatePath("/admin");
   revalidatePath("/coach");
   if (studentId) {
@@ -202,5 +203,32 @@ export async function updateStudent(id: string, input: StudentInput) {
   }
 
   revalidateStudentPaths(id);
+  return { success: true as const };
+}
+
+export async function setStudentArchived(id: string, archived: boolean) {
+  await requireRole(["admin"]);
+
+  if (!id) return { error: "Student id is required." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("students")
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq("id", id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  const { data: enrolments } = await supabase
+    .from("enrolments")
+    .select("class_id")
+    .eq("student_id", id);
+
+  revalidateStudentPaths(id);
+  for (const enrolment of enrolments ?? []) {
+    revalidatePath(`/admin/classes/${enrolment.class_id as string}`);
+  }
   return { success: true as const };
 }

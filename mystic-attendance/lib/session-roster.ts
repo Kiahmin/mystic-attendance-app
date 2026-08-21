@@ -60,7 +60,7 @@ export async function loadEffectiveSessionRoster(
   return rosters.get(sessionId) ?? [];
 }
 
-/** Load expected rosters for many sessions in two queries. */
+/** Load expected rosters for many sessions, excluding archived students. */
 export async function loadEffectiveSessionRosters(
   supabase: SupabaseClient,
   sessions: { sessionId: string; classId: string }[]
@@ -88,10 +88,33 @@ export async function loadEffectiveSessionRosters(
   if (enrolmentError) throw enrolmentError;
   if (overrideError) throw overrideError;
 
+  const candidateIds = [
+    ...new Set([
+      ...(enrolments ?? []).map((row) => row.student_id as string),
+      ...(overrides ?? []).map((row) => row.student_id as string),
+    ]),
+  ];
+
+  const archivedResult =
+    candidateIds.length === 0
+      ? { data: [] as { id: string }[], error: null }
+      : await supabase
+          .from("students")
+          .select("id")
+          .in("id", candidateIds)
+          .not("archived_at", "is", null);
+
+  if (archivedResult.error) throw archivedResult.error;
+
+  const archivedIds = new Set(
+    (archivedResult.data ?? []).map((row) => row.id as string)
+  );
+
   const enrolmentsByClass = new Map<string, string[]>();
   for (const row of enrolments ?? []) {
     const classId = row.class_id as string;
     const studentId = row.student_id as string;
+    if (archivedIds.has(studentId)) continue;
     const list = enrolmentsByClass.get(classId);
     if (list) list.push(studentId);
     else enrolmentsByClass.set(classId, [studentId]);
@@ -99,11 +122,11 @@ export async function loadEffectiveSessionRosters(
 
   const overridesBySession = new Map<string, OverrideRow[]>();
   for (const row of overrides ?? []) {
+    const studentId = row.student_id as string;
+    const kind = row.kind as OverrideRow["kind"];
+    if (kind === "include" && archivedIds.has(studentId)) continue;
     const sessionId = row.session_id as string;
-    const entry: OverrideRow = {
-      student_id: row.student_id as string,
-      kind: row.kind as OverrideRow["kind"],
-    };
+    const entry: OverrideRow = { student_id: studentId, kind };
     const list = overridesBySession.get(sessionId);
     if (list) list.push(entry);
     else overridesBySession.set(sessionId, [entry]);
