@@ -1,14 +1,19 @@
 /** Mystic Skates operates in Singapore — all calendar dates use this zone. */
 export const APP_TIMEZONE = "Asia/Singapore";
 
-/** Today's calendar date in Singapore as `YYYY-MM-DD`. */
-export function todayInSingapore(): string {
+/** Calendar date in Singapore as `YYYY-MM-DD` for an instant. */
+export function instantToSingaporeDate(instant: Date | string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).format(typeof instant === "string" ? new Date(instant) : instant);
+}
+
+/** Today's calendar date in Singapore as `YYYY-MM-DD`. */
+export function todayInSingapore(): string {
+  return instantToSingaporeDate(new Date());
 }
 
 /** True when `date` is a real calendar day in `YYYY-MM-DD` form. */
