@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, ChevronRight, ListFilter, Minus, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Minus, Search } from "lucide-react";
 import { PackageStatusBadge } from "@/components/admin/package-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -141,88 +141,80 @@ export function PackageList({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by student name…"
-              className="h-11 rounded-lg border-border/80 bg-card pl-9"
-              aria-label="Search packages"
-            />
-          </div>
+    <div className="flex flex-col">
+      <div className="flex flex-col gap-3 sm:grid sm:grid-cols-5 sm:items-center sm:gap-3">
+        <div className="relative min-w-0 sm:col-span-4">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by student name…"
+            className="h-11 rounded-lg border-border/80 bg-card pl-9"
+            aria-label="Search packages"
+          />
+        </div>
+        <div className="min-w-0 sm:col-span-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                className="h-11 w-full justify-between gap-2 px-4 sm:w-auto"
+                className="h-11 w-full justify-between gap-2 rounded-lg border-border/80 bg-card px-4"
                 aria-label="Filter packages, select one or more"
               >
-                <span className="flex min-w-0 flex-1 items-center gap-2">
-                  <ListFilter className="size-4 shrink-0 text-muted-foreground" />
-                  {showingAll ? (
-                    <span className="truncate text-muted-foreground">
-                      All packages
-                    </span>
-                  ) : (
-                    <span className="flex min-w-0 items-center gap-1">
-                      <Badge
-                        variant="secondary"
-                        className="max-w-[7rem] truncate"
-                      >
-                        {selectedOptions[0].label}
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                {showingAll ? (
+                  <span className="truncate text-muted-foreground">
+                    All packages
+                  </span>
+                ) : (
+                  <span className="flex min-w-0 items-center gap-1">
+                    <Badge
+                      variant="secondary"
+                      className="max-w-[7rem] truncate"
+                    >
+                      {selectedOptions[0].label}
+                    </Badge>
+                    {selectedOptions.length > 1 ? (
+                      <Badge variant="outline">
+                        +{selectedOptions.length - 1}
                       </Badge>
-                      {selectedOptions.length > 1 ? (
-                        <Badge variant="outline">
-                          +{selectedOptions.length - 1}
-                        </Badge>
-                      ) : null}
-                    </span>
-                  )}
-                </span>
-                <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuLabel>Select one or more</DropdownMenuLabel>
-              <DropdownMenuSeparator />
+                    ) : null}
+                  </span>
+                )}
+              </span>
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Select one or more</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <FilterCheckbox
+              checked={
+                allSelected
+                  ? true
+                  : selectedOptions.length > 0
+                    ? "indeterminate"
+                    : false
+              }
+              label="Select all"
+              onToggle={toggleSelectAll}
+            />
+            <DropdownMenuSeparator />
+            {FILTER_OPTIONS.map((option) => (
               <FilterCheckbox
-                checked={
-                  allSelected
-                    ? true
-                    : selectedOptions.length > 0
-                      ? "indeterminate"
-                      : false
-                }
-                label="Select all"
-                onToggle={toggleSelectAll}
+                key={option.value}
+                checked={filter.includes(option.value)}
+                label={option.label}
+                onToggle={() => toggleFilter(option.value)}
               />
-              <DropdownMenuSeparator />
-              {FILTER_OPTIONS.map((option) => (
-                <FilterCheckbox
-                  key={option.value}
-                  checked={filter.includes(option.value)}
-                  label={option.label}
-                  onToggle={() => toggleFilter(option.value)}
-                />
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         </div>
-
-        <Button asChild className="h-11 px-4">
-          <Link href="/admin/packages/assign">
-            <Plus className="size-4" />
-            Assign Package
-          </Link>
-        </Button>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed bg-card p-8 text-center">
+        <div className="mt-8 rounded-xl border border-dashed bg-card p-8 text-center">
           <p className="font-medium">
             {search.trim() ? "No matching packages" : "No packages in this view"}
           </p>
@@ -233,8 +225,8 @@ export function PackageList({
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
-          <div className="hidden grid-cols-[1.6fr_1fr_0.7fr_1fr_1fr_auto] gap-4 border-b border-border/60 bg-muted/50 px-4 py-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase lg:grid">
+        <div className="mt-8 overflow-hidden rounded-xl border border-border/70 bg-card">
+          <div className="hidden grid-cols-[1.6fr_1.2fr_0.7fr_1fr_1.1fr_auto] gap-4 border-b border-border/60 bg-muted/50 px-5 py-3.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase lg:grid">
             <span>Student</span>
             <span>Package</span>
             <span>Credits</span>
@@ -249,13 +241,13 @@ export function PackageList({
                 <li key={pkg.id}>
                   <Link
                     href={`/admin/students/${pkg.student_id}`}
-                    className="grid gap-3 px-4 py-4 transition-colors hover:bg-muted/40 lg:grid-cols-[1.6fr_1fr_0.7fr_1fr_1fr_auto] lg:items-center lg:gap-4"
+                    className="grid gap-3 px-5 py-4 transition-colors hover:bg-muted/40 lg:grid-cols-[1.6fr_1.2fr_0.7fr_1fr_1.1fr_auto] lg:items-center lg:gap-4"
                   >
                     <div className="min-w-0">
-                      <p className="truncate font-medium">
+                      <p className="truncate font-semibold">
                         {pkg.students.full_name}
                       </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
                         <PackageStatusBadge status={pkg.status} />
                         {reason ? (
                           <span className="text-xs text-muted-foreground">
@@ -266,6 +258,9 @@ export function PackageList({
                     </div>
 
                     <p className="text-sm">
+                      <span className="lg:hidden text-muted-foreground">
+                        Package:{" "}
+                      </span>
                       {packageLabel(pkg, pkg.package_products)}
                       {isCustomisedPackage(pkg, pkg.package_products) ? (
                         <span className="ml-2 inline-flex h-5 items-center rounded-full bg-muted px-2 text-xs font-medium text-muted-foreground align-middle">
@@ -274,8 +269,8 @@ export function PackageList({
                       ) : null}
                     </p>
 
-                    <p className="text-sm">
-                      <span className="lg:hidden text-muted-foreground">
+                    <p className="text-sm font-medium">
+                      <span className="lg:hidden font-normal text-muted-foreground">
                         Credits:{" "}
                       </span>
                       {pkg.remaining_credits}/{pkg.total_credits}
@@ -301,10 +296,6 @@ export function PackageList({
               );
             })}
           </ul>
-          <div className="border-t border-border/60 px-4 py-3 text-xs text-muted-foreground">
-            Showing {filtered.length} package
-            {filtered.length === 1 ? "" : "s"}
-          </div>
         </div>
       )}
     </div>
