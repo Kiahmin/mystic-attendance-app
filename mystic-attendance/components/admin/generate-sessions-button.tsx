@@ -3,17 +3,32 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarPlus } from "lucide-react";
-import { generateSessionsForWeek } from "@/lib/actions/sessions";
+import { generateSessionsForDates } from "@/lib/actions/sessions";
 import { formatCalendarDate } from "@/lib/datetime";
+import type { CalendarView } from "@/lib/session-utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
 type GenerateSessionsButtonProps = {
-  weekMonday?: string;
+  dates: string[];
+  view: CalendarView;
+  isToday?: boolean;
 };
 
+function buttonLabel(view: CalendarView, isToday: boolean) {
+  if (view === "day") {
+    return isToday
+      ? "Generate today's sessions"
+      : "Generate this day's sessions";
+  }
+  if (view === "month") return "Generate this month's sessions";
+  return "Generate this week's sessions";
+}
+
 export function GenerateSessionsButton({
-  weekMonday,
+  dates,
+  view,
+  isToday = false,
 }: GenerateSessionsButtonProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -25,7 +40,7 @@ export function GenerateSessionsButton({
     setError(null);
 
     startTransition(async () => {
-      const result = await generateSessionsForWeek(weekMonday);
+      const result = await generateSessionsForDates(dates);
       if ("error" in result && result.error) {
         setError(result.error);
         return;
@@ -34,8 +49,10 @@ export function GenerateSessionsButton({
       const created = result.created ?? 0;
       const skipped = result.skipped ?? 0;
       const range =
-        result.monday && result.sunday
-          ? ` (${formatCalendarDate(result.monday)} – ${formatCalendarDate(result.sunday)})`
+        result.start && result.end
+          ? result.start === result.end
+            ? ` (${formatCalendarDate(result.start)})`
+            : ` (${formatCalendarDate(result.start)} – ${formatCalendarDate(result.end)})`
           : "";
 
       if (created === 0 && skipped === 0) {
@@ -56,16 +73,17 @@ export function GenerateSessionsButton({
   }
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="flex min-w-0 flex-col items-start gap-2 sm:ml-auto sm:items-end">
       <Button
         type="button"
         variant="outline"
-        className="h-9"
+        size="sm"
+        className="h-8"
         onClick={handleClick}
-        disabled={pending}
+        disabled={pending || dates.length === 0}
       >
         <CalendarPlus className="size-4" />
-        {pending ? "Generating…" : "Generate this week's sessions"}
+        {pending ? "Generating…" : buttonLabel(view, isToday)}
       </Button>
       {error ? (
         <Alert variant="destructive" className="max-w-sm">

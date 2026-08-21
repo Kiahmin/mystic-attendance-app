@@ -2,6 +2,7 @@
 
 import { requireRole } from "@/lib/auth/profile";
 import { loadEffectiveSessionRoster } from "@/lib/session-roster";
+import { isValidCalendarDate } from "@/lib/datetime";
 import {
   CANCELLATION_REASONS,
   dayOfWeekForDate,
@@ -88,14 +89,17 @@ async function generateSessionsForDate(
   };
 }
 
-export async function generateSessionsForWeek(weekMonday?: string | null) {
+export async function generateSessionsForDates(dates: string[]) {
   await requireRole(["admin"]);
 
-  const { monday, sunday, dates } = resolveWeekDates(weekMonday);
+  const uniqueDates = [
+    ...new Set(dates.filter((date) => isValidCalendarDate(date))),
+  ].sort();
+
   let created = 0;
   let skipped = 0;
 
-  for (const date of dates) {
+  for (const date of uniqueDates) {
     const result = await generateSessionsForDate(date);
     if ("error" in result) {
       return { error: result.error };
@@ -105,7 +109,19 @@ export async function generateSessionsForWeek(weekMonday?: string | null) {
   }
 
   revalidateSessionPaths();
-  return { created, skipped, monday, sunday };
+  return {
+    created,
+    skipped,
+    start: uniqueDates[0] ?? null,
+    end: uniqueDates.at(-1) ?? null,
+  };
+}
+
+export async function generateSessionsForWeek(weekMonday?: string | null) {
+  const { monday, sunday, dates } = resolveWeekDates(weekMonday);
+  const result = await generateSessionsForDates(dates);
+  if ("error" in result) return result;
+  return { ...result, monday, sunday };
 }
 
 export async function cancelSession(
