@@ -9,6 +9,8 @@ import { DAYS_OF_WEEK, DAY_OF_WEEK_SHORT_LABELS } from "@/lib/admin-utils";
 import { formatSessionTime } from "@/lib/attendance-utils";
 import type { ClassWithCoach, DayOfWeek, Profile } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -71,13 +73,28 @@ function ClassWeekCard({ cls }: { cls: ClassWithCoach }) {
 
 export function ClassList({ classes, coaches }: ClassListProps) {
   const [open, setOpen] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
+  const visibleClasses = showInactive
+    ? classes
+    : classes.filter((cls) => cls.is_active);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Weekly Schedule"
+        title="Classes"
         description="Manage recurring class times and assignments."
       >
+        <Label
+          htmlFor="show-inactive"
+          className="mr-2 cursor-pointer text-muted-foreground"
+        >
+          <Switch
+            id="show-inactive"
+            checked={showInactive}
+            onCheckedChange={setShowInactive}
+          />
+          Show inactive
+        </Label>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="h-11">
@@ -111,7 +128,7 @@ export function ClassList({ classes, coaches }: ClassListProps) {
 
         <div className="grid grid-cols-7 gap-2">
           {DAYS_OF_WEEK.map((day) => {
-            const dayClasses = classesForDay(classes, day);
+            const dayClasses = classesForDay(visibleClasses, day);
 
             return (
               <div key={day} className="min-w-0 space-y-2">
@@ -120,7 +137,7 @@ export function ClassList({ classes, coaches }: ClassListProps) {
                     No classes
                   </div>
                 ) : (
-                    dayClasses.map((cls) => (
+                  dayClasses.map((cls) => (
                     <ClassWeekCard key={cls.id} cls={cls} />
                   ))
                 )}
