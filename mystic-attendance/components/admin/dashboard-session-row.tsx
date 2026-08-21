@@ -55,8 +55,7 @@ export function DashboardSessionRow({
   const [attendeesOpen, setAttendeesOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
   const [status, setStatus] = useState(scheduleStatus);
-  const { session, expectedCount, checkedInCount, packageAlerts, coachName } =
-    item;
+  const { session, expectedCount, checkedInCount, coachName } = item;
   const classGroup = session.classes;
   const startTime = sessionDisplayStart(session);
   const endTime = sessionDisplayEnd(session);
@@ -148,11 +147,6 @@ export function DashboardSessionRow({
           <Badge variant={statusBadgeVariant(status)}>
             {SESSION_SCHEDULE_STATUS_LABELS[status]}
           </Badge>
-          {packageAlerts > 0 && !session.cancelled ? (
-            <Badge variant="warning">
-              {packageAlerts} alert{packageAlerts === 1 ? "" : "s"}
-            </Badge>
-          ) : null}
         </div>
 
         <div className="flex items-center justify-end gap-1">
