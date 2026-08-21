@@ -186,7 +186,7 @@ export interface SessionWithClass extends Session {
   coach?: Pick<Profile, "id" | "full_name"> | null;
 }
 
-export type CheckInRosterSource = "enrolled" | "include";
+export type CheckInRosterSource = "enrolled" | "include" | "former";
 
 export interface CheckInStudent {
   student: Student;
@@ -194,7 +194,7 @@ export interface CheckInStudent {
   package: Package | null;
   chargeablePackageId: string | null;
   isWalkIn: boolean;
-  /** Present for expected roster rows; null for walk-ins. */
+  /** Present for expected roster rows and former recorded attendees; null for walk-ins. */
   rosterSource: CheckInRosterSource | null;
 }
 
