@@ -18,7 +18,7 @@ export function AdminShell({ profile, children }: AdminShellProps) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <AdminMobileNav profile={profile} />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-8">
+        <main className="mx-auto w-full max-w-[90rem] flex-1 px-4 py-6 md:px-8 md:py-8">
           {children}
         </main>
       </div>

@@ -106,6 +106,7 @@ export interface StudentListItem extends Student {
 
 export interface ClassWithCoach extends ClassGroup {
   coach: Pick<Profile, "id" | "full_name"> | null;
+  enrolment_count: number;
 }
 
 export interface EnrolmentWithStudent extends Enrolment {
