@@ -256,14 +256,15 @@ export function SessionAttendeesDialog({
                           <Badge variant="warning">Trial</Badge>
                         ) : null}
                       </div>
-                      <Badge
-                        variant={
-                          entry.source === "include" ? "warning" : "secondary"
-                        }
-                        className="mt-1"
-                      >
-                        {entry.source === "include" ? "One-off" : "Class"}
-                      </Badge>
+                      {entry.source === "include" && !entry.student.is_trial ? (
+                        <Badge variant="warning" className="mt-1">
+                          One-off
+                        </Badge>
+                      ) : entry.source !== "include" ? (
+                        <Badge variant="secondary" className="mt-1">
+                          Class
+                        </Badge>
+                      ) : null}
                     </div>
                     <Button
                       type="button"

@@ -93,6 +93,9 @@ export function StudentCheckInRow({
               {entry.student.is_trial ? (
                 <Badge variant="warning">Trial</Badge>
               ) : null}
+              {!entry.student.is_trial && entry.rosterSource === "include" ? (
+                <Badge variant="warning">One-off</Badge>
+              ) : null}
               {entry.isWalkIn ? (
                 <Badge variant="warning">Walk-in</Badge>
               ) : null}
