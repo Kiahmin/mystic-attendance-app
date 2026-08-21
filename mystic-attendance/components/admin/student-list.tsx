@@ -46,8 +46,12 @@ type StudentListProps = {
   initialSearch?: string;
 };
 
-type AgeSort = "unsorted" | "asc" | "desc";
+type SortColumn = "name" | "age";
+type SortDir = "asc" | "desc";
+type TableSort = { column: SortColumn; dir: SortDir };
 type SkillFilterValue = SkillLevel | "unset";
+
+const DEFAULT_SORT: TableSort = { column: "name", dir: "asc" };
 
 const SKILL_BAR: Partial<Record<SkillLevel, number>> = {
   beginner: 33,
@@ -96,17 +100,28 @@ function FilterCheckbox({
   );
 }
 
-function AgeSortButton({
+function SortHeader({
+  label,
+  column,
   sort,
   onCycle,
+  unsortedLabel,
+  ascLabel,
+  descLabel,
 }: {
-  sort: AgeSort;
+  label: string;
+  column: SortColumn;
+  sort: TableSort;
   onCycle: () => void;
+  unsortedLabel: string;
+  ascLabel: string;
+  descLabel: string;
 }) {
+  const active = sort.column === column ? sort.dir : null;
   const Icon =
-    sort === "asc" ? ArrowUp : sort === "desc" ? ArrowDown : ArrowUpDown;
+    active === "asc" ? ArrowUp : active === "desc" ? ArrowDown : ArrowUpDown;
   const ariaSort =
-    sort === "asc" ? "ascending" : sort === "desc" ? "descending" : "none";
+    active === "asc" ? "ascending" : active === "desc" ? "descending" : "none";
 
   return (
     <span role="columnheader" aria-sort={ariaSort} className="inline-flex">
@@ -114,18 +129,14 @@ function AgeSortButton({
         type="button"
         onClick={onCycle}
         aria-label={
-          sort === "unsorted"
-            ? "Sort by age"
-            : sort === "asc"
-              ? "Sorted by age, youngest first. Click to reverse."
-              : "Sorted by age, oldest first. Click to clear."
+          active == null ? unsortedLabel : active === "asc" ? ascLabel : descLabel
         }
         className={cn(
           "inline-flex items-center gap-1 rounded-md text-xs font-semibold tracking-wide uppercase outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
-          sort !== "unsorted" ? "text-foreground" : "text-muted-foreground"
+          active ? "text-foreground" : "text-muted-foreground"
         )}
       >
-        Age
+        {label}
         <Icon className="size-3.5" />
       </button>
     </span>
@@ -177,16 +188,26 @@ function SkillLevelFilter({
   );
 }
 
-function cycleAgeSort(current: AgeSort): AgeSort {
-  if (current === "unsorted") return "asc";
-  if (current === "asc") return "desc";
-  return "unsorted";
+function cycleColumnSort(current: TableSort, column: SortColumn): TableSort {
+  if (current.column !== column) return { column, dir: "asc" };
+  return { column, dir: current.dir === "asc" ? "desc" : "asc" };
+}
+
+function compareName(
+  a: StudentListItem,
+  b: StudentListItem,
+  direction: SortDir
+) {
+  const result = a.full_name.localeCompare(b.full_name, undefined, {
+    sensitivity: "base",
+  });
+  return direction === "asc" ? result : -result;
 }
 
 function compareAge(
   a: StudentListItem,
   b: StudentListItem,
-  direction: "asc" | "desc"
+  direction: SortDir
 ) {
   const ageA = ageFromDob(a.date_of_birth);
   const ageB = ageFromDob(b.date_of_birth);
@@ -204,7 +225,7 @@ export function StudentList({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState(initialSearch);
   const [trialsOnly, setTrialsOnly] = useState(false);
-  const [ageSort, setAgeSort] = useState<AgeSort>("unsorted");
+  const [sort, setSort] = useState<TableSort>(DEFAULT_SORT);
   const [skillFilters, setSkillFilters] = useState<SkillFilterValue[]>([]);
 
   const filtered = useMemo(() => {
@@ -219,9 +240,12 @@ export function StudentList({
       return true;
     });
 
-    if (ageSort === "unsorted") return rows;
-    return [...rows].sort((a, b) => compareAge(a, b, ageSort));
-  }, [students, search, trialsOnly, skillFilters, ageSort]);
+    return [...rows].sort((a, b) =>
+      sort.column === "name"
+        ? compareName(a, b, sort.dir)
+        : compareAge(a, b, sort.dir)
+    );
+  }, [students, search, trialsOnly, skillFilters, sort]);
 
   const hasQuery = Boolean(search.trim() || trialsOnly || skillFilters.length);
 
@@ -291,10 +315,24 @@ export function StudentList({
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
-          <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/50 px-4 py-2.5 lg:hidden">
-            <AgeSortButton
-              sort={ageSort}
-              onCycle={() => setAgeSort(cycleAgeSort)}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/50 px-4 py-2.5 lg:hidden">
+            <SortHeader
+              label="Name"
+              column="name"
+              sort={sort}
+              onCycle={() => setSort((current) => cycleColumnSort(current, "name"))}
+              unsortedLabel="Sort by name"
+              ascLabel="Sorted by name, A to Z. Click to reverse."
+              descLabel="Sorted by name, Z to A. Click to reverse."
+            />
+            <SortHeader
+              label="Age"
+              column="age"
+              sort={sort}
+              onCycle={() => setSort((current) => cycleColumnSort(current, "age"))}
+              unsortedLabel="Sort by age"
+              ascLabel="Sorted by age, youngest first. Click to reverse."
+              descLabel="Sorted by age, oldest first. Click to reverse."
             />
             <SkillLevelFilter
               filters={skillFilters}
@@ -303,10 +341,23 @@ export function StudentList({
             />
           </div>
           <div className="hidden grid-cols-[2fr_0.6fr_1.2fr_1fr_auto] gap-4 border-b border-border/60 bg-muted/50 px-4 py-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase lg:grid">
-            <span>Skater</span>
-            <AgeSortButton
-              sort={ageSort}
-              onCycle={() => setAgeSort(cycleAgeSort)}
+            <SortHeader
+              label="Name"
+              column="name"
+              sort={sort}
+              onCycle={() => setSort((current) => cycleColumnSort(current, "name"))}
+              unsortedLabel="Sort by name"
+              ascLabel="Sorted by name, A to Z. Click to reverse."
+              descLabel="Sorted by name, Z to A. Click to reverse."
+            />
+            <SortHeader
+              label="Age"
+              column="age"
+              sort={sort}
+              onCycle={() => setSort((current) => cycleColumnSort(current, "age"))}
+              unsortedLabel="Sort by age"
+              ascLabel="Sorted by age, youngest first. Click to reverse."
+              descLabel="Sorted by age, oldest first. Click to reverse."
             />
             <SkillLevelFilter
               filters={skillFilters}
