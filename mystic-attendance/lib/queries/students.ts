@@ -30,6 +30,7 @@ export async function listStudents(
         contact_phone,
         skill_level,
         notes,
+        is_trial,
         enrolments (id)
       `
     )
@@ -70,6 +71,7 @@ export async function getStudentById(
         contact_phone,
         skill_level,
         notes,
+        is_trial,
         enrolments (
           id,
           student_id,

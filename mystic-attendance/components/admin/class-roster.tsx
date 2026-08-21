@@ -8,8 +8,9 @@ import {
   searchStudentsForEnrolment,
   unenrolStudent,
 } from "@/lib/actions/enrolments";
-import type { EnrolmentWithStudent } from "@/lib/types";
+import type { EnrolmentWithStudent, StudentSearchHit } from "@/lib/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,9 +26,7 @@ export function ClassRoster({ classId, enrolments }: ClassRosterProps) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<
-    { id: string; full_name: string; skill_level: string | null }[]
-  >([]);
+  const [results, setResults] = useState<StudentSearchHit[]>([]);
   const [searching, setSearching] = useState(false);
   const searchSeq = useRef(0);
   const trimmedQuery = query.trim();
@@ -123,9 +122,14 @@ export function ClassRoster({ classId, enrolments }: ClassRosterProps) {
                 className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2 last:border-b-0"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {student.full_name}
-                  </p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="truncate text-sm font-medium">
+                      {student.full_name}
+                    </p>
+                    {student.is_trial ? (
+                      <Badge variant="warning">Trial</Badge>
+                    ) : null}
+                  </div>
                   {student.skill_level ? (
                     <p className="text-xs text-muted-foreground capitalize">
                       {student.skill_level}
@@ -162,12 +166,17 @@ export function ClassRoster({ classId, enrolments }: ClassRosterProps) {
                 className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
               >
                 <div className="min-w-0">
-                  <Link
-                    href={`/admin/students/${student.id}`}
-                    className="truncate font-medium hover:underline"
-                  >
-                    {student.full_name}
-                  </Link>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Link
+                      href={`/admin/students/${student.id}`}
+                      className="truncate font-medium hover:underline"
+                    >
+                      {student.full_name}
+                    </Link>
+                    {student.is_trial ? (
+                      <Badge variant="warning">Trial</Badge>
+                    ) : null}
+                  </div>
                 </div>
                 <Button
                   type="button"

@@ -66,6 +66,15 @@ export function isTrialProductType(productType: PackageProductType): boolean {
   return productType === "trial_group" || productType === "trial_private";
 }
 
+export function packageIsTrialProduct(
+  pkg: Pick<Package, "package_products">
+): boolean {
+  return (
+    pkg.package_products != null &&
+    isTrialProductType(pkg.package_products.product_type)
+  );
+}
+
 export function defaultAmountForProduct(product: PackageProduct): number {
   return Number(product.amount_sgd);
 }

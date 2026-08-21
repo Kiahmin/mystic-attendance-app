@@ -13,7 +13,18 @@ import {
   SKILL_LEVEL_LABELS,
   SKILL_LEVELS,
 } from "@/lib/admin-utils";
-import type { SkillLevel, Student } from "@/lib/types";
+import {
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_METHODS,
+  defaultAmountForProduct,
+  formatAmountSgd,
+} from "@/lib/package-utils";
+import type {
+  PackageProduct,
+  PaymentMethod,
+  SkillLevel,
+  Student,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +35,8 @@ import { Textarea } from "@/components/ui/textarea";
 
 type StudentFormProps = {
   student?: Student;
+  trialProducts: PackageProduct[];
+  hasTrialPackage?: boolean;
   onSuccess?: (id: string) => void;
   submitLabel?: string;
   showCancel?: boolean;
@@ -32,6 +45,8 @@ type StudentFormProps = {
 
 export function StudentForm({
   student,
+  trialProducts,
+  hasTrialPackage = false,
   onSuccess,
   submitLabel,
   showCancel,
@@ -58,16 +73,54 @@ export function StudentForm({
     student?.skill_level ?? ""
   );
   const [notes, setNotes] = useState(student?.notes ?? "");
+  const [isTrial, setIsTrial] = useState(student?.is_trial ?? false);
+
+  const defaultTrial =
+    trialProducts.find((product) => product.product_type === "trial_group") ??
+    trialProducts[0] ??
+    null;
+  const [trialProductId, setTrialProductId] = useState(defaultTrial?.id ?? "");
+  const selectedTrialProduct =
+    trialProducts.find((product) => product.id === trialProductId) ??
+    defaultTrial;
+  const [trialPaid, setTrialPaid] = useState(true);
+  const [trialPaymentMethod, setTrialPaymentMethod] =
+    useState<PaymentMethod>("paynow");
+  const [trialAmount, setTrialAmount] = useState(
+    defaultTrial ? String(defaultAmountForProduct(defaultTrial)) : ""
+  );
 
   const isMinor = useMemo(
     () => isMinorDob(dateOfBirth || null),
     [dateOfBirth]
   );
   const age = useMemo(() => ageFromDob(dateOfBirth || null), [dateOfBirth]);
+  const needsTrialPackage = isTrial && !hasTrialPackage;
+
+  function handleTrialProductChange(product: PackageProduct) {
+    setTrialProductId(product.id);
+    setTrialAmount(String(defaultAmountForProduct(product)));
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    if (needsTrialPackage && !selectedTrialProduct) {
+      setError("Choose a trial package.");
+      return;
+    }
+
+    const amountSgd =
+      trialAmount.trim() === "" ? null : Number(trialAmount);
+    if (
+      needsTrialPackage &&
+      trialPaid &&
+      (amountSgd == null || Number.isNaN(amountSgd))
+    ) {
+      setError("Enter a valid amount in SGD.");
+      return;
+    }
 
     const input: StudentInput = {
       full_name: fullName,
@@ -77,6 +130,16 @@ export function StudentForm({
       guardian_phone: guardianPhone || null,
       skill_level: skillLevel || null,
       notes: notes || null,
+      is_trial: isTrial,
+      trial:
+        needsTrialPackage && selectedTrialProduct
+          ? {
+              package_product_id: selectedTrialProduct.id,
+              is_paid: trialPaid,
+              payment_method: trialPaid ? trialPaymentMethod : null,
+              amount_sgd: amountSgd,
+            }
+          : null,
     };
 
     startTransition(async () => {
@@ -166,6 +229,159 @@ export function StudentForm({
             placeholder="+65 …"
           />
         </div>
+
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            checked={isTrial}
+            onChange={(event) => setIsTrial(event.target.checked)}
+            className="size-4 accent-primary"
+          />
+          <span className="text-sm font-medium">Trial student</span>
+        </label>
+        {!isTrial
+          ? student?.is_trial
+            ? (
+                <p className="text-sm text-muted-foreground">
+                  Clears the trial flag. Existing packages stay as they are.
+                </p>
+              )
+            : null
+          : hasTrialPackage
+            ? (
+                <p className="text-sm text-muted-foreground">
+                  Student already has a trial pack.
+                </p>
+              )
+            : (
+                <p className="text-sm text-muted-foreground">
+                  Requires a Trial (Group) or Trial (Private) pack.
+                </p>
+              )}
+
+        {needsTrialPackage ? (
+          <div className="space-y-4 rounded-xl border border-border/70 p-4">
+            {trialProducts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No active trial products are available.
+              </p>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Trial type</Label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {trialProducts.map((product) => {
+                      const selected = selectedTrialProduct?.id === product.id;
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => handleTrialProductChange(product)}
+                          className={cn(
+                            "rounded-lg border px-3 py-3 text-left transition-colors",
+                            selected
+                              ? "border-primary bg-primary/5"
+                              : "border-border/80 hover:border-primary/40"
+                          )}
+                        >
+                          <span className="block font-medium">
+                            {product.label}
+                          </span>
+                          <span className="mt-1 block text-sm text-muted-foreground">
+                            {formatAmountSgd(defaultAmountForProduct(product))}{" "}
+                            SGD
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Payment status</Label>
+                  <div className="flex rounded-lg border border-border/80 bg-muted/40 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setTrialPaid(true)}
+                      className={cn(
+                        "flex-1 rounded-md py-2 text-xs font-semibold tracking-wide uppercase transition-colors",
+                        trialPaid
+                          ? "bg-card text-primary shadow-sm"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      Paid
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrialPaid(false)}
+                      className={cn(
+                        "flex-1 rounded-md py-2 text-xs font-semibold tracking-wide uppercase transition-colors",
+                        !trialPaid
+                          ? "bg-destructive/15 text-destructive shadow-sm"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      Unpaid
+                    </button>
+                  </div>
+                </div>
+
+                {trialPaid ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Method</Label>
+                      <div className="grid gap-2">
+                        {PAYMENT_METHODS.map((method) => {
+                          const selected = trialPaymentMethod === method;
+                          return (
+                            <label
+                              key={method}
+                              className={cn(
+                                "flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 transition-colors",
+                                selected
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border/80 hover:bg-muted/40"
+                              )}
+                            >
+                              <input
+                                type="radio"
+                                name="trial_payment_method"
+                                value={method}
+                                checked={selected}
+                                onChange={() => setTrialPaymentMethod(method)}
+                                className="size-4 accent-primary"
+                              />
+                              <span className="text-sm">
+                                {PAYMENT_METHOD_LABELS[method]}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="trial_amount">Amount (SGD)</Label>
+                      <Input
+                        id="trial_amount"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={trialAmount}
+                        onChange={(e) => setTrialAmount(e.target.value)}
+                        required={trialPaid}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-destructive">
+                    Unpaid packages cannot be used at check-in.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        ) : null}
       </section>
 
       <section className="space-y-4">

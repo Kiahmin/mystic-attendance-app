@@ -3,8 +3,12 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, UserRound } from "lucide-react";
 import { requireRole } from "@/lib/auth/profile";
 import { ageFromDob, SKILL_LEVEL_LABELS } from "@/lib/admin-utils";
+import { packageIsTrialProduct } from "@/lib/package-utils";
 import { listClasses } from "@/lib/queries/classes";
-import { listPackagesForStudent } from "@/lib/queries/packages";
+import {
+  listPackagesForStudent,
+  listTrialPackageProducts,
+} from "@/lib/queries/packages";
 import { getStudentById } from "@/lib/queries/students";
 import { EnrolmentManager } from "@/components/admin/enrolment-manager";
 import { StudentForm } from "@/components/admin/student-form";
@@ -29,15 +33,17 @@ export default async function AdminStudentDetailPage({
   await requireRole(["admin"]);
   const { id } = await params;
 
-  const [student, classes, packages] = await Promise.all([
+  const [student, classes, packages, trialProducts] = await Promise.all([
     getStudentById(id),
     listClasses({ activeOnly: true }),
     listPackagesForStudent(id),
+    listTrialPackageProducts(),
   ]);
 
   if (!student) notFound();
 
   const age = ageFromDob(student.date_of_birth);
+  const hasTrialPackage = packages.some(packageIsTrialProduct);
 
   return (
     <div className="space-y-6">
@@ -79,6 +85,9 @@ export default async function AdminStudentDetailPage({
                   {student.full_name}
                 </CardTitle>
                 <div className="flex flex-wrap gap-2">
+                  {student.is_trial ? (
+                    <Badge variant="warning">Trial</Badge>
+                  ) : null}
                   {student.skill_level ? (
                     <Badge variant="secondary">
                       {SKILL_LEVEL_LABELS[student.skill_level]}
@@ -135,7 +144,11 @@ export default async function AdminStudentDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <StudentForm student={student} />
+            <StudentForm
+              student={student}
+              trialProducts={trialProducts}
+              hasTrialPackage={hasTrialPackage}
+            />
           </CardContent>
         </Card>
       </div>

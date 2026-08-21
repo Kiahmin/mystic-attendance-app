@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronRight, Plus, Search, UserRound } from "lucide-react";
 import { StudentForm } from "@/components/admin/student-form";
 import { ageFromDob, SKILL_LEVEL_LABELS } from "@/lib/admin-utils";
-import type { SkillLevel, StudentListItem } from "@/lib/types";
+import type { PackageProduct, SkillLevel, StudentListItem } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 
 type StudentListProps = {
   students: StudentListItem[];
+  trialProducts: PackageProduct[];
   initialSearch?: string;
 };
 
@@ -30,15 +31,20 @@ const SKILL_BAR: Partial<Record<SkillLevel, number>> = {
   freestyle: 100,
 };
 
-export function StudentList({ students, initialSearch = "" }: StudentListProps) {
+export function StudentList({
+  students,
+  trialProducts,
+  initialSearch = "",
+}: StudentListProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState(initialSearch);
+  const [trialsOnly, setTrialsOnly] = useState(false);
 
-  const filtered = search.trim()
-    ? students.filter((s) =>
-        s.full_name.toLowerCase().includes(search.trim().toLowerCase())
-      )
-    : students;
+  const filtered = students.filter((s) => {
+    if (trialsOnly && !s.is_trial) return false;
+    if (!search.trim()) return true;
+    return s.full_name.toLowerCase().includes(search.trim().toLowerCase());
+  });
 
   return (
     <div className="space-y-4">
@@ -54,7 +60,18 @@ export function StudentList({ students, initialSearch = "" }: StudentListProps) 
           />
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant={trialsOnly ? "default" : "outline"}
+            className="h-11"
+            onClick={() => setTrialsOnly((value) => !value)}
+            aria-pressed={trialsOnly}
+          >
+            Trials
+          </Button>
+
+          <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="h-11">
               <Plus className="size-4" />
@@ -69,18 +86,24 @@ export function StudentList({ students, initialSearch = "" }: StudentListProps) 
                 screen.
               </DialogDescription>
             </DialogHeader>
-            <StudentForm onSuccess={() => setOpen(false)} />
+            <StudentForm
+              trialProducts={trialProducts}
+              onSuccess={() => setOpen(false)}
+            />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card p-8 text-center">
           <p className="font-medium">
-            {search.trim() ? "No matching students" : "No students yet"}
+            {search.trim() || trialsOnly
+              ? "No matching students"
+              : "No students yet"}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {search.trim()
+            {search.trim() || trialsOnly
               ? "Try a different search."
               : "Add a student to get started."}
           </p>
@@ -111,9 +134,14 @@ export function StudentList({ students, initialSearch = "" }: StudentListProps) 
                         <UserRound className="size-5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate font-medium">
-                          {student.full_name}
-                        </p>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate font-medium">
+                            {student.full_name}
+                          </p>
+                          {student.is_trial ? (
+                            <Badge variant="warning">Trial</Badge>
+                          ) : null}
+                        </div>
                         <p className="truncate text-xs text-muted-foreground">
                           {student.contact_phone ?? "No contact on file"}
                         </p>
