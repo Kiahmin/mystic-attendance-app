@@ -1,7 +1,8 @@
 import { requireRole } from "@/lib/auth/profile";
+import { listClasses } from "@/lib/queries/classes";
 import { listTrialPackageProducts } from "@/lib/queries/packages";
 import { listStudents } from "@/lib/queries/students";
-import { StudentList } from "@/components/admin/student-list";
+import { AddStudentButton, StudentList } from "@/components/admin/student-list";
 import { PageHeader } from "@/components/layout/page-header";
 
 export default async function AdminStudentsPage({
@@ -11,20 +12,24 @@ export default async function AdminStudentsPage({
 }) {
   await requireRole(["admin"]);
   const params = await searchParams;
-  const [students, trialProducts] = await Promise.all([
+  const [students, trialProducts, classes] = await Promise.all([
     listStudents(params.q),
     listTrialPackageProducts(),
+    listClasses({ activeOnly: true }),
   ]);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Student Roster"
-        description="Manage skater profiles, skill levels, and enrolments."
-      />
+        className="sm:items-end"
+        title="Students"
+        description="Manage student profiles, skill levels, and package statuses."
+      >
+        <AddStudentButton trialProducts={trialProducts} />
+      </PageHeader>
       <StudentList
         students={students}
-        trialProducts={trialProducts}
+        classes={classes.map((cls) => ({ id: cls.id, name: cls.name }))}
         initialSearch={params.q ?? ""}
       />
     </div>
