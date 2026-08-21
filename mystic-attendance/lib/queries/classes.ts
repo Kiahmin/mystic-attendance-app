@@ -26,6 +26,7 @@ function mapClassWithCoach(row: {
     | Pick<Profile, "id" | "full_name">
     | Pick<Profile, "id" | "full_name">[]
     | null;
+  enrolments?: Array<{ id: string }> | null;
 }): ClassWithCoach {
   return {
     id: row.id,
@@ -36,6 +37,7 @@ function mapClassWithCoach(row: {
     coach_id: row.coach_id,
     is_active: row.is_active,
     coach: asSingle(row.profiles),
+    enrolment_count: Array.isArray(row.enrolments) ? row.enrolments.length : 0,
   };
 }
 
@@ -58,7 +60,8 @@ export async function listClasses(options?: {
         profiles!coach_id (
           id,
           full_name
-        )
+        ),
+        enrolments (id)
       `
     )
     .order("day_of_week")
