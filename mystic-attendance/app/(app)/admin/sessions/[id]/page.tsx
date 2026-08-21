@@ -1,12 +1,17 @@
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/profile";
 import { getSessionCheckInList } from "@/lib/queries/sessions";
-import { adminWeekHref, resolveWeekDates } from "@/lib/session-utils";
+import { adminCalendarHref, parseCalendarView } from "@/lib/session-utils";
 import { SessionAttendanceView } from "@/components/sessions/session-attendance-view";
 
 interface SessionPageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ week?: string; weekend?: string }>;
+  searchParams: Promise<{
+    week?: string;
+    weekend?: string;
+    view?: string;
+    date?: string;
+  }>;
 }
 
 export default async function AdminSessionPage({
@@ -14,7 +19,7 @@ export default async function AdminSessionPage({
   searchParams,
 }: SessionPageProps) {
   const { id } = await params;
-  const { week, weekend } = await searchParams;
+  const { week, weekend, view, date } = await searchParams;
   const profile = await requireRole(["admin", "coach"]);
 
   if (profile.role === "coach") {
@@ -29,16 +34,17 @@ export default async function AdminSessionPage({
   }
 
   const { session, students, walkIns } = data;
-  const { monday } = resolveWeekDates(
-    week ?? weekend ?? session.session_date
-  );
+  const backDate = date ?? week ?? weekend ?? session.session_date;
 
   return (
     <SessionAttendanceView
       session={session}
       students={students}
       walkIns={walkIns}
-      backHref={adminWeekHref(monday)}
+      backHref={adminCalendarHref({
+        view: parseCalendarView(view),
+        date: backDate,
+      })}
       backLabel="Dashboard"
     />
   );
