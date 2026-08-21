@@ -10,6 +10,7 @@ import {
 import {
   PAYMENT_METHODS,
   buildPauseReason,
+  isTrialProductType,
   type PauseReasonValue,
 } from "@/lib/package-utils";
 import { getPackageProductById } from "@/lib/queries/packages";
@@ -156,6 +157,20 @@ export async function assignPackage(input: AssignPackageInput) {
     if (backfill.backfillError) {
       revalidatePackagePaths(input.student_id, packageId);
       return { error: backfill.backfillError, id: packageId };
+    }
+  }
+
+  if (isTrialProductType(product.product_type)) {
+    const { error: trialError } = await supabase
+      .from("students")
+      .update({ is_trial: true })
+      .eq("id", input.student_id);
+    if (trialError) {
+      revalidatePackagePaths(input.student_id, packageId);
+      return {
+        error: `The package was saved, but the student could not be marked as trial: ${trialError.message}`,
+        id: packageId,
+      };
     }
   }
 

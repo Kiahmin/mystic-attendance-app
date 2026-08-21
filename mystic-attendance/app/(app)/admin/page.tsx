@@ -51,7 +51,7 @@ export default async function AdminDashboardPage({
     (sum, item) => sum + item.checkedInCount,
     0
   );
-  const totalAlerts = todaySessions.reduce(
+  const totalAlerts = weekSessions.reduce(
     (sum, item) => sum + item.packageAlerts,
     0
   );
@@ -85,7 +85,6 @@ export default async function AdminDashboardPage({
         <MetricCard
           label="Package Alerts"
           value={totalAlerts}
-          accent={totalAlerts > 0 ? "warning" : "default"}
           icon={<AlertTriangle />}
           href="/admin/packages?filter=finishing,unpaid,expired,finished"
         />

@@ -120,7 +120,8 @@ export async function getClassById(id: string): Promise<ClassDetail | null> {
             guardian_phone,
             contact_phone,
             skill_level,
-            notes
+            notes,
+            is_trial
           )
         )
       `
