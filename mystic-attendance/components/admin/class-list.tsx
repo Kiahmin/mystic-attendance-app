@@ -30,7 +30,36 @@ function classesForDay(classes: ClassWithCoach[], day: DayOfWeek) {
   return classes.filter((cls) => cls.day_of_week === day);
 }
 
-function ClassWeekCard({ cls }: { cls: ClassWithCoach }) {
+function slotKey(cls: ClassWithCoach) {
+  return `${cls.start_time}-${cls.end_time}`;
+}
+
+function groupByTimeSlot(classes: ClassWithCoach[]) {
+  const groups: ClassWithCoach[][] = [];
+
+  for (const cls of classes) {
+    const last = groups.at(-1);
+    if (last && slotKey(last[0]) === slotKey(cls)) {
+      last.push(cls);
+    } else {
+      groups.push([cls]);
+    }
+  }
+
+  return groups;
+}
+
+function formatClassTime(cls: ClassWithCoach) {
+  return `${formatSessionTime(cls.start_time)} – ${formatSessionTime(cls.end_time)}`;
+}
+
+function ClassWeekCard({
+  cls,
+  showTime = true,
+}: {
+  cls: ClassWithCoach;
+  showTime?: boolean;
+}) {
   return (
     <Link
       href={`/admin/classes/${cls.id}`}
@@ -48,13 +77,12 @@ function ClassWeekCard({ cls }: { cls: ClassWithCoach }) {
         </span>
       </div>
       <div className="space-y-1">
-        <div className="flex items-start text-xs leading-snug text-muted-foreground">
-          <Clock className="mt-0.5 mr-1 size-3.5 shrink-0" aria-hidden />
-          <span>
-            {formatSessionTime(cls.start_time)} –{" "}
-            {formatSessionTime(cls.end_time)}
-          </span>
-        </div>
+        {showTime ? (
+          <div className="flex items-start text-xs leading-snug text-muted-foreground">
+            <Clock className="mt-0.5 mr-1 size-3.5 shrink-0" aria-hidden />
+            <span>{formatClassTime(cls)}</span>
+          </div>
+        ) : null}
         <div className="flex items-center text-xs text-muted-foreground">
           <User className="mr-1 size-3.5 shrink-0" aria-hidden />
           <span className="truncate">
@@ -137,9 +165,35 @@ export function ClassList({ classes, coaches }: ClassListProps) {
                     No classes
                   </div>
                 ) : (
-                  dayClasses.map((cls) => (
-                    <ClassWeekCard key={cls.id} cls={cls} />
-                  ))
+                  groupByTimeSlot(dayClasses).map((group) => {
+                    const first = group[0];
+
+                    if (group.length === 1) {
+                      return <ClassWeekCard key={first.id} cls={first} />;
+                    }
+
+                    return (
+                      <div
+                        key={slotKey(first)}
+                        className="space-y-1.5 rounded-lg border border-primary/20 bg-primary/5 p-1.5"
+                      >
+                        <div className="flex items-center px-1 pt-0.5 text-xs text-muted-foreground">
+                          <Clock
+                            className="mr-1 size-3.5 shrink-0"
+                            aria-hidden
+                          />
+                          <span>{formatClassTime(first)}</span>
+                        </div>
+                        {group.map((cls) => (
+                          <ClassWeekCard
+                            key={cls.id}
+                            cls={cls}
+                            showTime={false}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             );
