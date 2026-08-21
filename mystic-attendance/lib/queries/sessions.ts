@@ -286,17 +286,17 @@ export async function getTodaySessionsForDashboard(coachId?: string) {
   );
 }
 
-export async function getWeekSessionsForDashboard(
-  monday: string,
-  sunday: string
+export async function getSessionsForDashboardRange(
+  start: string,
+  end: string
 ) {
   const supabase = await createClient();
 
   const { data: sessions, error } = await supabase
     .from("sessions")
     .select(DASHBOARD_SESSION_SELECT)
-    .gte("session_date", monday)
-    .lte("session_date", sunday);
+    .gte("session_date", start)
+    .lte("session_date", end);
 
   if (error) throw error;
 
@@ -314,6 +314,13 @@ export async function getWeekSessionsForDashboard(
       sessionDisplayStart(b.session)
     );
   });
+}
+
+export async function getWeekSessionsForDashboard(
+  monday: string,
+  sunday: string
+) {
+  return getSessionsForDashboardRange(monday, sunday);
 }
 
 export async function getSessionCheckInList(
