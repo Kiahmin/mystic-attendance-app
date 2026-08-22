@@ -1,5 +1,10 @@
 "use server";
 
+import {
+  emptyToNull,
+  normalizeTime,
+  timeToMinutes,
+} from "@/lib/admin-utils";
 import { requireRole } from "@/lib/auth/profile";
 import { loadEffectiveSessionRoster } from "@/lib/session-roster";
 import { isValidCalendarDate } from "@/lib/datetime";
@@ -10,8 +15,18 @@ import {
   type CancellationReason,
 } from "@/lib/session-utils";
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { revalidateSessionAttendance } from "@/lib/revalidate-session";
+
+export type EventInput = {
+  name: string;
+  session_date: string;
+  start_time: string;
+  end_time: string;
+  coach_id?: string | null;
+  requires_attendance?: boolean;
+};
 
 function revalidateSessionPaths(sessionId?: string) {
   if (sessionId) {
@@ -176,7 +191,7 @@ export async function cancelSession(
     roster = await loadEffectiveSessionRoster(
       supabase,
       sessionId,
-      session.class_id as string
+      session.class_id as string | null
     );
   } catch (error) {
     return {
@@ -210,6 +225,59 @@ export async function cancelSession(
   return { success: true as const };
 }
 
+function validateEventInput(input: EventInput): string | null {
+  const name = input.name?.trim() ?? "";
+  if (!name) return "Event name is required.";
+  if (!isValidCalendarDate(input.session_date ?? "")) {
+    return "Select a valid date.";
+  }
+
+  const start = normalizeTime(input.start_time ?? "");
+  const end = normalizeTime(input.end_time ?? "");
+  const startMins = timeToMinutes(start);
+  const endMins = timeToMinutes(end);
+
+  if (startMins === null || endMins === null) {
+    return "Start and end times must be valid (HH:MM).";
+  }
+  if (startMins >= endMins) {
+    return "Start time must be before end time.";
+  }
+
+  return null;
+}
+
+async function assertValidCoach(
+  supabase: SupabaseClient,
+  coachId: string | null
+): Promise<string | null> {
+  if (!coachId) return null;
+
+  const { data: coach, error: coachError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", coachId)
+    .eq("role", "coach")
+    .maybeSingle();
+
+  if (coachError) return coachError.message;
+  if (!coach) return "Select a valid coach.";
+  return null;
+}
+
+function toEventRow(input: EventInput) {
+  return {
+    kind: "event" as const,
+    class_id: null,
+    name: input.name.trim(),
+    session_date: input.session_date,
+    start_time: normalizeTime(input.start_time),
+    end_time: normalizeTime(input.end_time),
+    coach_id: emptyToNull(input.coach_id),
+    requires_attendance: input.requires_attendance ?? true,
+  };
+}
+
 export async function updateSessionCoach(
   sessionId: string,
   coachId: string | null
@@ -217,22 +285,8 @@ export async function updateSessionCoach(
   await requireRole(["admin"]);
 
   const supabase = await createClient();
-
-  if (coachId) {
-    const { data: coach, error: coachError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", coachId)
-      .eq("role", "coach")
-      .maybeSingle();
-
-    if (coachError) {
-      return { error: coachError.message };
-    }
-    if (!coach) {
-      return { error: "Select a valid coach." };
-    }
-  }
+  const coachError = await assertValidCoach(supabase, coachId);
+  if (coachError) return { error: coachError };
 
   const { error } = await supabase
     .from("sessions")
@@ -244,5 +298,102 @@ export async function updateSessionCoach(
   }
 
   revalidateSessionPaths(sessionId);
+  return { success: true as const };
+}
+
+export async function createEvent(input: EventInput) {
+  await requireRole(["admin"]);
+
+  const validationError = validateEventInput(input);
+  if (validationError) return { error: validationError };
+
+  const supabase = await createClient();
+  const coachError = await assertValidCoach(
+    supabase,
+    emptyToNull(input.coach_id)
+  );
+  if (coachError) return { error: coachError };
+
+  const { data, error } = await supabase
+    .from("sessions")
+    .insert(toEventRow(input))
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+
+  revalidateSessionPaths();
+  return { success: true as const, id: data.id as string };
+}
+
+export async function updateEvent(sessionId: string, input: EventInput) {
+  await requireRole(["admin"]);
+
+  if (!sessionId) return { error: "Session is required." };
+
+  const validationError = validateEventInput(input);
+  if (validationError) return { error: validationError };
+
+  const supabase = await createClient();
+  const { data: session, error: sessionError } = await supabase
+    .from("sessions")
+    .select("id, kind")
+    .eq("id", sessionId)
+    .single();
+
+  if (sessionError || !session) {
+    return { error: "Event not found." };
+  }
+  if (session.kind !== "event") {
+    return { error: "Only ad-hoc events can be edited this way." };
+  }
+
+  const coachError = await assertValidCoach(
+    supabase,
+    emptyToNull(input.coach_id)
+  );
+  if (coachError) return { error: coachError };
+
+  const { error } = await supabase
+    .from("sessions")
+    .update(toEventRow(input))
+    .eq("id", sessionId);
+
+  if (error) return { error: error.message };
+
+  revalidateSessionPaths(sessionId);
+  return { success: true as const };
+}
+
+export async function deleteEvent(sessionId: string) {
+  await requireRole(["admin"]);
+
+  if (!sessionId) return { error: "Session is required." };
+
+  const supabase = await createClient();
+  const { data: session, error: sessionError } = await supabase
+    .from("sessions")
+    .select("id, kind")
+    .eq("id", sessionId)
+    .single();
+
+  if (sessionError || !session) {
+    return { error: "Event not found." };
+  }
+  if (session.kind !== "event") {
+    return { error: "Only ad-hoc events can be deleted." };
+  }
+
+  const { error: attendanceError } = await supabase
+    .from("attendance")
+    .delete()
+    .eq("session_id", sessionId);
+
+  if (attendanceError) return { error: attendanceError.message };
+
+  const { error } = await supabase.from("sessions").delete().eq("id", sessionId);
+  if (error) return { error: error.message };
+
+  revalidateSessionPaths();
   return { success: true as const };
 }

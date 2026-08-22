@@ -34,7 +34,7 @@ export async function markAttendance(
 
   const { data: session, error: sessionError } = await supabase
     .from("sessions")
-    .select("session_date, cancelled")
+    .select("session_date, cancelled, requires_attendance")
     .eq("id", sessionId)
     .single();
 
@@ -44,6 +44,10 @@ export async function markAttendance(
 
   if (session.cancelled) {
     return { error: "This session has been cancelled." };
+  }
+
+  if (session.requires_attendance === false) {
+    return { error: "Attendance is not taken for this event." };
   }
 
   const deduct_credit = defaultDeductCredit(status);
@@ -85,7 +89,7 @@ export async function markWalkIn(
 
   const { data: session, error: sessionError } = await supabase
     .from("sessions")
-    .select("session_date, cancelled, class_id")
+    .select("session_date, cancelled, class_id, requires_attendance")
     .eq("id", sessionId)
     .single();
 
@@ -95,6 +99,10 @@ export async function markWalkIn(
 
   if (session.cancelled) {
     return { error: "This session has been cancelled." };
+  }
+
+  if (session.requires_attendance === false) {
+    return { error: "Attendance is not taken for this event." };
   }
 
   if (walkInStatus === "declined" && !declineReason?.trim()) {
@@ -128,6 +136,20 @@ export async function markWalkIn(
 export async function clearAttendance(sessionId: string, studentId: string) {
   await requireProfile();
   const supabase = await createClient();
+
+  const { data: session, error: sessionError } = await supabase
+    .from("sessions")
+    .select("requires_attendance")
+    .eq("id", sessionId)
+    .single();
+
+  if (sessionError || !session) {
+    return { error: "Session not found." };
+  }
+
+  if (session.requires_attendance === false) {
+    return { error: "Attendance is not taken for this event." };
+  }
 
   const { error } = await supabase
     .from("attendance")
