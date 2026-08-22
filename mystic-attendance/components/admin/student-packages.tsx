@@ -10,10 +10,12 @@ import {
   formatAmountSgd,
   formatPackageExpiry,
   isCustomisedPackage,
+  isPastPackage,
   packageCreditBreakdown,
   packageLabel,
 } from "@/lib/package-utils";
 import type { Package, PackageStatus } from "@/lib/types";
+import { PackageTabs } from "@/components/admin/package-tabs";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 
@@ -30,25 +32,74 @@ const STATUS_CLASS: Record<PackageStatus, string> = {
 };
 
 export function StudentPackages({ packages }: StudentPackagesProps) {
+  if (packages.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed bg-card p-6 text-center">
+        <p className="font-medium">No packages yet</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Assign a lesson package after payment to track credits.
+        </p>
+      </div>
+    );
+  }
+
+  const today = todayInSingapore();
+  const current: Package[] = [];
+  const past: Package[] = [];
+  for (const pkg of packages) {
+    if (isPastPackage(pkg, today)) past.push(pkg);
+    else current.push(pkg);
+  }
+
   return (
-    <div className="space-y-4">
-      {packages.length === 0 ? (
-        <div className="rounded-xl border border-dashed bg-card p-6 text-center">
-          <p className="font-medium">No packages yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Assign a lesson package after payment to track credits.
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-3">
-          {packages.map((pkg) => (
-            <li key={pkg.id}>
-              <PackageCard pkg={pkg} />
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <PackageTabs
+      currentCount={current.length}
+      pastCount={past.length}
+      pastUnpaidCount={past.filter((pkg) => !pkg.is_paid).length}
+      current={
+        <PackageCardList
+          packages={current}
+          emptyMessage="No current packages"
+          emptyHint="Finished and expired packages are under Past."
+        />
+      }
+      past={
+        <PackageCardList
+          packages={past}
+          emptyMessage="No past packages yet"
+          emptyHint="Packages move here once they are finished or expired."
+        />
+      }
+    />
+  );
+}
+
+function PackageCardList({
+  packages,
+  emptyMessage,
+  emptyHint,
+}: {
+  packages: Package[];
+  emptyMessage: string;
+  emptyHint: string;
+}) {
+  if (packages.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed bg-card p-6 text-center">
+        <p className="font-medium">{emptyMessage}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{emptyHint}</p>
+      </div>
+    );
+  }
+
+  return (
+    <ul className="space-y-3">
+      {packages.map((pkg) => (
+        <li key={pkg.id}>
+          <PackageCard pkg={pkg} />
+        </li>
+      ))}
+    </ul>
   );
 }
 
