@@ -4,11 +4,13 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { GenerateSessionsButton } from "@/components/admin/generate-sessions-button";
+import { EventFormDialog } from "@/components/admin/event-form-dialog";
 import { ScheduleMonthGrid } from "@/components/admin/schedule-month-grid";
 import { ScheduleTimeGrid } from "@/components/admin/schedule-time-grid";
 import { NavigationProgressBar } from "@/components/layout/navigation-progress";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { datesInclusive, endOfMonth, todayInSingapore } from "@/lib/datetime";
+import { minutesToTime, timeToMinutes } from "@/lib/admin-utils";
 import {
   adminCalendarHref,
   CALENDAR_VIEWS,
@@ -26,6 +28,12 @@ const VIEW_LABELS = {
   month: "Month",
 } as const;
 
+function addOneHour(time: string): string {
+  const minutes = timeToMinutes(time);
+  if (minutes === null) return "11:00";
+  return minutesToTime(Math.min(23 * 60 + 59, minutes + 60));
+}
+
 type DashboardCalendarProps = {
   range: CalendarRange;
   sessions: DashboardSession[];
@@ -42,6 +50,12 @@ export function DashboardCalendar({
   const [view, setView] = useState(range.view);
   const [date, setDate] = useState(range.date);
   const [showProgress, setShowProgress] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [draft, setDraft] = useState<{
+    date: string;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
   const requested = useRef({ view: range.view, date: range.date });
   const today = todayInSingapore();
   const display = resolveCalendarRange({ view, date });
@@ -94,11 +108,30 @@ export function DashboardCalendar({
     });
   }
 
+  function openCreateEvent(next: {
+    date: string;
+    startTime?: string;
+    endTime?: string;
+  }) {
+    const startTime = next.startTime ?? "10:00";
+    setDraft({
+      date: next.date,
+      startTime,
+      endTime: next.endTime ?? addOneHour(startTime),
+    });
+    setCreateOpen(true);
+  }
+
   return (
     <section className="space-y-4" aria-busy={isPending}>
       {showProgress ? <NavigationProgressBar /> : null}
       <div className="space-y-3">
-        <h2 className="font-heading text-lg font-semibold">Schedule</h2>
+        <div>
+          <h2 className="font-heading text-lg font-semibold">Schedule</h2>
+          <p className="text-sm text-muted-foreground">
+            Click an empty slot to add an event.
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -181,6 +214,7 @@ export function DashboardCalendar({
           coaches={coaches}
           view={view}
           date={date}
+          onCreateEvent={openCreateEvent}
         />
       ) : (
         <ScheduleTimeGrid
@@ -189,9 +223,18 @@ export function DashboardCalendar({
           coaches={coaches}
           view={view}
           date={date}
+          onCreateEvent={openCreateEvent}
         />
       )}
       </div>
+      <EventFormDialog
+        coaches={coaches}
+        defaultDate={draft?.date ?? display.date}
+        defaultStartTime={draft?.startTime}
+        defaultEndTime={draft?.endTime}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+      />
     </section>
   );
 }
