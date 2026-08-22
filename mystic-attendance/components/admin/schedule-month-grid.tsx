@@ -10,6 +10,12 @@ import { cn } from "@/lib/utils";
 
 const MAX_CHIPS = 3;
 
+type CreateEventDraft = {
+  date: string;
+  startTime?: string;
+  endTime?: string;
+};
+
 type ScheduleMonthGridProps = {
   dates: string[];
   monthStart: string;
@@ -17,6 +23,7 @@ type ScheduleMonthGridProps = {
   coaches: Pick<Profile, "id" | "full_name">[];
   view: CalendarView;
   date: string;
+  onCreateEvent?: (draft: CreateEventDraft) => void;
 };
 
 export function ScheduleMonthGrid({
@@ -26,6 +33,7 @@ export function ScheduleMonthGrid({
   coaches,
   view,
   date,
+  onCreateEvent,
 }: ScheduleMonthGridProps) {
   const today = todayInSingapore();
   const monthKey = monthStart.slice(0, 7);
@@ -65,8 +73,15 @@ export function ScheduleMonthGrid({
                   key={day}
                   className={cn(
                     "min-h-[110px] border-t border-l border-border/50 p-1 sm:min-h-[128px]",
+                    onCreateEvent && "cursor-pointer hover:bg-muted/40",
                     !inMonth && "bg-muted/30"
                   )}
+                  onClick={(event) => {
+                    if (!onCreateEvent) return;
+                    const target = event.target as HTMLElement;
+                    if (target.closest("[data-schedule-event], a")) return;
+                    onCreateEvent({ date: day });
+                  }}
                 >
                   <div className="mb-1 flex justify-end">
                     <Link

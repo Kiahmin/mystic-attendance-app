@@ -33,7 +33,11 @@ export default async function CoachHomePage() {
             <SessionCard
               key={session.id}
               session={session}
-              href={`/coach/sessions/${session.id}`}
+              href={
+                session.requires_attendance !== false
+                  ? `/coach/sessions/${session.id}`
+                  : undefined
+              }
             />
           ))}
         </div>

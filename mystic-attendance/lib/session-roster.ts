@@ -52,7 +52,7 @@ export function computeEffectiveRoster(
 export async function loadEffectiveSessionRoster(
   supabase: SupabaseClient,
   sessionId: string,
-  classId: string
+  classId: string | null
 ): Promise<SessionRosterEntry[]> {
   const rosters = await loadEffectiveSessionRosters(supabase, [
     { sessionId, classId },
@@ -63,22 +63,33 @@ export async function loadEffectiveSessionRoster(
 /** Load expected rosters for many sessions, excluding archived students. */
 export async function loadEffectiveSessionRosters(
   supabase: SupabaseClient,
-  sessions: { sessionId: string; classId: string }[]
+  sessions: { sessionId: string; classId: string | null }[]
 ): Promise<Map<string, SessionRosterEntry[]>> {
   const result = new Map<string, SessionRosterEntry[]>();
   if (sessions.length === 0) return result;
 
-  const classIds = [...new Set(sessions.map((session) => session.classId))];
+  const classIds = [
+    ...new Set(
+      sessions
+        .map((session) => session.classId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
   const sessionIds = [...new Set(sessions.map((session) => session.sessionId))];
 
   const [
     { data: enrolments, error: enrolmentError },
     { data: overrides, error: overrideError },
   ] = await Promise.all([
-    supabase
-      .from("enrolments")
-      .select("student_id, class_id")
-      .in("class_id", classIds),
+    classIds.length === 0
+      ? Promise.resolve({
+          data: [] as { student_id: string; class_id: string }[],
+          error: null,
+        })
+      : supabase
+          .from("enrolments")
+          .select("student_id, class_id")
+          .in("class_id", classIds),
     supabase
       .from("session_attendee_overrides")
       .select("student_id, kind, session_id")
@@ -148,7 +159,7 @@ export async function loadEffectiveSessionRosters(
 export async function loadEffectiveSessionRosterStudents(
   supabase: SupabaseClient,
   sessionId: string,
-  classId: string
+  classId: string | null
 ): Promise<SessionRosterStudent[]> {
   const roster = await loadEffectiveSessionRoster(supabase, sessionId, classId);
   if (roster.length === 0) return [];

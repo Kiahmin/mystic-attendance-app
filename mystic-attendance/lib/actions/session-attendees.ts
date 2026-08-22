@@ -1,22 +1,52 @@
 "use server";
 
+import { emptyToNull } from "@/lib/admin-utils";
 import { requireRole } from "@/lib/auth/profile";
+import { eventPackageExpiresAt, PAYMENT_METHODS } from "@/lib/package-utils";
 import { loadEffectiveSessionRosterStudents } from "@/lib/session-roster";
 import type { SessionRosterStudent } from "@/lib/session-roster";
+import { getEventPackageProduct } from "@/lib/queries/packages";
 import { searchStudents } from "@/lib/queries/sessions";
 import { createClient } from "@/lib/supabase/server";
+import type { PaymentMethod, SessionKind } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { revalidatePath } from "next/cache";
 import { revalidateSessionAttendance } from "@/lib/revalidate-session";
 
-function revalidateAttendeePaths(sessionId: string) {
+function revalidateAttendeePaths(sessionId: string, studentId?: string) {
   revalidateSessionAttendance(sessionId);
+  revalidatePath("/admin/packages");
+  if (studentId) {
+    revalidatePath(`/admin/students/${studentId}`);
+  }
 }
 
 type SessionRow = {
   id: string;
-  class_id: string;
+  class_id: string | null;
+  kind: SessionKind;
   cancelled: boolean;
+  requires_attendance: boolean;
 };
+
+function isTakeAttendanceEvent(session: SessionRow): boolean {
+  return session.kind === "event" && session.requires_attendance;
+}
+
+async function findEnrolment(
+  supabase: SupabaseClient,
+  classId: string | null,
+  studentId: string
+) {
+  if (!classId) return null;
+  const { data } = await supabase
+    .from("enrolments")
+    .select("id")
+    .eq("class_id", classId)
+    .eq("student_id", studentId)
+    .maybeSingle();
+  return data;
+}
 
 async function loadSessionOrError(
   sessionId: string
@@ -27,7 +57,7 @@ async function loadSessionOrError(
   const supabase = await createClient();
   const { data: session, error } = await supabase
     .from("sessions")
-    .select("id, class_id, cancelled")
+    .select("id, class_id, kind, cancelled, requires_attendance")
     .eq("id", sessionId)
     .single();
 
@@ -37,9 +67,119 @@ async function loadSessionOrError(
 
   return {
     ok: true,
-    session: session as SessionRow,
+    session: {
+      id: session.id as string,
+      class_id: (session.class_id as string | null) ?? null,
+      kind: (session.kind as SessionKind) ?? "class",
+      cancelled: Boolean(session.cancelled),
+      requires_attendance: session.requires_attendance !== false,
+    },
     supabase,
   };
+}
+
+export type EventPackageInput = {
+  amountSgd: number;
+  isPaid?: boolean;
+  paymentMethod?: PaymentMethod | null;
+  notes?: string | null;
+};
+
+async function ensureEventPackage(
+  supabase: SupabaseClient,
+  sessionId: string,
+  studentId: string,
+  input: EventPackageInput
+): Promise<{ error?: string }> {
+  const { data: existing, error: existingError } = await supabase
+    .from("packages")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("session_id", sessionId)
+    .maybeSingle();
+
+  if (existingError) return { error: existingError.message };
+  if (existing) return {};
+
+  const product = await getEventPackageProduct();
+  if (!product) {
+    return { error: "Event package product is not available." };
+  }
+
+  const { data: session, error: sessionError } = await supabase
+    .from("sessions")
+    .select("session_date")
+    .eq("id", sessionId)
+    .single();
+
+  if (sessionError || !session?.session_date) {
+    return { error: "Session not found." };
+  }
+
+  const isPaid = Boolean(input.isPaid);
+  const { data: created, error } = await supabase
+    .from("packages")
+    .insert({
+      student_id: studentId,
+      package_product_id: product.id,
+      session_id: sessionId,
+      total_credits: 1,
+      bonus_credits: 0,
+      is_paid: isPaid,
+      payment_method: isPaid ? input.paymentMethod : null,
+      amount_sgd: input.amountSgd,
+      expires_at: eventPackageExpiresAt(session.session_date as string),
+      customisation_notes: emptyToNull(input.notes),
+    })
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+
+  if (isPaid && created?.id) {
+    const { error: backfillError } = await supabase.rpc(
+      "backfill_uncharged_attendance",
+      { p_package_id: created.id }
+    );
+    if (backfillError) {
+      return {
+        error: `The student was added, but uncharged attendance could not be applied: ${backfillError.message}`,
+      };
+    }
+  }
+
+  return {};
+}
+
+async function deleteUnusedEventPackage(
+  supabase: SupabaseClient,
+  sessionId: string,
+  studentId: string
+): Promise<{ error?: string }> {
+  const { data: pkg, error: pkgError } = await supabase
+    .from("packages")
+    .select("id, is_paid, used_credits")
+    .eq("student_id", studentId)
+    .eq("session_id", sessionId)
+    .maybeSingle();
+
+  if (pkgError) return { error: pkgError.message };
+  if (!pkg) return {};
+  if (pkg.is_paid || Number(pkg.used_credits) > 0) return {};
+
+  const { data: attendance, error: attendanceError } = await supabase
+    .from("attendance")
+    .select("id")
+    .eq("session_id", sessionId)
+    .eq("student_id", studentId)
+    .maybeSingle();
+
+  if (attendanceError) return { error: attendanceError.message };
+  if (attendance) return {};
+
+  const { error } = await supabase.from("packages").delete().eq("id", pkg.id);
+  if (error) return { error: error.message };
+  return {};
 }
 
 export async function getSessionAttendeesForEditor(
@@ -79,7 +219,8 @@ export async function searchStudentsForSessionAttendees(query: string) {
  */
 export async function includeStudentInSession(
   sessionId: string,
-  studentId: string
+  studentId: string,
+  options?: EventPackageInput
 ): Promise<{ success: true } | { error: string }> {
   const profile = await requireRole(["admin", "coach"]);
 
@@ -95,12 +236,32 @@ export async function includeStudentInSession(
     return { error: "Cannot edit attendees on a cancelled session." };
   }
 
-  const { data: enrolment } = await supabase
-    .from("enrolments")
-    .select("id")
-    .eq("class_id", session.class_id)
-    .eq("student_id", studentId)
-    .maybeSingle();
+  if (session.requires_attendance === false) {
+    return { error: "Attendance is not taken for this event." };
+  }
+
+  let eventPackage: EventPackageInput | null = null;
+  if (isTakeAttendanceEvent(session)) {
+    const amount = options?.amountSgd;
+    if (amount == null || Number.isNaN(amount) || amount < 0) {
+      return { error: "Enter a valid amount in SGD." };
+    }
+    const isPaid = Boolean(options?.isPaid);
+    if (isPaid) {
+      const method = options?.paymentMethod ?? null;
+      if (!method || !PAYMENT_METHODS.includes(method)) {
+        return { error: "Payment method is required for paid packages." };
+      }
+    }
+    eventPackage = {
+      amountSgd: amount,
+      isPaid,
+      paymentMethod: isPaid ? options?.paymentMethod : null,
+      notes: options?.notes ?? null,
+    };
+  }
+
+  const enrolment = await findEnrolment(supabase, session.class_id, studentId);
 
   const { data: existing } = await supabase
     .from("session_attendee_overrides")
@@ -116,7 +277,7 @@ export async function includeStudentInSession(
         .delete()
         .eq("id", existing.id);
       if (error) return { error: error.message };
-      revalidateAttendeePaths(sessionId);
+      revalidateAttendeePaths(sessionId, studentId);
       return { success: true };
     }
     return { error: "Student is already on the class roster for this session." };
@@ -142,7 +303,24 @@ export async function includeStudentInSession(
     if (error) return { error: error.message };
   }
 
-  revalidateAttendeePaths(sessionId);
+  if (eventPackage) {
+    const packResult = await ensureEventPackage(
+      supabase,
+      sessionId,
+      studentId,
+      eventPackage
+    );
+    if (packResult.error) {
+      await supabase
+        .from("session_attendee_overrides")
+        .delete()
+        .eq("session_id", sessionId)
+        .eq("student_id", studentId);
+      return { error: packResult.error };
+    }
+  }
+
+  revalidateAttendeePaths(sessionId, studentId);
   return { success: true };
 }
 
@@ -169,12 +347,11 @@ export async function excludeStudentFromSession(
     return { error: "Cannot edit attendees on a cancelled session." };
   }
 
-  const { data: enrolment } = await supabase
-    .from("enrolments")
-    .select("id")
-    .eq("class_id", session.class_id)
-    .eq("student_id", studentId)
-    .maybeSingle();
+  if (session.requires_attendance === false) {
+    return { error: "Attendance is not taken for this event." };
+  }
+
+  const enrolment = await findEnrolment(supabase, session.class_id, studentId);
 
   const { data: existing } = await supabase
     .from("session_attendee_overrides")
@@ -189,7 +366,15 @@ export async function excludeStudentFromSession(
       .delete()
       .eq("id", existing.id);
     if (error) return { error: error.message };
-    revalidateAttendeePaths(sessionId);
+    if (isTakeAttendanceEvent(session)) {
+      const packResult = await deleteUnusedEventPackage(
+        supabase,
+        sessionId,
+        studentId
+      );
+      if (packResult.error) return { error: packResult.error };
+    }
+    revalidateAttendeePaths(sessionId, studentId);
     return { success: true };
   }
 
@@ -238,6 +423,10 @@ export async function clearSessionAttendeeOverride(
 
   if (session.cancelled) {
     return { error: "Cannot edit attendees on a cancelled session." };
+  }
+
+  if (session.requires_attendance === false) {
+    return { error: "Attendance is not taken for this event." };
   }
 
   const { error } = await supabase

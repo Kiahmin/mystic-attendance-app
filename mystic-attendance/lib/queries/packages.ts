@@ -7,6 +7,7 @@ import {
 import type {
   Package,
   PackageProduct,
+  PackageSession,
   PackageStatus,
   PackageWithStudent,
   Student,
@@ -26,6 +27,7 @@ const PACKAGE_COLUMNS = `
   id,
   student_id,
   package_product_id,
+  session_id,
   total_credits,
   used_credits,
   remaining_credits,
@@ -47,6 +49,11 @@ const PACKAGE_COLUMNS = `
   created_at,
   package_products (
     ${PACKAGE_PRODUCT_COLUMNS}
+  ),
+  sessions (
+    id,
+    name,
+    session_date
   )
 `;
 
@@ -67,16 +74,19 @@ function mapPackageProduct(
 
 function mapPackage(row: {
   package_product_id?: string | null;
+  session_id?: string | null;
   amount_sgd?: number | string | null;
   bonus_credits?: number | string | null;
   customisation_notes?: string | null;
   package_products?: PackageProduct | PackageProduct[] | null;
+  sessions?: PackageSession | PackageSession[] | null;
   [key: string]: unknown;
 }): Package {
   const product = mapPackageProduct(asSingle(row.package_products));
   return {
     ...(row as unknown as Package),
     package_product_id: row.package_product_id ?? null,
+    session_id: row.session_id ?? null,
     bonus_credits: Number(row.bonus_credits ?? 0),
     customisation_notes: row.customisation_notes ?? null,
     amount_sgd:
@@ -84,6 +94,7 @@ function mapPackage(row: {
         ? null
         : Number(row.amount_sgd),
     package_products: product,
+    sessions: asSingle(row.sessions),
   };
 }
 
@@ -117,6 +128,11 @@ export async function studentHasTrialProductPackage(
 ): Promise<boolean> {
   const packages = await listPackagesForStudent(studentId);
   return packages.some(packageIsTrialProduct);
+}
+
+export async function getEventPackageProduct(): Promise<PackageProduct | null> {
+  const products = await listPackageProducts({ activeOnly: true });
+  return products.find((product) => product.product_type === "event") ?? null;
 }
 
 export async function getPackageProductById(
@@ -285,15 +301,38 @@ export async function countUnchargedAttendanceForStudent(
 ): Promise<number> {
   if (!studentId) return 0;
   const supabase = await createClient();
-  const { count, error } = await supabase
+  const { data, error } = await supabase
     .from("attendance")
-    .select("id", { count: "exact", head: true })
+    .select("id, sessions!inner(kind)")
     .eq("student_id", studentId)
     .is("package_id", null)
-    .eq("deduct_credit", true);
+    .eq("deduct_credit", true)
+    .eq("sessions.kind", "class");
 
   if (error) throw error;
-  return count ?? 0;
+  return data?.length ?? 0;
+}
+
+export async function countUnchargedAttendanceForPackage(
+  pkg: Pick<Package, "student_id" | "session_id">
+): Promise<number> {
+  if (!pkg.student_id) return 0;
+  const supabase = await createClient();
+
+  if (pkg.session_id) {
+    const { count, error } = await supabase
+      .from("attendance")
+      .select("id", { count: "exact", head: true })
+      .eq("student_id", pkg.student_id)
+      .eq("session_id", pkg.session_id)
+      .is("package_id", null)
+      .eq("deduct_credit", true);
+
+    if (error) throw error;
+    return count ?? 0;
+  }
+
+  return countUnchargedAttendanceForStudent(pkg.student_id);
 }
 
 export async function countUnchargedAttendanceByStudent(): Promise<
@@ -302,9 +341,10 @@ export async function countUnchargedAttendanceByStudent(): Promise<
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("attendance")
-    .select("student_id")
+    .select("student_id, sessions!inner(kind)")
     .is("package_id", null)
-    .eq("deduct_credit", true);
+    .eq("deduct_credit", true)
+    .eq("sessions.kind", "class");
 
   if (error) throw error;
 

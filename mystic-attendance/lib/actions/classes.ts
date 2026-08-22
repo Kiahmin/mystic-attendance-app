@@ -13,19 +13,29 @@ import { revalidatePath } from "next/cache";
 
 export type ClassInput = {
   name: string;
-  day_of_week: DayOfWeek;
+  day_of_week?: DayOfWeek;
+  days_of_week?: DayOfWeek[];
   start_time: string;
   end_time: string;
   coach_id?: string | null;
   is_active?: boolean;
 };
 
+function resolveDays(input: ClassInput): DayOfWeek[] {
+  const raw = input.days_of_week?.length
+    ? input.days_of_week
+    : input.day_of_week
+      ? [input.day_of_week]
+      : [];
+  return [...new Set(raw)].filter((day) => DAYS_OF_WEEK.includes(day));
+}
+
 function validateClassInput(input: ClassInput): string | null {
   const name = input.name?.trim() ?? "";
   if (!name) return "Class name is required.";
 
-  if (!DAYS_OF_WEEK.includes(input.day_of_week)) {
-    return "Select a valid day of the week.";
+  if (resolveDays(input).length === 0) {
+    return "Select at least one day of the week.";
   }
 
   const start = normalizeTime(input.start_time ?? "");
@@ -44,10 +54,10 @@ function validateClassInput(input: ClassInput): string | null {
   return null;
 }
 
-function toClassRow(input: ClassInput) {
+function toClassRow(input: ClassInput, dayOfWeek: DayOfWeek) {
   return {
     name: input.name.trim(),
-    day_of_week: input.day_of_week,
+    day_of_week: dayOfWeek,
     start_time: normalizeTime(input.start_time),
     end_time: normalizeTime(input.end_time),
     coach_id: emptyToNull(input.coach_id),
@@ -61,19 +71,20 @@ export async function createClass(input: ClassInput) {
   const validationError = validateClassInput(input);
   if (validationError) return { error: validationError };
 
+  const days = resolveDays(input);
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("classes")
-    .insert(toClassRow(input))
-    .select("id")
-    .single();
+    .insert(days.map((day) => toClassRow(input, day)))
+    .select("id");
 
   if (error) {
     return { error: error.message };
   }
 
   revalidatePath("/admin/classes");
-  return { success: true as const, id: data.id as string };
+  const ids = (data ?? []).map((row) => row.id as string);
+  return { success: true as const, id: ids[0], ids };
 }
 
 export async function updateClass(id: string, input: ClassInput) {
@@ -84,10 +95,13 @@ export async function updateClass(id: string, input: ClassInput) {
   const validationError = validateClassInput(input);
   if (validationError) return { error: validationError };
 
+  const day = resolveDays(input)[0];
+  if (!day) return { error: "Select a valid day of the week." };
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("classes")
-    .update(toClassRow(input))
+    .update(toClassRow(input, day))
     .eq("id", id);
 
   if (error) {

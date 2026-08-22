@@ -8,6 +8,7 @@ import {
 import type { CheckInStudent, SessionWithClass } from "@/lib/types";
 import {
   sessionDisplayEnd,
+  sessionDisplayName,
   sessionDisplayStart,
 } from "@/lib/session-utils";
 import { AttendancePanel } from "@/components/coach/attendance-panel";
@@ -39,7 +40,9 @@ export function SessionAttendanceView({
   backLabel,
   badgeLabel,
 }: SessionAttendanceViewProps) {
-  const classGroup = session.classes;
+  const displayName = sessionDisplayName(session);
+  const takesAttendance = session.requires_attendance !== false;
+  const eventBadge = session.kind === "event" ? "Event" : badgeLabel;
 
   return (
     <div className="space-y-5">
@@ -58,9 +61,9 @@ export function SessionAttendanceView({
         <CardHeader className="space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <CardTitle className="font-heading text-2xl leading-tight">
-              {classGroup.name}
+              {displayName}
             </CardTitle>
-            {badgeLabel ? <Badge variant="default">{badgeLabel}</Badge> : null}
+            {eventBadge ? <Badge variant="default">{eventBadge}</Badge> : null}
           </div>
           <p className="text-sm text-muted-foreground">
             {formatDate(session.session_date)} ·{" "}
@@ -86,15 +89,32 @@ export function SessionAttendanceView({
               </AlertDescription>
             </Alert>
           </CardContent>
+        ) : !takesAttendance ? (
+          <CardContent>
+            <Alert>
+              <AlertTitle>Attendance is not taken</AlertTitle>
+              <AlertDescription>
+                This event does not require check-in.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
         ) : null}
       </Card>
 
-      <AttendancePanel
-        sessionId={session.id}
-        cancelled={session.cancelled}
-        enrolledStudents={students}
-        walkIns={walkIns}
-      />
+      {takesAttendance ? (
+        <AttendancePanel
+          sessionId={session.id}
+          cancelled={session.cancelled}
+          enrolledStudents={students}
+          walkIns={walkIns}
+          requiresEventPackage={session.kind === "event"}
+          emptyRosterMessage={
+            session.kind === "event"
+              ? "This event has no students yet. Use Add student to build the roster, then mark attendance."
+              : undefined
+          }
+        />
+      ) : null}
     </div>
   );
 }
