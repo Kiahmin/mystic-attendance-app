@@ -361,7 +361,7 @@ export function StudentForm({
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="trial_amount">Amount (SGD)</Label>
+                      <Label htmlFor="trial_amount">Amount</Label>
                       <Input
                         id="trial_amount"
                         type="number"
