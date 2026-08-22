@@ -32,6 +32,7 @@ interface AttendancePanelProps {
   cancelled: boolean;
   enrolledStudents: CheckInStudent[];
   walkIns: CheckInStudent[];
+  emptyRosterMessage?: string;
 }
 
 export function AttendancePanel({
@@ -39,6 +40,7 @@ export function AttendancePanel({
   cancelled,
   enrolledStudents,
   walkIns,
+  emptyRosterMessage = "No expected students for this session.",
 }: AttendancePanelProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -419,9 +421,7 @@ export function AttendancePanel({
         </div>
 
         {enrolledStudents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No expected students for this session.
-          </p>
+          <p className="text-sm text-muted-foreground">{emptyRosterMessage}</p>
         ) : (
           enrolledStudents.map((entry) => (
             <StudentCheckInRow
