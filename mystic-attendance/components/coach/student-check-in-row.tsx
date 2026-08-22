@@ -96,6 +96,9 @@ export function StudentCheckInRow({
               {!entry.student.is_trial && entry.rosterSource === "include" ? (
                 <Badge variant="warning">One-off</Badge>
               ) : null}
+              {entry.rosterSource === "former" ? (
+                <Badge variant="secondary">Unenrolled</Badge>
+              ) : null}
               {entry.isWalkIn ? (
                 <Badge variant="warning">Walk-in</Badge>
               ) : null}
@@ -130,7 +133,9 @@ export function StudentCheckInRow({
               {ATTENDANCE_STATUS_LABELS[optimisticStatus]}
             </Badge>
           ) : null}
-          {onRemoveFromSession && !entry.isWalkIn ? (
+          {onRemoveFromSession &&
+          !entry.isWalkIn &&
+          entry.rosterSource !== "former" ? (
             <Button
               type="button"
               variant="ghost"

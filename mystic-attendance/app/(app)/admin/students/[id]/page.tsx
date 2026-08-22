@@ -10,6 +10,7 @@ import {
   listTrialPackageProducts,
 } from "@/lib/queries/packages";
 import { getStudentById } from "@/lib/queries/students";
+import { ArchiveStudentButton } from "@/components/admin/archive-student-button";
 import { EnrolmentManager } from "@/components/admin/enrolment-manager";
 import { StudentForm } from "@/components/admin/student-form";
 import { StudentPackages } from "@/components/admin/student-packages";
@@ -58,7 +59,22 @@ export default async function AdminStudentDetailPage({
           <ArrowLeft className="size-4" />
           Back to Students
         </Link>
+        <ArchiveStudentButton
+          studentId={student.id}
+          studentName={student.full_name}
+          archived={Boolean(student.archived_at)}
+        />
       </div>
+
+      {student.archived_at ? (
+        <Alert>
+          <AlertTitle>Archived</AlertTitle>
+          <AlertDescription>
+            This student is hidden from the roster, class lists, and check-in.
+            Unarchive them to restore those views. Enrolments are kept.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {student.is_minor ? (
         <Alert className="border-destructive/30 bg-destructive/10 text-destructive">
@@ -85,6 +101,9 @@ export default async function AdminStudentDetailPage({
                   {student.full_name}
                 </CardTitle>
                 <div className="flex flex-wrap gap-2">
+                  {student.archived_at ? (
+                    <Badge variant="secondary">Archived</Badge>
+                  ) : null}
                   {student.is_trial ? (
                     <Badge variant="warning">Trial</Badge>
                   ) : null}
