@@ -14,9 +14,25 @@ function revalidateAttendeePaths(sessionId: string) {
 
 type SessionRow = {
   id: string;
-  class_id: string;
+  class_id: string | null;
   cancelled: boolean;
+  requires_attendance: boolean;
 };
+
+async function findEnrolment(
+  supabase: SupabaseClient,
+  classId: string | null,
+  studentId: string
+) {
+  if (!classId) return null;
+  const { data } = await supabase
+    .from("enrolments")
+    .select("id")
+    .eq("class_id", classId)
+    .eq("student_id", studentId)
+    .maybeSingle();
+  return data;
+}
 
 async function loadSessionOrError(
   sessionId: string
@@ -27,7 +43,7 @@ async function loadSessionOrError(
   const supabase = await createClient();
   const { data: session, error } = await supabase
     .from("sessions")
-    .select("id, class_id, cancelled")
+    .select("id, class_id, cancelled, requires_attendance")
     .eq("id", sessionId)
     .single();
 
@@ -37,7 +53,12 @@ async function loadSessionOrError(
 
   return {
     ok: true,
-    session: session as SessionRow,
+    session: {
+      id: session.id as string,
+      class_id: (session.class_id as string | null) ?? null,
+      cancelled: Boolean(session.cancelled),
+      requires_attendance: session.requires_attendance !== false,
+    },
     supabase,
   };
 }
@@ -95,12 +116,11 @@ export async function includeStudentInSession(
     return { error: "Cannot edit attendees on a cancelled session." };
   }
 
-  const { data: enrolment } = await supabase
-    .from("enrolments")
-    .select("id")
-    .eq("class_id", session.class_id)
-    .eq("student_id", studentId)
-    .maybeSingle();
+  if (session.requires_attendance === false) {
+    return { error: "Attendance is not taken for this event." };
+  }
+
+  const enrolment = await findEnrolment(supabase, session.class_id, studentId);
 
   const { data: existing } = await supabase
     .from("session_attendee_overrides")
@@ -169,12 +189,11 @@ export async function excludeStudentFromSession(
     return { error: "Cannot edit attendees on a cancelled session." };
   }
 
-  const { data: enrolment } = await supabase
-    .from("enrolments")
-    .select("id")
-    .eq("class_id", session.class_id)
-    .eq("student_id", studentId)
-    .maybeSingle();
+  if (session.requires_attendance === false) {
+    return { error: "Attendance is not taken for this event." };
+  }
+
+  const enrolment = await findEnrolment(supabase, session.class_id, studentId);
 
   const { data: existing } = await supabase
     .from("session_attendee_overrides")
@@ -238,6 +257,10 @@ export async function clearSessionAttendeeOverride(
 
   if (session.cancelled) {
     return { error: "Cannot edit attendees on a cancelled session." };
+  }
+
+  if (session.requires_attendance === false) {
+    return { error: "Attendance is not taken for this event." };
   }
 
   const { error } = await supabase

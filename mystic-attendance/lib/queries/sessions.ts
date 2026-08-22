@@ -26,7 +26,9 @@ function asSingle<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-type SessionClassRow = SessionWithClass["classes"] & {
+type SessionClassFields = NonNullable<SessionWithClass["classes"]>;
+
+type SessionClassRow = SessionClassFields & {
   profiles?:
     | Pick<Profile, "id" | "full_name">
     | Pick<Profile, "id" | "full_name">[]
@@ -41,24 +43,33 @@ type SessionCoachRow = {
 };
 
 function mapSessionWithClass(
-  row: SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+  row: SessionWithClass & {
+    classes: SessionClassRow | SessionClassRow[] | null;
+  } & SessionCoachRow
 ): { session: SessionWithClass; coachName: string | null } {
+  const classRow = asSingle(row.classes);
   const coach =
-    asSingle(row.profiles) ?? asSingle(row.classes.profiles);
+    asSingle(row.profiles) ?? (classRow ? asSingle(classRow.profiles) : null);
   return {
     session: {
       ...row,
+      kind: row.kind ?? "class",
+      name: row.name ?? null,
+      requires_attendance: row.requires_attendance ?? true,
+      class_id: row.class_id ?? null,
       coach,
-      classes: {
-        id: row.classes.id,
-        name: row.classes.name,
-        day_of_week: row.classes.day_of_week,
-        start_time: row.classes.start_time,
-        end_time: row.classes.end_time,
-        coach_id: row.classes.coach_id,
-        is_active: row.classes.is_active,
-        coach: asSingle(row.classes.profiles),
-      },
+      classes: classRow
+        ? {
+            id: classRow.id,
+            name: classRow.name,
+            day_of_week: classRow.day_of_week,
+            start_time: classRow.start_time,
+            end_time: classRow.end_time,
+            coach_id: classRow.coach_id,
+            is_active: classRow.is_active,
+            coach: asSingle(classRow.profiles),
+          }
+        : null,
     },
     coachName: coach?.full_name ?? null,
   };
@@ -133,7 +144,9 @@ function mapPackageRow(data: Record<string, unknown>): Package {
 async function enrichDashboardSessions(
   supabase: SupabaseClient,
   rows: Array<
-    SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+    SessionWithClass & {
+      classes: SessionClassRow | SessionClassRow[] | null;
+    } & SessionCoachRow
   >
 ): Promise<DashboardSession[]> {
   const mapped = rows.map((row) => mapSessionWithClass(row));
@@ -258,7 +271,7 @@ export async function getCoachSessionsForToday(coachId: string) {
     .select(
       `
         *,
-        classes!inner (
+        classes (
           id,
           name,
           day_of_week,
@@ -274,7 +287,17 @@ export async function getCoachSessionsForToday(coachId: string) {
     .order("session_date", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []) as SessionWithClass[];
+  return (data ?? [])
+    .map((row) =>
+      mapSessionWithClass(
+        row as SessionWithClass & {
+          classes: SessionClassRow | SessionClassRow[] | null;
+        } & SessionCoachRow
+      ).session
+    )
+    .sort((a, b) =>
+      sessionDisplayStart(a).localeCompare(sessionDisplayStart(b))
+    );
 }
 
 export async function getTodaySessionsForDashboard(coachId?: string) {
@@ -296,7 +319,9 @@ export async function getTodaySessionsForDashboard(coachId?: string) {
   const results = await enrichDashboardSessions(
     supabase,
     (sessions ?? []) as Array<
-      SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+      SessionWithClass & {
+      classes: SessionClassRow | SessionClassRow[] | null;
+    } & SessionCoachRow
     >
   );
 
@@ -322,7 +347,9 @@ export async function getSessionsForDashboardRange(
   const results = await enrichDashboardSessions(
     supabase,
     (sessions ?? []) as Array<
-      SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+      SessionWithClass & {
+      classes: SessionClassRow | SessionClassRow[] | null;
+    } & SessionCoachRow
     >
   );
 
@@ -353,33 +380,21 @@ export async function getSessionCheckInList(
 
   const { data: session, error: sessionError } = await supabase
     .from("sessions")
-    .select(
-      `
-        *,
-        profiles!sessions_coach_id_fkey (
-          id,
-          full_name
-        ),
-        classes (
-          id,
-          name,
-          day_of_week,
-          start_time,
-          end_time,
-          coach_id,
-          is_active
-        )
-      `
-    )
+    .select(DASHBOARD_SESSION_SELECT)
     .eq("id", sessionId)
-    .single();
+    .maybeSingle();
 
-  if (sessionError || !session) {
+  if (sessionError) {
+    throw sessionError;
+  }
+  if (!session) {
     throw new Error("Session not found");
   }
 
   const { session: sessionWithClass } = mapSessionWithClass(
-    session as SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+    session as SessionWithClass & {
+      classes: SessionClassRow | SessionClassRow[] | null;
+    } & SessionCoachRow
   );
 
   const [roster, attendanceResult] = await Promise.all([

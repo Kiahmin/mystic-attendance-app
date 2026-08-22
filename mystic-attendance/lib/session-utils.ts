@@ -266,16 +266,22 @@ export function adminSessionHref(
     : `/admin/sessions/${sessionId}`;
 }
 
+export function sessionDisplayName(
+  session: Pick<SessionWithClass, "name" | "classes">
+): string {
+  return session.name ?? session.classes?.name ?? "Untitled";
+}
+
 export function sessionDisplayStart(
   session: Pick<SessionWithClass, "start_time" | "classes">
 ): string {
-  return session.start_time ?? session.classes.start_time;
+  return session.start_time ?? session.classes?.start_time ?? "00:00:00";
 }
 
 export function sessionDisplayEnd(
   session: Pick<SessionWithClass, "end_time" | "classes">
 ): string {
-  return session.end_time ?? session.classes.end_time;
+  return session.end_time ?? session.classes?.end_time ?? "00:00:00";
 }
 
 /** Current HH:MM:SS in Singapore. */

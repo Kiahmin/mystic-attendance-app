@@ -52,9 +52,14 @@ export interface ClassGroup {
   is_active: boolean;
 }
 
+export type SessionKind = "class" | "event";
+
 export interface Session {
   id: string;
-  class_id: string;
+  class_id: string | null;
+  kind: SessionKind;
+  name: string | null;
+  requires_attendance: boolean;
   session_date: string;
   coach_id: string | null;
   start_time: string | null;
@@ -192,9 +197,9 @@ export interface Attendance {
 }
 
 export interface SessionWithClass extends Session {
-  classes: ClassGroup & {
+  classes: (ClassGroup & {
     coach?: Pick<Profile, "id" | "full_name"> | null;
-  };
+  }) | null;
   coach?: Pick<Profile, "id" | "full_name"> | null;
 }
 
