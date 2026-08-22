@@ -2,7 +2,7 @@
 
 import { emptyToNull } from "@/lib/admin-utils";
 import { requireRole } from "@/lib/auth/profile";
-import { PAYMENT_METHODS } from "@/lib/package-utils";
+import { eventPackageExpiresAt, PAYMENT_METHODS } from "@/lib/package-utils";
 import { loadEffectiveSessionRosterStudents } from "@/lib/session-roster";
 import type { SessionRosterStudent } from "@/lib/session-roster";
 import { getEventPackageProduct } from "@/lib/queries/packages";
@@ -106,6 +106,16 @@ async function ensureEventPackage(
     return { error: "Event package product is not available." };
   }
 
+  const { data: session, error: sessionError } = await supabase
+    .from("sessions")
+    .select("session_date")
+    .eq("id", sessionId)
+    .single();
+
+  if (sessionError || !session?.session_date) {
+    return { error: "Session not found." };
+  }
+
   const isPaid = Boolean(input.isPaid);
   const { data: created, error } = await supabase
     .from("packages")
@@ -118,6 +128,7 @@ async function ensureEventPackage(
       is_paid: isPaid,
       payment_method: isPaid ? input.paymentMethod : null,
       amount_sgd: input.amountSgd,
+      expires_at: eventPackageExpiresAt(session.session_date as string),
       customisation_notes: emptyToNull(input.notes),
     })
     .select("id")

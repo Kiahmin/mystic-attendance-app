@@ -1,4 +1,5 @@
 import {
+  addCalendarDays,
   formatCalendarDate,
   isOnOrBeforeDaysFromToday,
   todayInSingapore,
@@ -10,6 +11,13 @@ import type {
   PackageStatus,
   PaymentMethod,
 } from "@/lib/types";
+
+/** Days after the last event day that an event pack stays Active for late attendance. */
+export const EVENT_PACKAGE_CATCH_UP_DAYS = 3;
+
+export function eventPackageExpiresAt(sessionDate: string): string {
+  return addCalendarDays(sessionDate, EVENT_PACKAGE_CATCH_UP_DAYS);
+}
 
 export const PACKAGE_SIZES = [1, 4, 8, 12] as const;
 export type PackageSize = (typeof PACKAGE_SIZES)[number];
@@ -247,8 +255,8 @@ function livePackageStatus(
   if (pkg.paused_at != null && pkg.resumed_at == null && today >= pkg.paused_at) {
     return "paused";
   }
-  if (pkg.expires_at != null && pkg.expires_at < today) return "expired";
   if (pkg.used_credits >= pkg.total_credits) return "exhausted";
+  if (pkg.expires_at != null && pkg.expires_at < today) return "expired";
   return "active";
 }
 
