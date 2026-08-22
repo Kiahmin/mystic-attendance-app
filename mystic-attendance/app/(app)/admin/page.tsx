@@ -32,24 +32,42 @@ export default async function AdminDashboardPage({
   const params = await searchParams;
   const range = resolveCalendarRange(params);
   const today = todayInSingapore();
+  const thisWeek = weekDatesContaining(today);
   const sessionStart = range.view === "month" ? range.start : range.monday;
   const sessionEnd =
     range.view === "month"
       ? range.end
       : weekDatesContaining(range.date).sunday;
   const todayInRange = today >= sessionStart && today <= sessionEnd;
+  const weekInRange =
+    thisWeek.monday >= sessionStart && thisWeek.sunday <= sessionEnd;
 
-  const [todayOnly, rangeSessions, coaches, inactiveCount] = await Promise.all([
-    todayInRange ? Promise.resolve(null) : getTodaySessionsForDashboard(),
-    getSessionsForDashboardRange(sessionStart, sessionEnd),
-    listCoaches(),
-    countInactiveStudents(),
-  ]);
+  const [todayOnly, weekOnly, rangeSessions, coaches, inactiveCount] =
+    await Promise.all([
+      todayInRange ? Promise.resolve(null) : getTodaySessionsForDashboard(),
+      weekInRange
+        ? Promise.resolve(null)
+        : getSessionsForDashboardRange(thisWeek.monday, thisWeek.sunday),
+      getSessionsForDashboardRange(sessionStart, sessionEnd),
+      listCoaches(),
+      countInactiveStudents(),
+    ]);
   const todaySessions =
     todayOnly ??
     rangeSessions.filter((item) => item.session.session_date === today);
+  const weekSessions =
+    weekOnly ??
+    rangeSessions.filter(
+      (item) =>
+        item.session.session_date >= thisWeek.monday &&
+        item.session.session_date <= thisWeek.sunday
+    );
 
-  const totalExpected = todaySessions.reduce(
+  const totalExpectedToday = todaySessions.reduce(
+    (sum, item) => sum + item.expectedCount,
+    0
+  );
+  const totalExpectedWeek = weekSessions.reduce(
     (sum, item) => sum + item.expectedCount,
     0
   );
@@ -71,8 +89,8 @@ export default async function AdminDashboardPage({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Expected Students Today"
-          value={totalExpected}
+          label="Expected Students This Week"
+          value={totalExpectedWeek}
           icon={<Users />}
         />
         <MetricCard
@@ -82,7 +100,7 @@ export default async function AdminDashboardPage({
               {totalCheckedIn}
               <span className="text-lg font-medium text-muted-foreground">
                 {" "}
-                / {totalExpected}
+                / {totalExpectedToday}
               </span>
             </span>
           }

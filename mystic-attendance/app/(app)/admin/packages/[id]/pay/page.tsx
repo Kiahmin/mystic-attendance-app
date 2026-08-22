@@ -127,7 +127,7 @@ export default async function MarkPackagePaidPage({
 
               <div className="space-y-2">
                 <label htmlFor="amount_sgd" className="text-sm font-medium">
-                  Amount (SGD)
+                  Amount
                 </label>
                 <input
                   id="amount_sgd"

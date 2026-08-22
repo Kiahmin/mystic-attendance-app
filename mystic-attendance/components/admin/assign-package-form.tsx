@@ -513,7 +513,7 @@ export function AssignPackageForm({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Amount (SGD)</Label>
+                  <Label htmlFor="amount">Amount</Label>
                   <Input
                     id="amount"
                     type="number"
