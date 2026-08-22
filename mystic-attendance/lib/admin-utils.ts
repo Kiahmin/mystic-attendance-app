@@ -49,6 +49,26 @@ export const DAY_OF_WEEK_SHORT_LABELS: Record<DayOfWeek, string> = {
   sunday: "Sun",
 };
 
+export const DAYS_SUNDAY_FIRST: DayOfWeek[] = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
+
+export const DAY_OF_WEEK_LETTER_LABELS: Record<DayOfWeek, string> = {
+  sunday: "S",
+  monday: "M",
+  tuesday: "T",
+  wednesday: "W",
+  thursday: "T",
+  friday: "F",
+  saturday: "S",
+};
+
 /** Whether a YYYY-MM-DD date of birth is under 18 as of today (Singapore). */
 export function isMinorDob(dateOfBirth: string | null | undefined): boolean {
   if (!dateOfBirth) return false;
