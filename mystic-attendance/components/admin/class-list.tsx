@@ -134,7 +134,8 @@ export function ClassList({ classes, coaches }: ClassListProps) {
             <DialogHeader>
               <DialogTitle>Add class</DialogTitle>
               <DialogDescription>
-                Configure name, schedule, and assigned coach.
+                Set name, days, times, and coach. Select multiple days to create a class
+                for each day.
               </DialogDescription>
             </DialogHeader>
             <ClassForm coaches={coaches} onSuccess={() => setOpen(false)} />
