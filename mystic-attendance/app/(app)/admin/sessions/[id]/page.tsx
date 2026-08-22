@@ -29,8 +29,11 @@ export default async function AdminSessionPage({
   let data;
   try {
     data = await getSessionCheckInList(id);
-  } catch {
-    notFound();
+  } catch (error) {
+    if (error instanceof Error && error.message === "Session not found") {
+      notFound();
+    }
+    throw error;
   }
 
   const { session, students, walkIns } = data;
