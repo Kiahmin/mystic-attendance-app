@@ -598,15 +598,7 @@ export function StudentList({
                     )}
                   >
                     <div className="min-w-0">
-                      <p
-                        className={cn(
-                          "truncate",
-                          archived &&
-                            "line-through decoration-muted-foreground"
-                        )}
-                      >
-                        {student.full_name}
-                      </p>
+                      <p className="truncate">{student.full_name}</p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-2">
                         {student.is_trial ? (
                           <Badge variant="warning">Trial</Badge>
