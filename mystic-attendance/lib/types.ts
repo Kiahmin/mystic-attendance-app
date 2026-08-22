@@ -78,6 +78,7 @@ export interface Student {
   skill_level: SkillLevel | null;
   notes: string | null;
   is_trial: boolean;
+  archived_at: string | null;
 }
 
 export type StudentSearchHit = Pick<
@@ -100,8 +101,19 @@ export interface StudentWithEnrolments extends Student {
   enrolments: EnrolmentWithClass[];
 }
 
+export type StudentRosterPackage = {
+  remaining_credits: number;
+  total_credits: number;
+  status: PackageStatus;
+  expires_at: string | null;
+};
+
 export interface StudentListItem extends Student {
   enrolment_count: number;
+  created_at: string;
+  last_attended_on: string | null;
+  class_ids: string[];
+  roster_package: StudentRosterPackage | null;
 }
 
 export interface ClassWithCoach extends ClassGroup {
@@ -186,7 +198,7 @@ export interface SessionWithClass extends Session {
   coach?: Pick<Profile, "id" | "full_name"> | null;
 }
 
-export type CheckInRosterSource = "enrolled" | "include";
+export type CheckInRosterSource = "enrolled" | "include" | "former";
 
 export interface CheckInStudent {
   student: Student;
@@ -194,7 +206,7 @@ export interface CheckInStudent {
   package: Package | null;
   chargeablePackageId: string | null;
   isWalkIn: boolean;
-  /** Present for expected roster rows; null for walk-ins. */
+  /** Present for expected roster rows and former recorded attendees; null for walk-ins. */
   rosterSource: CheckInRosterSource | null;
 }
 

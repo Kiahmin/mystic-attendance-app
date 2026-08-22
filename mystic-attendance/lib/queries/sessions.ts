@@ -156,12 +156,18 @@ async function enrichDashboardSessions(
 
   const [attendanceResult, packagesResult] = await Promise.all([
     sessionIds.length === 0
-      ? Promise.resolve({ data: [] as { session_id: string }[], error: null })
+      ? Promise.resolve({
+          data: [] as {
+            session_id: string;
+            student_id: string;
+            status: string | null;
+          }[],
+          error: null,
+        })
       : supabase
           .from("attendance")
-          .select("session_id")
-          .in("session_id", sessionIds)
-          .in("status", ["present", "walk_in"]),
+          .select("session_id, student_id, status")
+          .in("session_id", sessionIds),
     studentIds.length === 0
       ? Promise.resolve({ data: [] as DashboardPackageRow[], error: null })
       : supabase
@@ -176,12 +182,22 @@ async function enrichDashboardSessions(
   if (packagesResult.error) throw packagesResult.error;
 
   const checkedInBySession = new Map<string, number>();
+  const recordedExpectedBySession = new Map<string, Set<string>>();
   for (const row of attendanceResult.data ?? []) {
     const sessionId = row.session_id as string;
-    checkedInBySession.set(
-      sessionId,
-      (checkedInBySession.get(sessionId) ?? 0) + 1
-    );
+    const studentId = row.student_id as string;
+    const status = row.status;
+    if (status === "present" || status === "walk_in") {
+      checkedInBySession.set(
+        sessionId,
+        (checkedInBySession.get(sessionId) ?? 0) + 1
+      );
+    }
+    if (status !== "walk_in") {
+      const recorded = recordedExpectedBySession.get(sessionId) ?? new Set();
+      recorded.add(studentId);
+      recordedExpectedBySession.set(sessionId, recorded);
+    }
   }
 
   const packagesByStudent = groupByStudentId(
@@ -205,7 +221,10 @@ async function enrichDashboardSessions(
 
     return {
       session,
-      expectedCount: roster.length,
+      expectedCount: new Set([
+        ...roster.map((entry) => entry.studentId),
+        ...(recordedExpectedBySession.get(session.id) ?? []),
+      ]).size,
       checkedInCount: checkedInBySession.get(session.id) ?? 0,
       packageAlerts,
       coachName,
@@ -388,9 +407,18 @@ export async function getSessionCheckInList(
     )
     .map((row) => row.student_id as string);
 
+  const formerStudentIds = attendanceRows
+    .filter(
+      (row) =>
+        row.status !== "walk_in" &&
+        !expectedStudentIds.has(row.student_id as string)
+    )
+    .map((row) => row.student_id as string);
+
   const studentIds = [
     ...new Set([
       ...roster.map((entry) => entry.studentId),
+      ...formerStudentIds,
       ...walkInStudentIds,
     ]),
   ];
@@ -448,8 +476,13 @@ export async function getSessionCheckInList(
   const expectedStudents: CheckInStudent[] = [];
   for (const entry of roster) {
     const student = studentsById.get(entry.studentId);
-    if (!student) continue;
+    if (!student || student.archived_at) continue;
     expectedStudents.push(buildCheckIn(student, false, entry.source));
+  }
+  for (const studentId of formerStudentIds) {
+    const student = studentsById.get(studentId);
+    if (!student) continue;
+    expectedStudents.push(buildCheckIn(student, false, "former"));
   }
   expectedStudents.sort((a, b) =>
     a.student.full_name.localeCompare(b.student.full_name)
@@ -480,6 +513,7 @@ export async function searchStudents(
   const { data, error } = await supabase
     .from("students")
     .select("id, full_name, skill_level, is_trial")
+    .is("archived_at", null)
     .ilike("full_name", `%${trimmed}%`)
     .order("full_name")
     .limit(limit);

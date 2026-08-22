@@ -26,8 +26,19 @@ function mapClassWithCoach(row: {
     | Pick<Profile, "id" | "full_name">
     | Pick<Profile, "id" | "full_name">[]
     | null;
-  enrolments?: Array<{ id: string }> | null;
+  enrolments?: Array<{
+    id: string;
+    students?:
+      | Pick<Student, "archived_at">
+      | Pick<Student, "archived_at">[]
+      | null;
+  }> | null;
 }): ClassWithCoach {
+  const activeEnrolments = (row.enrolments ?? []).filter((enrolment) => {
+    const student = asSingle(enrolment.students);
+    return !student?.archived_at;
+  });
+
   return {
     id: row.id,
     name: row.name,
@@ -37,7 +48,7 @@ function mapClassWithCoach(row: {
     coach_id: row.coach_id,
     is_active: row.is_active,
     coach: asSingle(row.profiles),
-    enrolment_count: Array.isArray(row.enrolments) ? row.enrolments.length : 0,
+    enrolment_count: activeEnrolments.length,
   };
 }
 
@@ -61,7 +72,10 @@ export async function listClasses(options?: {
           id,
           full_name
         ),
-        enrolments (id)
+        enrolments (
+          id,
+          students (archived_at)
+        )
       `
     )
     .order("day_of_week")
@@ -124,7 +138,8 @@ export async function getClassById(id: string): Promise<ClassDetail | null> {
             contact_phone,
             skill_level,
             notes,
-            is_trial
+            is_trial,
+            archived_at
           )
         )
       `
@@ -159,7 +174,7 @@ export async function getClassById(id: string): Promise<ClassDetail | null> {
   const typedEnrolments: EnrolmentWithStudent[] = (row.enrolments ?? [])
     .map((enrolment) => {
       const student = asSingle(enrolment.students);
-      if (!student) return null;
+      if (!student || student.archived_at) return null;
       return {
         id: enrolment.id,
         student_id: enrolment.student_id,

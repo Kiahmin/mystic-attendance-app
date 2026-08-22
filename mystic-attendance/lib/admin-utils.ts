@@ -1,4 +1,8 @@
-import { todayInSingapore } from "@/lib/datetime";
+import {
+  addCalendarMonths,
+  instantToSingaporeDate,
+  todayInSingapore,
+} from "@/lib/datetime";
 import type { DayOfWeek, SkillLevel } from "@/lib/types";
 
 export const SKILL_LEVELS: SkillLevel[] = [
@@ -85,4 +89,15 @@ export function timeToMinutes(value: string): number | null {
 export function emptyToNull(value: string | null | undefined): string | null {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : null;
+}
+
+/** True when last attendance (or created_at if never attended) is over 6 months ago. */
+export function isInactiveForSixMonths(
+  lastAttendedOn: string | null,
+  createdAt: string,
+  today = todayInSingapore()
+): boolean {
+  const cutoff = addCalendarMonths(today, -6);
+  const activityDate = lastAttendedOn ?? instantToSingaporeDate(createdAt);
+  return activityDate < cutoff;
 }
