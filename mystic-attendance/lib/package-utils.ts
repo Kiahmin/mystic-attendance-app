@@ -198,6 +198,10 @@ export function isFinishingPackage(pkg: Package): boolean {
 }
 
 export function atRiskReason(pkg: Package): string | null {
+  if (pkg.session_id) {
+    if (pkg.status === "unpaid") return "Unpaid — blocked at check-in";
+    return null;
+  }
   if (pkg.status === "unpaid") return "Unpaid — blocked at check-in";
   if (pkg.status === "expired") {
     if (pkg.forfeited_credits != null) {
