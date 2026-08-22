@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { Ban, ClipboardCheck, UserRound, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Ban, ClipboardCheck, Pencil, Trash2, UserRound, Users } from "lucide-react";
 import type { DashboardSession, Profile } from "@/lib/types";
 import {
   CANCELLATION_REASON_LABELS,
@@ -13,13 +13,16 @@ import {
   adminSessionHref,
   getSessionScheduleStatus,
   sessionDisplayEnd,
+  sessionDisplayName,
   sessionDisplayStart,
   SESSION_SCHEDULE_STATUS_LABELS,
   type CalendarView,
   type SessionScheduleStatus,
 } from "@/lib/session-utils";
 import { CancelSessionDialog } from "@/components/admin/cancel-session-dialog";
+import { DeleteEventDialog } from "@/components/admin/delete-event-dialog";
 import { EditSessionCoachDialog } from "@/components/admin/edit-session-coach-dialog";
+import { EventFormDialog } from "@/components/admin/event-form-dialog";
 import { SessionAttendeesDialog } from "@/components/admin/session-attendees-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +58,17 @@ function statusBadgeVariant(
   }
 }
 
-function eventTone(status: SessionScheduleStatus) {
+function eventTone(status: SessionScheduleStatus, isEvent: boolean) {
+  if (isEvent && status !== "cancelled") {
+    if (status === "in_progress") {
+      return "border-l-warning bg-warning/15 text-warning hover:bg-warning/20";
+    }
+    if (status === "completed") {
+      return "border-l-chart-3/70 bg-chart-3/10 text-muted-foreground hover:bg-chart-3/15";
+    }
+    return "border-l-chart-3 bg-chart-3/20 text-foreground hover:bg-chart-3/25";
+  }
+
   switch (status) {
     case "cancelled":
       return "border-l-destructive bg-destructive/10 text-destructive hover:bg-destructive/15";
@@ -81,8 +94,13 @@ export function ScheduleEvent({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [attendeesOpen, setAttendeesOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const router = useRouter();
   const { session, expectedCount, checkedInCount, coachName } = item;
-  const classGroup = session.classes;
+  const displayName = sessionDisplayName(session);
+  const isEvent = session.kind === "event";
+  const takesAttendance = session.requires_attendance !== false;
   const startTime = sessionDisplayStart(session);
   const endTime = sessionDisplayEnd(session);
   const status = getSessionScheduleStatus(session);
@@ -100,11 +118,12 @@ export function ScheduleEvent({
         <PopoverTrigger asChild>
           <button
             type="button"
+            data-schedule-event
             style={style}
-            title={`${classGroup.name} · ${timeLabel}`}
+            title={`${displayName} · ${timeLabel}`}
             className={cn(
               "overflow-hidden border-l-4 text-left shadow-sm transition-colors",
-              eventTone(status),
+              eventTone(status, isEvent),
               session.cancelled && "line-through",
               variant === "block" &&
                 "absolute rounded-md px-1.5 py-0.5 text-[11px] leading-tight",
@@ -119,12 +138,12 @@ export function ScheduleEvent({
                   {formatSessionTime(startTime)}
                 </span>
                 <span className="min-w-0 truncate font-semibold">
-                  {classGroup.name}
+                  {displayName}
                 </span>
               </>
             ) : (
               <>
-                <p className="truncate font-semibold">{classGroup.name}</p>
+                <p className="truncate font-semibold">{displayName}</p>
                 <p className="truncate opacity-80">{timeLabel}</p>
                 {coachName ? (
                   <p className="truncate opacity-80">{coachName}</p>
@@ -133,17 +152,25 @@ export function ScheduleEvent({
             )}
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-80 p-4">
+        <PopoverContent
+          align="start"
+          className="w-80 p-4"
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+        >
           <div className="space-y-3">
             <div>
-              <p
-                className={cn(
-                  "font-heading text-base font-semibold",
-                  session.cancelled && "text-muted-foreground line-through"
-                )}
-              >
-                {classGroup.name}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <p
+                  className={cn(
+                    "font-heading text-base font-semibold",
+                    session.cancelled && "text-muted-foreground line-through"
+                  )}
+                >
+                  {displayName}
+                </p>
+                {isEvent ? <Badge variant="outline">Event</Badge> : null}
+              </div>
               <p className="mt-1 text-sm text-muted-foreground">
                 {formatDate(session.session_date)}
                 <br />
@@ -165,21 +192,48 @@ export function ScheduleEvent({
             ) : null}
 
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-muted-foreground">
-                {checkedInCount}/{expectedCount} checked in
-              </p>
+              {takesAttendance ? (
+                <p className="text-sm text-muted-foreground">
+                  {checkedInCount}/{expectedCount} checked in
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No attendance
+                </p>
+              )}
               <Badge variant={statusBadgeVariant(status)}>
                 {SESSION_SCHEDULE_STATUS_LABELS[status]}
               </Badge>
             </div>
 
             <div className="flex flex-wrap items-center gap-1 border-t border-border/60 pt-3">
-              <Button variant="ghost" size="sm" asChild title="Attendance">
-                <Link href={href}>
+              {isEvent ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Edit event"
+                  onClick={() => openDialog(setEditOpen)}
+                >
+                  <Pencil className="size-4" />
+                  <span className="sr-only">Edit event</span>
+                </Button>
+              ) : null}
+              {takesAttendance ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  title="Attendance"
+                  onClick={() => {
+                    setPopoverOpen(false);
+                    router.push(href);
+                  }}
+                >
                   <ClipboardCheck className="size-4" />
                   Attendance
-                </Link>
-              </Button>
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
@@ -190,7 +244,7 @@ export function ScheduleEvent({
                 <UserRound className="size-4" />
                 <span className="sr-only">Change coach</span>
               </Button>
-              {!session.cancelled ? (
+              {takesAttendance && !session.cancelled ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -207,11 +261,23 @@ export function ScheduleEvent({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  title="Cancel session"
+                  title="Cancel"
                   onClick={() => openDialog(setCancelOpen)}
                 >
                   <Ban className="size-4" />
-                  <span className="sr-only">Cancel session</span>
+                  <span className="sr-only">Cancel</span>
+                </Button>
+              ) : null}
+              {isEvent && !takesAttendance ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Delete event"
+                  onClick={() => openDialog(setDeleteOpen)}
+                >
+                  <Trash2 className="size-4" />
+                  <span className="sr-only">Delete event</span>
                 </Button>
               ) : null}
             </div>
@@ -221,24 +287,53 @@ export function ScheduleEvent({
 
       <EditSessionCoachDialog
         sessionId={session.id}
-        className={classGroup.name}
+        className={displayName}
         coachId={session.coach_id}
         coaches={coaches}
         open={coachOpen}
         onOpenChange={setCoachOpen}
       />
-      <SessionAttendeesDialog
-        sessionId={session.id}
-        className={classGroup.name}
-        open={attendeesOpen}
-        onOpenChange={setAttendeesOpen}
-      />
+      {takesAttendance ? (
+        <SessionAttendeesDialog
+          sessionId={session.id}
+          className={displayName}
+          open={attendeesOpen}
+          onOpenChange={setAttendeesOpen}
+        />
+      ) : null}
       <CancelSessionDialog
         sessionId={session.id}
-        className={classGroup.name}
+        className={displayName}
         open={cancelOpen}
         onOpenChange={setCancelOpen}
       />
+      {isEvent ? (
+        <>
+          <EventFormDialog
+            coaches={coaches}
+            defaultDate={session.session_date}
+            event={{
+              id: session.id,
+              name: displayName,
+              session_date: session.session_date,
+              start_time: session.start_time,
+              end_time: session.end_time,
+              coach_id: session.coach_id,
+              requires_attendance: takesAttendance,
+            }}
+            open={editOpen}
+            onOpenChange={setEditOpen}
+          />
+          {!takesAttendance ? (
+            <DeleteEventDialog
+              sessionId={session.id}
+              name={displayName}
+              open={deleteOpen}
+              onOpenChange={setDeleteOpen}
+            />
+          ) : null}
+        </>
+      ) : null}
     </>
   );
 }
