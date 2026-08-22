@@ -67,6 +67,7 @@ type StudentListProps = {
   students: StudentListItem[];
   classes: { id: string; name: string }[];
   initialSearch?: string;
+  initialInactive?: boolean;
 };
 
 type RosterTab = "active" | "archived";
@@ -323,11 +324,12 @@ export function StudentList({
   students,
   classes,
   initialSearch = "",
+  initialInactive = false,
 }: StudentListProps) {
   const [search, setSearch] = useState(initialSearch);
   const [tab, setTab] = useState<RosterTab>("active");
   const [trialsOnly, setTrialsOnly] = useState(false);
-  const [inactiveOnly, setInactiveOnly] = useState(false);
+  const [inactiveOnly, setInactiveOnly] = useState(initialInactive);
   const [skillFilters, setSkillFilters] = useState<SkillFilter[]>([]);
   const [packageFilters, setPackageFilters] = useState<PackageFilter[]>([]);
   const [classFilter, setClassFilter] = useState<string>("all");
