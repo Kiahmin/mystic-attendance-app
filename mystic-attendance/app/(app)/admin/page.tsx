@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   CheckCircle2,
+  UserMinus,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -11,6 +12,7 @@ import {
   getSessionsForDashboardRange,
   getTodaySessionsForDashboard,
 } from "@/lib/queries/sessions";
+import { countInactiveStudents } from "@/lib/queries/students";
 import { resolveCalendarRange, weekDatesContaining } from "@/lib/session-utils";
 import { DashboardCalendar } from "@/components/admin/dashboard-calendar";
 import { MetricCard } from "@/components/layout/metric-card";
@@ -37,10 +39,11 @@ export default async function AdminDashboardPage({
       : weekDatesContaining(range.date).sunday;
   const todayInRange = today >= sessionStart && today <= sessionEnd;
 
-  const [todayOnly, rangeSessions, coaches] = await Promise.all([
+  const [todayOnly, rangeSessions, coaches, inactiveCount] = await Promise.all([
     todayInRange ? Promise.resolve(null) : getTodaySessionsForDashboard(),
     getSessionsForDashboardRange(sessionStart, sessionEnd),
     listCoaches(),
+    countInactiveStudents(),
   ]);
   const todaySessions =
     todayOnly ??
@@ -66,7 +69,7 @@ export default async function AdminDashboardPage({
         description="Today's metrics and class schedule."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Expected Students Today"
           value={totalExpected}
@@ -84,6 +87,12 @@ export default async function AdminDashboardPage({
             </span>
           }
           icon={<CheckCircle2 />}
+        />
+        <MetricCard
+          label="Inactive Students"
+          value={inactiveCount}
+          icon={<UserMinus />}
+          href="/admin/students?inactive=1"
         />
         <MetricCard
           label="Package Alerts"

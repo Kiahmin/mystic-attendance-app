@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { isInactiveForSixMonths } from "@/lib/admin-utils";
 import type {
   ClassGroup,
   EnrolmentWithClass,
@@ -124,6 +125,43 @@ export async function listStudents(
       ),
     };
   });
+}
+
+export async function countInactiveStudents(): Promise<number> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("students")
+    .select("id, created_at")
+    .is("archived_at", null);
+
+  if (error) throw error;
+
+  const rows = data ?? [];
+  if (rows.length === 0) return 0;
+
+  const { data: attendance, error: attendanceError } = await supabase
+    .from("student_last_attendance")
+    .select("student_id, last_attended_on")
+    .in(
+      "student_id",
+      rows.map((row) => row.id as string)
+    );
+
+  if (attendanceError) throw attendanceError;
+
+  const lastAttendedByStudent = new Map(
+    (attendance ?? []).map((row) => [
+      row.student_id as string,
+      row.last_attended_on as string,
+    ])
+  );
+
+  return rows.filter((row) =>
+    isInactiveForSixMonths(
+      lastAttendedByStudent.get(row.id as string) ?? null,
+      row.created_at as string
+    )
+  ).length;
 }
 
 function pickRosterPackage(
