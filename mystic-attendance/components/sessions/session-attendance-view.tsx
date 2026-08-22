@@ -107,6 +107,7 @@ export function SessionAttendanceView({
           cancelled={session.cancelled}
           enrolledStudents={students}
           walkIns={walkIns}
+          requiresEventPackage={session.kind === "event"}
           emptyRosterMessage={
             session.kind === "event"
               ? "This event has no students yet. Use Add student to build the roster, then mark attendance."

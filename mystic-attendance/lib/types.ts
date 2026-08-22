@@ -141,7 +141,8 @@ export type PackageProductType =
   | "freestyle"
   | "private"
   | "trial_group"
-  | "trial_private";
+  | "trial_private"
+  | "event";
 
 export interface PackageProduct {
   id: string;
@@ -153,10 +154,13 @@ export interface PackageProduct {
   sort_order: number;
 }
 
+export type PackageSession = Pick<Session, "id" | "name" | "session_date">;
+
 export interface Package {
   id: string;
   student_id: string;
   package_product_id: string | null;
+  session_id: string | null;
   total_credits: number;
   used_credits: number;
   remaining_credits: number;
@@ -177,6 +181,7 @@ export interface Package {
   status: PackageStatus;
   created_at: string;
   package_products?: PackageProduct | null;
+  sessions?: PackageSession | null;
 }
 
 export interface PackageWithStudent extends Package {

@@ -5,6 +5,7 @@ import {
   countUnchargedAttendanceByStudent,
   listPackageProducts,
 } from "@/lib/queries/packages";
+import { isEventProductType } from "@/lib/package-utils";
 import { listStudents } from "@/lib/queries/students";
 import { AssignPackageForm } from "@/components/admin/assign-package-form";
 import { PageHeader } from "@/components/layout/page-header";
@@ -48,7 +49,9 @@ export default async function AssignPackagePage({
       </div>
       <AssignPackageForm
         students={students}
-        products={products}
+        products={products.filter(
+          (product) => !isEventProductType(product.product_type)
+        )}
         unchargedByStudent={unchargedByStudent}
         initialStudentId={studentId}
         cancelHref={cancelHref}

@@ -299,6 +299,7 @@ export function ScheduleEvent({
           className={displayName}
           open={attendeesOpen}
           onOpenChange={setAttendeesOpen}
+          requiresEventPackage={isEvent}
         />
       ) : null}
       <CancelSessionDialog

@@ -150,6 +150,9 @@ function PackageCard({ pkg }: { pkg: Package }) {
           ) : (
             <span className="inline-flex rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning">
               Unpaid
+              {pkg.amount_sgd != null
+                ? ` · ${formatAmountSgd(pkg.amount_sgd)} SGD`
+                : ""}
             </span>
           )}
           {pkg.status === "expired" && pkg.forfeited_credits != null ? (
