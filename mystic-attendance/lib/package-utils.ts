@@ -28,6 +28,7 @@ export const PACKAGE_PRODUCT_TYPE_LABELS: Record<PackageProductType, string> = {
   private: "Private",
   trial_group: "Trial (Group)",
   trial_private: "Trial (Private)",
+  event: "Event",
 };
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
@@ -66,6 +67,10 @@ export function isTrialProductType(productType: PackageProductType): boolean {
   return productType === "trial_group" || productType === "trial_private";
 }
 
+export function isEventProductType(productType: PackageProductType): boolean {
+  return productType === "event";
+}
+
 export function packageIsTrialProduct(
   pkg: Pick<Package, "package_products">
 ): boolean {
@@ -82,6 +87,10 @@ export function defaultAmountForProduct(product: PackageProduct): number {
 export type PackageLabelSource = {
   total_credits: number;
   bonus_credits?: number | null;
+  sessions?: {
+    name?: string | null;
+    session_date?: string | null;
+  } | null;
 };
 
 export type PackageCustomisationSource = PackageLabelSource & {
@@ -138,6 +147,16 @@ export function packageLabel(
   const base = packageBaseCredits(pkg);
   const bonusSuffix = bonus > 0 ? ` + ${bonus} complimentary` : "";
 
+  if (product && isEventProductType(product.product_type)) {
+    const eventName = pkg.sessions?.name?.trim();
+    const eventDate = pkg.sessions?.session_date;
+    if (eventName && eventDate) {
+      return `${eventName} · ${formatCalendarDate(eventDate)}`;
+    }
+    if (eventName) return eventName;
+    return product.label;
+  }
+
   if (product) {
     if (
       isTrialProductType(product.product_type) &&
@@ -161,6 +180,7 @@ export function formatPackageExpiry(expiresAt: string | null): string {
 }
 
 export function isFinishingPackage(pkg: Package): boolean {
+  if (pkg.session_id) return false;
   if (pkg.status !== "active") return false;
   if (pkg.remaining_credits <= LOW_CREDIT_THRESHOLD) return true;
   return (
@@ -191,13 +211,19 @@ export function atRiskReason(pkg: Package): string | null {
 }
 
 export function canPausePackage(pkg: Package): boolean {
-  return !pkg.pause_used && pkg.is_paid && pkg.status === "active";
+  return (
+    !pkg.session_id &&
+    !pkg.pause_used &&
+    pkg.is_paid &&
+    pkg.status === "active"
+  );
 }
 
 /** Fields needed to match `resolve_chargeable_package` in SQL. */
 export type ChargeablePackageFields = {
   id: string;
   student_id: string;
+  session_id?: string | null;
   is_paid: boolean;
   paused_at: string | null;
   resumed_at: string | null;
@@ -239,6 +265,7 @@ export function pickChargeablePackage<T extends ChargeablePackageFields>(
 ): T | null {
   const eligible = packages.filter(
     (pkg) =>
+      !pkg.session_id &&
       pkg.is_paid &&
       livePackageStatus(pkg, today) === "active" &&
       pkg.remaining_credits > 0 &&
@@ -272,17 +299,27 @@ export function buildPauseReason(
 
 export function unchargedClassesNote(
   uncharged: number,
-  remainingCredits: number
+  remainingCredits: number,
+  unit: "class" | "event" = "class"
 ): string | null {
   if (uncharged <= 0) return null;
-  const classWord = uncharged === 1 ? "class" : "classes";
+  const unitWord =
+    unit === "event"
+      ? uncharged === 1
+        ? "event"
+        : "events"
+      : uncharged === 1
+        ? "class"
+        : "classes";
   const applied = Math.min(uncharged, Math.max(remainingCredits, 0));
   const leftover = uncharged - applied;
   if (applied <= 0) {
-    return `${uncharged} uncharged ${classWord} found; none can be applied (no credits remaining).`;
+    return `${uncharged} uncharged ${unitWord} found; none can be applied (no credits remaining).`;
   }
   if (leftover <= 0) {
-    return `${uncharged} uncharged ${classWord} will be applied (oldest first).`;
+    return unit === "event"
+      ? `${uncharged} uncharged ${unitWord} will be applied.`
+      : `${uncharged} uncharged ${unitWord} will be applied (oldest first).`;
   }
-  return `${uncharged} uncharged ${classWord} found; the oldest ${applied} will be applied (${leftover} left uncharged).`;
+  return `${uncharged} uncharged ${unitWord} found; the oldest ${applied} will be applied (${leftover} left uncharged).`;
 }

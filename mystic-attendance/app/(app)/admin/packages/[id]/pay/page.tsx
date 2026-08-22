@@ -5,7 +5,7 @@ import { requireRole } from "@/lib/auth/profile";
 import { markPackagePaidFormAction } from "@/lib/actions/packages";
 import {
   getPackageWithStudent,
-  countUnchargedAttendanceForStudent,
+  countUnchargedAttendanceForPackage,
 } from "@/lib/queries/packages";
 import {
   PAYMENT_METHOD_LABELS,
@@ -48,12 +48,11 @@ export default async function MarkPackagePaidPage({
 
   if (!pkg) notFound();
 
-  const unchargedCount = await countUnchargedAttendanceForStudent(
-    pkg.student_id
-  );
+  const unchargedCount = await countUnchargedAttendanceForPackage(pkg);
   const backfillNote = unchargedClassesNote(
     unchargedCount,
-    pkg.remaining_credits
+    pkg.remaining_credits,
+    pkg.session_id ? "event" : "class"
   );
 
   const backHref = `/admin/students/${pkg.student_id}`;

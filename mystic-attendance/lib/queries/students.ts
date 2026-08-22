@@ -80,9 +80,10 @@ export async function listStudents(
       : supabase
           .from("packages")
           .select(
-            "student_id, remaining_credits, total_credits, status, expires_at, created_at"
+            "student_id, remaining_credits, total_credits, status, expires_at, created_at, session_id"
           )
           .in("student_id", studentIds)
+          .is("session_id", null)
           .order("created_at", { ascending: false }),
   ]);
 

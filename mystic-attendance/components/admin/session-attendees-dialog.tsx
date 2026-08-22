@@ -11,6 +11,7 @@ import {
 } from "@/lib/actions/session-attendees";
 import type { SessionRosterStudent } from "@/lib/session-roster";
 import type { StudentSearchHit } from "@/lib/types";
+import { EventFeeFields, type EventFeeValues } from "@/components/sessions/event-fee-fields";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ type SessionAttendeesDialogProps = {
   className: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  requiresEventPackage?: boolean;
 };
 
 export function SessionAttendeesDialog({
@@ -36,6 +38,7 @@ export function SessionAttendeesDialog({
   className,
   open,
   onOpenChange,
+  requiresEventPackage = false,
 }: SessionAttendeesDialogProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -46,6 +49,9 @@ export function SessionAttendeesDialog({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StudentSearchHit[]>([]);
   const [searching, setSearching] = useState(false);
+  const [pendingStudent, setPendingStudent] = useState<StudentSearchHit | null>(
+    null
+  );
   const searchSeq = useRef(0);
   const trimmedQuery = query.trim();
 
@@ -59,6 +65,7 @@ export function SessionAttendeesDialog({
     setQuery("");
     setResults([]);
     setSearching(false);
+    setPendingStudent(null);
 
     void (async () => {
       const result = await getSessionAttendeesForEditor(sessionId);
@@ -120,16 +127,36 @@ export function SessionAttendeesDialog({
     setCancelled(result.cancelled);
   }
 
-  function handleAdd(studentId: string) {
+  function handleAdd(student: StudentSearchHit) {
     setError(null);
+    if (requiresEventPackage) {
+      setPendingStudent(student);
+      return;
+    }
+    void confirmAdd(student.id);
+  }
+
+  function confirmAdd(studentId: string, eventPackage?: EventFeeValues) {
     startTransition(async () => {
-      const result = await includeStudentInSession(sessionId, studentId);
+      const result = await includeStudentInSession(
+        sessionId,
+        studentId,
+        eventPackage
+          ? {
+              amountSgd: eventPackage.amountSgd,
+              isPaid: eventPackage.isPaid,
+              paymentMethod: eventPackage.paymentMethod,
+              notes: eventPackage.notes,
+            }
+          : undefined
+      );
       if ("error" in result) {
         setError(result.error);
         return;
       }
       setQuery("");
       setResults([]);
+      setPendingStudent(null);
       await refreshList();
       router.refresh();
     });
@@ -150,12 +177,19 @@ export function SessionAttendeesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" showCloseButton>
+      <DialogContent
+        className={pendingStudent ? "sm:max-w-[500px]" : "sm:max-w-lg"}
+        showCloseButton
+      >
         <DialogHeader>
-          <DialogTitle>Edit attendees</DialogTitle>
-          <DialogDescription>
-            One-off changes for {className}. Class enrolments are unchanged.
-          </DialogDescription>
+          <DialogTitle>
+            {pendingStudent ? "Add to this session" : "Edit attendees"}
+          </DialogTitle>
+          {pendingStudent ? null : (
+            <DialogDescription>
+              One-off changes for {className}. Class enrolments are unchanged.
+            </DialogDescription>
+          )}
         </DialogHeader>
 
         <div className="space-y-4">
@@ -174,7 +208,25 @@ export function SessionAttendeesDialog({
           ) : null}
 
           <div className="space-y-2">
-            <Label htmlFor="session-attendee-search">Add student</Label>
+            {pendingStudent ? null : (
+              <Label htmlFor="session-attendee-search">Add student</Label>
+            )}
+            {pendingStudent ? (
+              <EventFeeFields
+                key={pendingStudent.id}
+                studentName={pendingStudent.full_name}
+                onBack={() => {
+                  setPendingStudent(null);
+                  setError(null);
+                }}
+                onConfirm={(values) => {
+                  setError(null);
+                  confirmAdd(pendingStudent.id, values);
+                }}
+                pending={pending}
+              />
+            ) : (
+              <>
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -219,7 +271,7 @@ export function SessionAttendeesDialog({
                       size="sm"
                       variant="outline"
                       disabled={pending || cancelled}
-                      onClick={() => handleAdd(student.id)}
+                      onClick={() => handleAdd(student)}
                     >
                       <UserPlus className="size-4" />
                       Add
@@ -228,6 +280,8 @@ export function SessionAttendeesDialog({
                 ))}
               </ul>
             ) : null}
+              </>
+            )}
           </div>
 
           <div className="space-y-2">

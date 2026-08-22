@@ -50,10 +50,14 @@ export function packageWarning(pkg: {
   status: string;
   remaining_credits: number;
   expires_at: string | null;
+  session_id?: string | null;
 } | null): "none" | "low" | "expired" | "unpaid" {
   if (!pkg) return "none";
   if (pkg.status === "unpaid") return "unpaid";
-  if (pkg.status === "expired" || pkg.remaining_credits <= 0) return "expired";
+  // 1-credit event packs finishing after this session is expected.
+  if (pkg.session_id) return "none";
+  if (pkg.status === "expired") return "expired";
+  if (pkg.remaining_credits <= 0) return "none";
   if (pkg.remaining_credits <= 2) return "low";
   if (pkg.expires_at && isOnOrBeforeDaysFromToday(pkg.expires_at, 14)) {
     return "low";
