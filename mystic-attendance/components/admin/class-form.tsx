@@ -32,9 +32,33 @@ type ClassFormProps = {
   submitLabel?: string;
 };
 
+const DEFAULT_START_TIME = "10:00";
+
 function toTimeInputValue(time: string | undefined): string {
   if (!time) return "";
   return time.slice(0, 5);
+}
+
+function addHoursToTime(time: string, hours: number): string {
+  const [hourPart, minutePart] = time.split(":");
+  const hoursNum = Number(hourPart);
+  const minutesNum = Number(minutePart);
+  if (
+    hourPart === undefined ||
+    minutePart === undefined ||
+    Number.isNaN(hoursNum) ||
+    Number.isNaN(minutesNum)
+  ) {
+    return "";
+  }
+
+  const totalMinutes = Math.min(
+    hoursNum * 60 + minutesNum + hours * 60,
+    23 * 60 + 59
+  );
+  const nextHours = Math.floor(totalMinutes / 60);
+  const nextMinutes = totalMinutes % 60;
+  return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
 }
 
 export function ClassForm({
@@ -52,13 +76,30 @@ export function ClassForm({
     classGroup?.day_of_week ?? "saturday"
   );
   const [startTime, setStartTime] = useState(
-    toTimeInputValue(classGroup?.start_time)
+    toTimeInputValue(classGroup?.start_time) || DEFAULT_START_TIME
   );
   const [endTime, setEndTime] = useState(
-    toTimeInputValue(classGroup?.end_time)
+    toTimeInputValue(classGroup?.end_time) ||
+      addHoursToTime(DEFAULT_START_TIME, 1)
   );
   const [coachId, setCoachId] = useState(classGroup?.coach_id ?? "");
   const [isActive, setIsActive] = useState(classGroup?.is_active ?? true);
+  const isEditing = Boolean(classGroup);
+
+  const hasChanges =
+    !classGroup ||
+    name !== classGroup.name ||
+    dayOfWeek !== classGroup.day_of_week ||
+    startTime !== toTimeInputValue(classGroup.start_time) ||
+    endTime !== toTimeInputValue(classGroup.end_time) ||
+    (coachId || null) !== (classGroup.coach_id ?? null);
+
+  function handleStartTimeChange(value: string) {
+    setStartTime(value);
+    if (!isEditing) {
+      setEndTime(addHoursToTime(value, 1));
+    }
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -156,7 +197,7 @@ export function ClassForm({
             id="start_time"
             type="time"
             value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
+            onChange={(e) => handleStartTimeChange(e.target.value)}
             required
           />
         </div>
@@ -195,7 +236,7 @@ export function ClassForm({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || (isEditing && !hasChanges)}>
           {pending
             ? "Saving…"
             : (submitLabel ??
