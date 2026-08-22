@@ -75,7 +75,7 @@ export function EventFeeFields({
         ) : null}
         <div>
           <Label htmlFor="event-package-amount" className={fieldLabelClass}>
-            Amount (SGD)
+            Amount
           </Label>
           <Input
             id="event-package-amount"
