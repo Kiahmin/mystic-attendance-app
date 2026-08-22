@@ -282,7 +282,8 @@ export async function listPackages(options?: {
         students: student,
       } satisfies PackageWithStudent;
     })
-    .filter((item): item is PackageWithStudent => item !== null);
+    .filter((item): item is PackageWithStudent => item !== null)
+    .filter((pkg) => !(pkg.session_id && pkg.status === "exhausted"));
 
   if (hasFinishing && statuses.length > 0) {
     return packages.filter(
