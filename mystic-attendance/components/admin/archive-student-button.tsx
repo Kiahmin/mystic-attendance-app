@@ -77,7 +77,7 @@ export function ArchiveStudentButton({
         <Button
           type="button"
           variant={archived ? "outline" : "destructive"}
-          className="h-11 shrink-0 px-4"
+          className="shrink-0"
           onClick={() => handleOpenChange(true)}
         >
           {archived ? (

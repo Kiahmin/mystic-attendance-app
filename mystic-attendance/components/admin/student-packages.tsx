@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Pause, Play, Plus, Wallet } from "lucide-react";
+import { Pause, Play, Wallet } from "lucide-react";
 import { resumePackageFormAction } from "@/lib/actions/packages";
 import { formatCalendarDate, todayInSingapore } from "@/lib/datetime";
 import {
@@ -18,7 +18,6 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 
 type StudentPackagesProps = {
-  studentId: string;
   packages: Package[];
 };
 
@@ -30,22 +29,9 @@ const STATUS_CLASS: Record<PackageStatus, string> = {
   exhausted: "border border-border text-foreground",
 };
 
-export function StudentPackages({ studentId, packages }: StudentPackagesProps) {
+export function StudentPackages({ packages }: StudentPackagesProps) {
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">
-          Credits, payment, expiry, and pause history for this skater.
-        </p>
-        <Link
-          href={`/admin/packages/assign?studentId=${studentId}`}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-        >
-          <Plus className="size-4" />
-          Assign New Package
-        </Link>
-      </div>
-
       {packages.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card p-6 text-center">
           <p className="font-medium">No packages yet</p>
