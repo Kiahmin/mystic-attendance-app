@@ -165,7 +165,7 @@ export function StudentCheckInRow({
           )}
         >
           {warning === "expired"
-            ? "Package expired or no credits — flag to admin"
+            ? "Package expired — flag to admin"
             : warning === "unpaid"
               ? "Package unpaid — cannot deduct credits"
               : "Low credits or expiring soon"}

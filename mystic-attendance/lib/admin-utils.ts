@@ -49,6 +49,26 @@ export const DAY_OF_WEEK_SHORT_LABELS: Record<DayOfWeek, string> = {
   sunday: "Sun",
 };
 
+export const DAYS_SUNDAY_FIRST: DayOfWeek[] = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
+
+export const DAY_OF_WEEK_LETTER_LABELS: Record<DayOfWeek, string> = {
+  sunday: "S",
+  monday: "M",
+  tuesday: "T",
+  wednesday: "W",
+  thursday: "T",
+  friday: "F",
+  saturday: "S",
+};
+
 /** Whether a YYYY-MM-DD date of birth is under 18 as of today (Singapore). */
 export function isMinorDob(dateOfBirth: string | null | undefined): boolean {
   if (!dateOfBirth) return false;
@@ -84,6 +104,13 @@ export function timeToMinutes(value: string): number | null {
   const match = /^(\d{2}):(\d{2})(?::\d{2})?$/.exec(normalized);
   if (!match) return null;
   return Number(match[1]) * 60 + Number(match[2]);
+}
+
+export function minutesToTime(totalMinutes: number): string {
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, Math.round(totalMinutes)));
+  const hours = Math.floor(clamped / 60);
+  const minutes = clamped % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 export function emptyToNull(value: string | null | undefined): string | null {

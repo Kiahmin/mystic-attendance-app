@@ -26,7 +26,9 @@ function asSingle<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-type SessionClassRow = SessionWithClass["classes"] & {
+type SessionClassFields = NonNullable<SessionWithClass["classes"]>;
+
+type SessionClassRow = SessionClassFields & {
   profiles?:
     | Pick<Profile, "id" | "full_name">
     | Pick<Profile, "id" | "full_name">[]
@@ -41,24 +43,33 @@ type SessionCoachRow = {
 };
 
 function mapSessionWithClass(
-  row: SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+  row: SessionWithClass & {
+    classes: SessionClassRow | SessionClassRow[] | null;
+  } & SessionCoachRow
 ): { session: SessionWithClass; coachName: string | null } {
+  const classRow = asSingle(row.classes);
   const coach =
-    asSingle(row.profiles) ?? asSingle(row.classes.profiles);
+    asSingle(row.profiles) ?? (classRow ? asSingle(classRow.profiles) : null);
   return {
     session: {
       ...row,
+      kind: row.kind ?? "class",
+      name: row.name ?? null,
+      requires_attendance: row.requires_attendance ?? true,
+      class_id: row.class_id ?? null,
       coach,
-      classes: {
-        id: row.classes.id,
-        name: row.classes.name,
-        day_of_week: row.classes.day_of_week,
-        start_time: row.classes.start_time,
-        end_time: row.classes.end_time,
-        coach_id: row.classes.coach_id,
-        is_active: row.classes.is_active,
-        coach: asSingle(row.classes.profiles),
-      },
+      classes: classRow
+        ? {
+            id: classRow.id,
+            name: classRow.name,
+            day_of_week: classRow.day_of_week,
+            start_time: classRow.start_time,
+            end_time: classRow.end_time,
+            coach_id: classRow.coach_id,
+            is_active: classRow.is_active,
+            coach: asSingle(classRow.profiles),
+          }
+        : null,
     },
     coachName: coach?.full_name ?? null,
   };
@@ -67,6 +78,7 @@ function mapSessionWithClass(
 const DASHBOARD_PACKAGE_SELECT = `
   id,
   student_id,
+  session_id,
   is_paid,
   paused_at,
   resumed_at,
@@ -82,10 +94,12 @@ const DASHBOARD_PACKAGE_SELECT = `
 const CHECKIN_PACKAGE_SELECT = `
   id,
   student_id,
+  session_id,
   package_product_id,
   total_credits,
   used_credits,
   remaining_credits,
+  bonus_credits,
   forfeited_credits,
   forfeited_at,
   payment_method,
@@ -123,6 +137,7 @@ function mapPackageRow(data: Record<string, unknown>): Package {
     ...(data as unknown as Package),
     package_product_id:
       (data.package_product_id as string | null | undefined) ?? null,
+    session_id: (data.session_id as string | null | undefined) ?? null,
     bonus_credits: Number(data.bonus_credits ?? 0),
     customisation_notes:
       (data.customisation_notes as string | null | undefined) ?? null,
@@ -133,7 +148,9 @@ function mapPackageRow(data: Record<string, unknown>): Package {
 async function enrichDashboardSessions(
   supabase: SupabaseClient,
   rows: Array<
-    SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+    SessionWithClass & {
+      classes: SessionClassRow | SessionClassRow[] | null;
+    } & SessionCoachRow
   >
 ): Promise<DashboardSession[]> {
   const mapped = rows.map((row) => mapSessionWithClass(row));
@@ -154,32 +171,46 @@ async function enrichDashboardSessions(
     ),
   ];
 
-  const [attendanceResult, packagesResult] = await Promise.all([
-    sessionIds.length === 0
-      ? Promise.resolve({
-          data: [] as {
-            session_id: string;
-            student_id: string;
-            status: string | null;
-          }[],
-          error: null,
-        })
-      : supabase
-          .from("attendance")
-          .select("session_id, student_id, status")
-          .in("session_id", sessionIds),
-    studentIds.length === 0
-      ? Promise.resolve({ data: [] as DashboardPackageRow[], error: null })
-      : supabase
-          .from("packages")
-          .select(DASHBOARD_PACKAGE_SELECT)
-          .in("student_id", studentIds)
-          .eq("is_paid", true)
-          .gt("remaining_credits", 0),
-  ]);
+  const eventSessionIds = mapped
+    .filter(({ session }) => session.kind === "event")
+    .map(({ session }) => session.id);
+
+  const [attendanceResult, classPackagesResult, eventPackagesResult] =
+    await Promise.all([
+      sessionIds.length === 0
+        ? Promise.resolve({
+            data: [] as {
+              session_id: string;
+              student_id: string;
+              status: string | null;
+            }[],
+            error: null,
+          })
+        : supabase
+            .from("attendance")
+            .select("session_id, student_id, status")
+            .in("session_id", sessionIds),
+      studentIds.length === 0
+        ? Promise.resolve({ data: [] as DashboardPackageRow[], error: null })
+        : supabase
+            .from("packages")
+            .select(DASHBOARD_PACKAGE_SELECT)
+            .in("student_id", studentIds)
+            .is("session_id", null)
+            .eq("is_paid", true)
+            .gt("remaining_credits", 0),
+      studentIds.length === 0 || eventSessionIds.length === 0
+        ? Promise.resolve({ data: [] as DashboardPackageRow[], error: null })
+        : supabase
+            .from("packages")
+            .select(DASHBOARD_PACKAGE_SELECT)
+            .in("student_id", studentIds)
+            .in("session_id", eventSessionIds),
+    ]);
 
   if (attendanceResult.error) throw attendanceResult.error;
-  if (packagesResult.error) throw packagesResult.error;
+  if (classPackagesResult.error) throw classPackagesResult.error;
+  if (eventPackagesResult.error) throw eventPackagesResult.error;
 
   const checkedInBySession = new Map<string, number>();
   const recordedExpectedBySession = new Map<string, Set<string>>();
@@ -201,19 +232,29 @@ async function enrichDashboardSessions(
   }
 
   const packagesByStudent = groupByStudentId(
-    (packagesResult.data ?? []) as DashboardPackageRow[]
+    (classPackagesResult.data ?? []) as DashboardPackageRow[]
   );
+  const eventPackageByStudentSession = new Map<string, DashboardPackageRow>();
+  for (const row of (eventPackagesResult.data ?? []) as DashboardPackageRow[]) {
+    if (!row.session_id) continue;
+    eventPackageByStudentSession.set(`${row.student_id}:${row.session_id}`, row);
+  }
   const today = todayInSingapore();
 
   return mapped.map(({ session, coachName }) => {
     const roster = rosters.get(session.id) ?? [];
     let packageAlerts = 0;
     for (const entry of roster) {
-      const pkg = pickChargeablePackage(
-        packagesByStudent.get(entry.studentId) ?? [],
-        session.session_date,
-        today
-      );
+      const pkg =
+        session.kind === "event"
+          ? (eventPackageByStudentSession.get(
+              `${entry.studentId}:${session.id}`
+            ) ?? null)
+          : pickChargeablePackage(
+              packagesByStudent.get(entry.studentId) ?? [],
+              session.session_date,
+              today
+            );
       if (!pkg || packageWarning(pkg) !== "none") {
         packageAlerts += 1;
       }
@@ -258,7 +299,7 @@ export async function getCoachSessionsForToday(coachId: string) {
     .select(
       `
         *,
-        classes!inner (
+        classes (
           id,
           name,
           day_of_week,
@@ -274,7 +315,17 @@ export async function getCoachSessionsForToday(coachId: string) {
     .order("session_date", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []) as SessionWithClass[];
+  return (data ?? [])
+    .map((row) =>
+      mapSessionWithClass(
+        row as SessionWithClass & {
+          classes: SessionClassRow | SessionClassRow[] | null;
+        } & SessionCoachRow
+      ).session
+    )
+    .sort((a, b) =>
+      sessionDisplayStart(a).localeCompare(sessionDisplayStart(b))
+    );
 }
 
 export async function getTodaySessionsForDashboard(coachId?: string) {
@@ -296,7 +347,9 @@ export async function getTodaySessionsForDashboard(coachId?: string) {
   const results = await enrichDashboardSessions(
     supabase,
     (sessions ?? []) as Array<
-      SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+      SessionWithClass & {
+      classes: SessionClassRow | SessionClassRow[] | null;
+    } & SessionCoachRow
     >
   );
 
@@ -322,7 +375,9 @@ export async function getSessionsForDashboardRange(
   const results = await enrichDashboardSessions(
     supabase,
     (sessions ?? []) as Array<
-      SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+      SessionWithClass & {
+      classes: SessionClassRow | SessionClassRow[] | null;
+    } & SessionCoachRow
     >
   );
 
@@ -353,33 +408,21 @@ export async function getSessionCheckInList(
 
   const { data: session, error: sessionError } = await supabase
     .from("sessions")
-    .select(
-      `
-        *,
-        profiles!sessions_coach_id_fkey (
-          id,
-          full_name
-        ),
-        classes (
-          id,
-          name,
-          day_of_week,
-          start_time,
-          end_time,
-          coach_id,
-          is_active
-        )
-      `
-    )
+    .select(DASHBOARD_SESSION_SELECT)
     .eq("id", sessionId)
-    .single();
+    .maybeSingle();
 
-  if (sessionError || !session) {
+  if (sessionError) {
+    throw sessionError;
+  }
+  if (!session) {
     throw new Error("Session not found");
   }
 
   const { session: sessionWithClass } = mapSessionWithClass(
-    session as SessionWithClass & { classes: SessionClassRow } & SessionCoachRow
+    session as SessionWithClass & {
+      classes: SessionClassRow | SessionClassRow[] | null;
+    } & SessionCoachRow
   );
 
   const [roster, attendanceResult] = await Promise.all([
@@ -423,18 +466,27 @@ export async function getSessionCheckInList(
     ]),
   ];
 
+  const isEvent = sessionWithClass.kind === "event";
+
   const [studentsResult, packagesResult] = await Promise.all([
     studentIds.length === 0
       ? Promise.resolve({ data: [] as Student[], error: null })
       : supabase.from("students").select("*").in("id", studentIds),
     studentIds.length === 0
       ? Promise.resolve({ data: [] as Package[], error: null })
-      : supabase
-          .from("packages")
-          .select(CHECKIN_PACKAGE_SELECT)
-          .in("student_id", studentIds)
-          .eq("is_paid", true)
-          .gt("remaining_credits", 0),
+      : isEvent
+        ? supabase
+            .from("packages")
+            .select(CHECKIN_PACKAGE_SELECT)
+            .in("student_id", studentIds)
+            .eq("session_id", sessionId)
+        : supabase
+            .from("packages")
+            .select(CHECKIN_PACKAGE_SELECT)
+            .in("student_id", studentIds)
+            .is("session_id", null)
+            .eq("is_paid", true)
+            .gt("remaining_credits", 0),
   ]);
 
   if (studentsResult.error) throw studentsResult.error;
@@ -455,11 +507,13 @@ export async function getSessionCheckInList(
     isWalkIn: boolean,
     rosterSource: CheckInStudent["rosterSource"] = null
   ): CheckInStudent {
-    const pkg = pickChargeablePackage(
-      packagesByStudent.get(student.id) ?? [],
-      sessionWithClass.session_date,
-      today
-    );
+    const pkg = isEvent
+      ? (packagesByStudent.get(student.id)?.[0] ?? null)
+      : pickChargeablePackage(
+          packagesByStudent.get(student.id) ?? [],
+          sessionWithClass.session_date,
+          today
+        );
 
     return {
       student,
@@ -467,7 +521,8 @@ export async function getSessionCheckInList(
         (attendanceByStudent.get(student.id) as CheckInStudent["attendance"]) ??
         null,
       package: pkg,
-      chargeablePackageId: pkg?.id ?? null,
+      chargeablePackageId:
+        pkg && pkg.is_paid && pkg.remaining_credits > 0 ? pkg.id : null,
       isWalkIn,
       rosterSource,
     };

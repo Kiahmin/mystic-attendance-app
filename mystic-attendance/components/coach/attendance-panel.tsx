@@ -11,6 +11,7 @@ import {
 } from "@/lib/actions/session-attendees";
 import { markWalkIn, searchStudentsForWalkIn } from "@/lib/actions/walk-in";
 import { StudentCheckInRow } from "@/components/coach/student-check-in-row";
+import { EventFeeFields, type EventFeeValues } from "@/components/sessions/event-fee-fields";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,8 @@ interface AttendancePanelProps {
   cancelled: boolean;
   enrolledStudents: CheckInStudent[];
   walkIns: CheckInStudent[];
+  emptyRosterMessage?: string;
+  requiresEventPackage?: boolean;
 }
 
 export function AttendancePanel({
@@ -39,6 +42,8 @@ export function AttendancePanel({
   cancelled,
   enrolledStudents,
   walkIns,
+  emptyRosterMessage = "No expected students for this session.",
+  requiresEventPackage = false,
 }: AttendancePanelProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -55,6 +60,9 @@ export function AttendancePanel({
   const [addQuery, setAddQuery] = useState("");
   const [addResults, setAddResults] = useState<StudentSearchHit[]>([]);
   const [addSearching, setAddSearching] = useState(false);
+  const [pendingStudent, setPendingStudent] = useState<StudentSearchHit | null>(
+    null
+  );
   const addSearchSeq = useRef(0);
 
   const checkedInCount = enrolledStudents.filter(
@@ -112,6 +120,7 @@ export function AttendancePanel({
     setAddQuery("");
     setAddResults([]);
     setAddSearching(false);
+    setPendingStudent(null);
     setError(null);
   }
 
@@ -148,10 +157,29 @@ export function AttendancePanel({
     });
   }
 
-  function handleAddToRoster(studentId: string) {
+  function handleAddToRoster(student: StudentSearchHit) {
     setError(null);
+    if (requiresEventPackage) {
+      setPendingStudent(student);
+      return;
+    }
+    void confirmAdd(student.id);
+  }
+
+  function confirmAdd(studentId: string, eventPackage?: EventFeeValues) {
     startTransition(async () => {
-      const result = await includeStudentInSession(sessionId, studentId);
+      const result = await includeStudentInSession(
+        sessionId,
+        studentId,
+        eventPackage
+          ? {
+              amountSgd: eventPackage.amountSgd,
+              isPaid: eventPackage.isPaid,
+              paymentMethod: eventPackage.paymentMethod,
+              notes: eventPackage.notes,
+            }
+          : undefined
+      );
       if ("error" in result) {
         setError(result.error);
         return;
@@ -224,13 +252,19 @@ export function AttendancePanel({
                   Add student
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent
+                className={
+                  pendingStudent ? "sm:max-w-[500px]" : undefined
+                }
+              >
                 <DialogHeader>
                   <DialogTitle>Add to this session</DialogTitle>
-                  <DialogDescription>
-                    One-off for this session only. Class enrolments are
-                    unchanged.
-                  </DialogDescription>
+                  {pendingStudent ? null : (
+                    <DialogDescription>
+                      One-off for this session only. Class enrolments are
+                      unchanged.
+                    </DialogDescription>
+                  )}
                 </DialogHeader>
 
                 <div className="space-y-4">
@@ -240,63 +274,81 @@ export function AttendancePanel({
                     </Alert>
                   ) : null}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="add-roster-search">Student name</Label>
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="add-roster-search"
-                        value={addQuery}
-                        onChange={(event) => setAddQuery(event.target.value)}
-                        placeholder="Type to search students…"
-                        className="pl-9"
-                        disabled={pending}
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-
-                  {addSearching ? (
-                    <p className="text-sm text-muted-foreground">Searching…</p>
-                  ) : trimmedAddQuery && addResults.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No matching students.
-                    </p>
-                  ) : addResults.length > 0 ? (
-                    <ul className="max-h-48 space-y-2 overflow-y-auto rounded-lg border p-2">
-                      {addResults.map((student) => (
-                        <li
-                          key={student.id}
-                          className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5"
-                        >
-                          <div className="min-w-0">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <p className="truncate text-sm font-medium">
-                                {student.full_name}
-                              </p>
-                              {student.is_trial ? (
-                                <Badge variant="warning">Trial</Badge>
-                              ) : null}
-                            </div>
-                            {student.skill_level ? (
-                              <p className="text-xs text-muted-foreground capitalize">
-                                {student.skill_level}
-                              </p>
-                            ) : null}
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
+                  {pendingStudent ? (
+                    <EventFeeFields
+                      key={pendingStudent.id}
+                      studentName={pendingStudent.full_name}
+                      onBack={() => {
+                        setPendingStudent(null);
+                        setError(null);
+                      }}
+                      onConfirm={(values) => {
+                        setError(null);
+                        confirmAdd(pendingStudent.id, values);
+                      }}
+                      pending={pending}
+                    />
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="add-roster-search">Student name</Label>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="add-roster-search"
+                            value={addQuery}
+                            onChange={(event) => setAddQuery(event.target.value)}
+                            placeholder="Type to search students…"
+                            className="pl-9"
                             disabled={pending}
-                            onClick={() => handleAddToRoster(student.id)}
-                          >
-                            <UserPlus className="size-4" />
-                            Add
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+
+                      {addSearching ? (
+                        <p className="text-sm text-muted-foreground">Searching…</p>
+                      ) : trimmedAddQuery && addResults.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No matching students.
+                        </p>
+                      ) : addResults.length > 0 ? (
+                        <ul className="max-h-48 space-y-2 overflow-y-auto rounded-lg border p-2">
+                          {addResults.map((student) => (
+                            <li
+                              key={student.id}
+                              className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <p className="truncate text-sm font-medium">
+                                    {student.full_name}
+                                  </p>
+                                  {student.is_trial ? (
+                                    <Badge variant="warning">Trial</Badge>
+                                  ) : null}
+                                </div>
+                                {student.skill_level ? (
+                                  <p className="text-xs text-muted-foreground capitalize">
+                                    {student.skill_level}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={pending}
+                                onClick={() => handleAddToRoster(student)}
+                              >
+                                <UserPlus className="size-4" />
+                                Add
+                              </Button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </>
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
@@ -419,9 +471,7 @@ export function AttendancePanel({
         </div>
 
         {enrolledStudents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No expected students for this session.
-          </p>
+          <p className="text-sm text-muted-foreground">{emptyRosterMessage}</p>
         ) : (
           enrolledStudents.map((entry) => (
             <StudentCheckInRow

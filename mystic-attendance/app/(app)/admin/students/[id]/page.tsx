@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, UserRound } from "lucide-react";
+import { ArrowLeft, Plus, UserRound } from "lucide-react";
 import { requireRole } from "@/lib/auth/profile";
 import { ageFromDob, SKILL_LEVEL_LABELS } from "@/lib/admin-utils";
 import { packageIsTrialProduct } from "@/lib/package-utils";
@@ -146,12 +146,23 @@ export default async function AdminStudentDetailPage({
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Packages</CardTitle>
-            <CardDescription>
-              Lesson credits, payment status, expiry, and pauses.
-            </CardDescription>
+            <div className="flex items-center justify-between gap-3">
+              <CardDescription>
+                Lesson credits, payment status, expiry, and pauses.
+              </CardDescription>
+              <Link
+                href={`/admin/packages/assign?studentId=${student.id}`}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" })
+                )}
+              >
+                <Plus className="size-4" />
+                Assign New Package
+              </Link>
+            </div>
           </CardHeader>
           <CardContent>
-            <StudentPackages studentId={student.id} packages={packages} />
+            <StudentPackages packages={packages} />
           </CardContent>
         </Card>
 
