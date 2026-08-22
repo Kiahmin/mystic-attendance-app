@@ -77,9 +77,14 @@ export function ArchiveStudentButton({
         <Button
           type="button"
           variant={archived ? "outline" : "destructive"}
-          size="sm"
+          className="h-11 shrink-0 px-4"
           onClick={() => handleOpenChange(true)}
         >
+          {archived ? (
+            <ArchiveRestore className="size-4" />
+          ) : (
+            <Archive className="size-4" />
+          )}
           {archived ? "Unarchive" : "Archive"}
         </Button>
       )}
