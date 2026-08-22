@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TimePicker } from "@/components/ui/time-picker";
 import {
   Select,
   SelectContent,
@@ -193,22 +194,22 @@ export function ClassForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="start_time">Start</Label>
-          <Input
+          <TimePicker
             id="start_time"
-            type="time"
             value={startTime}
-            onChange={(e) => handleStartTimeChange(e.target.value)}
+            onChange={handleStartTimeChange}
             required
+            aria-label="Start time"
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="end_time">End</Label>
-          <Input
+          <TimePicker
             id="end_time"
-            type="time"
             value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
+            onChange={setEndTime}
             required
+            aria-label="End time"
           />
         </div>
       </div>
