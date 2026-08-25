@@ -244,7 +244,7 @@ export function adminCalendarHref(options?: {
   }
 
   const query = params.toString();
-  return query ? `/admin?${query}` : "/admin";
+  return query ? `/admin/schedule?${query}` : "/admin/schedule";
 }
 
 export function adminWeekHref(monday: string): string {

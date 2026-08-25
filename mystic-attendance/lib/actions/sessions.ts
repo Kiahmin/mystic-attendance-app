@@ -33,6 +33,7 @@ function revalidateSessionPaths(sessionId?: string) {
     return;
   }
   revalidatePath("/admin");
+  revalidatePath("/admin/schedule");
   revalidatePath("/coach");
 }
 

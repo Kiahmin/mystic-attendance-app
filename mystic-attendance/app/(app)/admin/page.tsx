@@ -12,14 +12,12 @@ import { requireRole } from "@/lib/auth/profile";
 import { isValidYearMonth, todayInSingapore } from "@/lib/datetime";
 import { listClasses } from "@/lib/queries/classes";
 import { getDashboardOperations } from "@/lib/queries/dashboard";
-import { listCoaches } from "@/lib/queries/profiles";
 import {
   getSessionsForDashboardRange,
   getTodaySessionsForDashboard,
 } from "@/lib/queries/sessions";
 import { countInactiveStudents } from "@/lib/queries/students";
-import { resolveCalendarRange, weekDatesContaining } from "@/lib/session-utils";
-import { DashboardCalendar } from "@/components/admin/dashboard-calendar";
+import { weekDatesContaining } from "@/lib/session-utils";
 import { DashboardDueSoonPanel } from "@/components/admin/dashboard-due-soon-panel";
 import { DashboardInformedPanel } from "@/components/admin/dashboard-informed-panel";
 import { DashboardMonthlyAttendance } from "@/components/admin/dashboard-monthly-attendance";
@@ -38,57 +36,23 @@ export default async function AdminDashboardPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    view?: string;
-    date?: string;
-    week?: string;
-    weekend?: string;
     reportMonth?: string;
   }>;
 }) {
   await requireRole(["admin"]);
   const params = await searchParams;
-  const range = resolveCalendarRange(params);
   const today = todayInSingapore();
   const reportMonth = parseReportMonth(params.reportMonth, today);
   const thisWeek = weekDatesContaining(today);
-  const sessionStart = range.view === "month" ? range.start : range.monday;
-  const sessionEnd =
-    range.view === "month"
-      ? range.end
-      : weekDatesContaining(range.date).sunday;
-  const todayInRange = today >= sessionStart && today <= sessionEnd;
-  const weekInRange =
-    thisWeek.monday >= sessionStart && thisWeek.sunday <= sessionEnd;
 
-  const [
-    todayOnly,
-    weekOnly,
-    rangeSessions,
-    coaches,
-    inactiveCount,
-    operations,
-    classes,
-  ] = await Promise.all([
-    todayInRange ? Promise.resolve(null) : getTodaySessionsForDashboard(),
-    weekInRange
-      ? Promise.resolve(null)
-      : getSessionsForDashboardRange(thisWeek.monday, thisWeek.sunday),
-    getSessionsForDashboardRange(sessionStart, sessionEnd),
-    listCoaches(),
-    countInactiveStudents(),
-    getDashboardOperations(reportMonth),
-    listClasses({ activeOnly: true }),
-  ]);
-  const todaySessions =
-    todayOnly ??
-    rangeSessions.filter((item) => item.session.session_date === today);
-  const weekSessions =
-    weekOnly ??
-    rangeSessions.filter(
-      (item) =>
-        item.session.session_date >= thisWeek.monday &&
-        item.session.session_date <= thisWeek.sunday
-    );
+  const [todaySessions, weekSessions, inactiveCount, operations, classes] =
+    await Promise.all([
+      getTodaySessionsForDashboard(),
+      getSessionsForDashboardRange(thisWeek.monday, thisWeek.sunday),
+      countInactiveStudents(),
+      getDashboardOperations(reportMonth),
+      listClasses({ activeOnly: true }),
+    ]);
 
   const totalExpectedToday = todaySessions.reduce(
     (sum, item) => sum + item.expectedCount,
@@ -107,7 +71,7 @@ export default async function AdminDashboardPage({
     <div className="space-y-8">
       <PageHeader
         title="Overview"
-        description="Today's metrics and class schedule."
+        description="Today's metrics and packages that need attention."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -190,12 +154,6 @@ export default async function AdminDashboardPage({
         monthCheckInCount={operations.monthCheckInCount}
         byVenue={operations.monthlyByVenue}
         byDay={operations.monthlyByDay}
-      />
-
-      <DashboardCalendar
-        range={range}
-        sessions={rangeSessions}
-        coaches={coaches}
       />
     </div>
   );
