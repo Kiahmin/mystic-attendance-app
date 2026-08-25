@@ -70,6 +70,7 @@ export function ClassForm({
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState(classGroup?.name ?? "");
+  const [venue, setVenue] = useState(classGroup?.venue ?? "");
   const [daysOfWeek, setDaysOfWeek] = useState<DayOfWeek[]>(
     classGroup?.day_of_week ? [classGroup.day_of_week] : ["saturday"]
   );
@@ -87,6 +88,7 @@ export function ClassForm({
   const hasChanges =
     !classGroup ||
     name !== classGroup.name ||
+    (venue.trim() || null) !== (classGroup.venue ?? null) ||
     daysOfWeek.length !== 1 ||
     daysOfWeek[0] !== classGroup.day_of_week ||
     startTime !== toTimeInputValue(classGroup.start_time) ||
@@ -106,6 +108,7 @@ export function ClassForm({
 
     const input: ClassInput = {
       name,
+      venue: venue.trim() || null,
       days_of_week: daysOfWeek,
       start_time: startTime,
       end_time: endTime,
@@ -170,6 +173,16 @@ export function ClassForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="class_venue">Venue</Label>
+        <Input
+          id="class_venue"
+          value={venue}
+          onChange={(e) => setVenue(e.target.value)}
+          placeholder="e.g. Jurong East"
         />
       </div>
 

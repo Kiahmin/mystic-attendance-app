@@ -37,6 +37,7 @@ export interface Profile {
 export interface ClassGroup {
   id: string;
   name: string;
+  venue: string | null;
   day_of_week: DayOfWeek;
   start_time: string;
   end_time: string;
@@ -170,6 +171,7 @@ export interface Package {
   paused_reason: string | null;
   resumed_at: string | null;
   pause_used: boolean;
+  informed_at: string | null;
   status: PackageStatus;
   created_at: string;
   package_products?: PackageProduct | null;

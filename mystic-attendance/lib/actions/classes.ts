@@ -13,6 +13,7 @@ import { revalidatePath } from "next/cache";
 
 export type ClassInput = {
   name: string;
+  venue?: string | null;
   day_of_week?: DayOfWeek;
   days_of_week?: DayOfWeek[];
   start_time: string;
@@ -57,6 +58,7 @@ function validateClassInput(input: ClassInput): string | null {
 function toClassRow(input: ClassInput, dayOfWeek: DayOfWeek) {
   return {
     name: input.name.trim(),
+    venue: emptyToNull(input.venue),
     day_of_week: dayOfWeek,
     start_time: normalizeTime(input.start_time),
     end_time: normalizeTime(input.end_time),
@@ -83,6 +85,7 @@ export async function createClass(input: ClassInput) {
   }
 
   revalidatePath("/admin/classes");
+  revalidatePath("/admin");
   const ids = (data ?? []).map((row) => row.id as string);
   return { success: true as const, id: ids[0], ids };
 }
@@ -109,6 +112,7 @@ export async function updateClass(id: string, input: ClassInput) {
   }
 
   revalidatePath("/admin/classes");
+  revalidatePath("/admin");
   revalidatePath(`/admin/classes/${id}`);
   return { success: true as const };
 }
@@ -129,6 +133,7 @@ export async function setClassActive(id: string, isActive: boolean) {
   }
 
   revalidatePath("/admin/classes");
+  revalidatePath("/admin");
   revalidatePath(`/admin/classes/${id}`);
   return { success: true as const };
 }

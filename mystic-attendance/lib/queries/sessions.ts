@@ -62,6 +62,7 @@ function mapSessionWithClass(
         ? {
             id: classRow.id,
             name: classRow.name,
+            venue: classRow.venue ?? null,
             day_of_week: classRow.day_of_week,
             start_time: classRow.start_time,
             end_time: classRow.end_time,
@@ -284,6 +285,7 @@ const DASHBOARD_SESSION_SELECT = `
   classes (
     id,
     name,
+    venue,
     day_of_week,
     start_time,
     end_time,
@@ -304,6 +306,7 @@ export async function getCoachSessionsForToday(coachId: string) {
         classes (
           id,
           name,
+          venue,
           day_of_week,
           start_time,
           end_time,

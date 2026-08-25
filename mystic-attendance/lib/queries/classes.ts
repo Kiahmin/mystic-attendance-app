@@ -17,6 +17,7 @@ function asSingle<T>(value: T | T[] | null | undefined): T | null {
 function mapClassWithCoach(row: {
   id: string;
   name: string;
+  venue?: string | null;
   day_of_week: ClassGroup["day_of_week"];
   start_time: string;
   end_time: string;
@@ -42,6 +43,7 @@ function mapClassWithCoach(row: {
   return {
     id: row.id,
     name: row.name,
+    venue: row.venue?.trim() || null,
     day_of_week: row.day_of_week,
     start_time: row.start_time,
     end_time: row.end_time,
@@ -63,6 +65,7 @@ export async function listClasses(options?: {
       `
         id,
         name,
+        venue,
         day_of_week,
         start_time,
         end_time,
@@ -114,6 +117,7 @@ export async function getClassById(id: string): Promise<ClassDetail | null> {
       `
         id,
         name,
+        venue,
         day_of_week,
         start_time,
         end_time,
@@ -153,6 +157,7 @@ export async function getClassById(id: string): Promise<ClassDetail | null> {
   const row = data as {
     id: string;
     name: string;
+    venue?: string | null;
     day_of_week: ClassGroup["day_of_week"];
     start_time: string;
     end_time: string;
