@@ -123,16 +123,10 @@ export function DashboardCalendar({
   }
 
   return (
-    <section className="space-y-4" aria-busy={isPending}>
+    <section className="flex min-h-0 flex-1 flex-col gap-3" aria-busy={isPending}>
       {showProgress ? <NavigationProgressBar /> : null}
-      <div className="space-y-3">
-        <div>
-          <h2 className="font-heading text-lg font-semibold">Schedule</h2>
-          <p className="text-sm text-muted-foreground">
-            Click an empty slot to add an event.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <button
             type="button"
             onMouseEnter={() =>
@@ -170,7 +164,9 @@ export function DashboardCalendar({
               <ChevronRight className="size-4" />
             </button>
           </div>
-          <p className="px-1 text-sm font-medium">{display.label}</p>
+          <p className="min-w-0 px-1 text-sm font-medium">{display.label}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex h-8 items-stretch rounded-lg bg-muted p-[3px]">
             {CALENDAR_VIEWS.map((nextView) => (
               <button
@@ -202,7 +198,7 @@ export function DashboardCalendar({
 
       <div
         className={cn(
-          "transition-opacity",
+          "flex min-h-0 flex-1 flex-col transition-opacity",
           isPending && "opacity-60"
         )}
       >

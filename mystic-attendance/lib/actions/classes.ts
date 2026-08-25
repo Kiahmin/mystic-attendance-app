@@ -86,6 +86,7 @@ export async function createClass(input: ClassInput) {
 
   revalidatePath("/admin/classes");
   revalidatePath("/admin");
+  revalidatePath("/admin/schedule");
   const ids = (data ?? []).map((row) => row.id as string);
   return { success: true as const, id: ids[0], ids };
 }
@@ -113,6 +114,7 @@ export async function updateClass(id: string, input: ClassInput) {
 
   revalidatePath("/admin/classes");
   revalidatePath("/admin");
+  revalidatePath("/admin/schedule");
   revalidatePath(`/admin/classes/${id}`);
   return { success: true as const };
 }
@@ -134,6 +136,7 @@ export async function setClassActive(id: string, isActive: boolean) {
 
   revalidatePath("/admin/classes");
   revalidatePath("/admin");
+  revalidatePath("/admin/schedule");
   revalidatePath(`/admin/classes/${id}`);
   return { success: true as const };
 }

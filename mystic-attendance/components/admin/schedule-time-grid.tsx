@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  DAY_OF_WEEK_LETTER_LABELS,
   DAY_OF_WEEK_SHORT_LABELS,
   minutesToTime,
   timeToMinutes,
@@ -18,7 +19,7 @@ import type { DashboardSession, Profile } from "@/lib/types";
 import { ScheduleEvent } from "@/components/admin/schedule-event";
 import { cn } from "@/lib/utils";
 
-const HOUR_HEIGHT = 56;
+const MIN_HOUR_HEIGHT_PX = 48;
 const DEFAULT_START_HOUR = 8;
 const DEFAULT_END_HOUR = 21;
 const MIN_EVENT_HEIGHT = 22;
@@ -147,6 +148,10 @@ function useNowMinutes() {
   return minutes;
 }
 
+function offsetPct(minutes: number, gridStartMin: number, spanMin: number) {
+  return ((minutes - gridStartMin) / spanMin) * 100;
+}
+
 function snapMinutes(value: number, start: number, end: number) {
   const snapped = Math.round(value / SNAP_MINUTES) * SNAP_MINUTES;
   return Math.min(end, Math.max(start, snapped));
@@ -181,7 +186,8 @@ export function ScheduleTimeGrid({
   );
   const gridStartMin = startHour * 60;
   const gridEndMin = endHour * 60;
-  const height = hours.length * HOUR_HEIGHT;
+  const spanMin = Math.max(gridEndMin - gridStartMin, 60);
+  const gridTemplateColumns = `minmax(2.5rem, 3.5rem) repeat(${dates.length}, minmax(0, 1fr))`;
   const sessionsByDate = useMemo(() => {
     const map = new Map<string, DashboardSession[]>();
     for (const item of sessions) {
@@ -263,14 +269,12 @@ export function ScheduleTimeGrid({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
-      <div className="max-h-[min(72vh,840px)] overflow-auto">
-        <div className={cn(dates.length > 1 && "min-w-[720px]")}>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card">
+      <div className="min-h-0 flex-1 overflow-auto">
+        <div className="flex min-h-full min-w-0 flex-col">
           <div
-            className="sticky top-0 z-20 grid border-b border-border/60 bg-card"
-            style={{
-              gridTemplateColumns: `3.5rem repeat(${dates.length}, minmax(0, 1fr))`,
-            }}
+            className="sticky top-0 z-20 grid shrink-0 border-b border-border/60 bg-card"
+            style={{ gridTemplateColumns }}
           >
             <div />
             {dates.map((day) => {
@@ -280,16 +284,25 @@ export function ScheduleTimeGrid({
                 <div
                   key={day}
                   className={cn(
-                    "px-1 py-2 text-center",
+                    "min-w-0 px-0.5 py-1.5 text-center sm:px-1 sm:py-2",
                     isToday && "bg-primary/5"
                   )}
                 >
-                  <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    {weekday ? DAY_OF_WEEK_SHORT_LABELS[weekday] : ""}
+                  <p className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase sm:text-[11px]">
+                    {weekday ? (
+                      <>
+                        <span className="sm:hidden">
+                          {DAY_OF_WEEK_LETTER_LABELS[weekday]}
+                        </span>
+                        <span className="hidden sm:inline">
+                          {DAY_OF_WEEK_SHORT_LABELS[weekday]}
+                        </span>
+                      </>
+                    ) : null}
                   </p>
                   <p
                     className={cn(
-                      "mx-auto mt-1 flex size-8 items-center justify-center text-sm font-semibold",
+                      "mx-auto mt-0.5 flex size-7 items-center justify-center text-xs font-semibold sm:mt-1 sm:size-8 sm:text-sm",
                       isToday
                         ? "rounded-full bg-primary text-primary-foreground"
                         : "text-foreground"
@@ -303,10 +316,10 @@ export function ScheduleTimeGrid({
           </div>
 
           <div
-            className="relative grid"
+            className="relative grid min-h-0 min-w-0 flex-1"
             style={{
-              gridTemplateColumns: `3.5rem repeat(${dates.length}, minmax(0, 1fr))`,
-              height,
+              gridTemplateColumns,
+              minHeight: hours.length * MIN_HOUR_HEIGHT_PX,
             }}
           >
             <div className="relative">
@@ -314,10 +327,12 @@ export function ScheduleTimeGrid({
                 <div
                   key={hour}
                   className={cn(
-                    "absolute right-2 text-[11px] text-muted-foreground",
+                    "absolute right-1 text-[10px] text-muted-foreground sm:right-2 sm:text-[11px]",
                     index > 0 && "-translate-y-1/2"
                   )}
-                  style={{ top: index * HOUR_HEIGHT }}
+                  style={{
+                    top: `${hours.length ? (index / hours.length) * 100 : 0}%`,
+                  }}
                 >
                   {formatHourLabel(hour)}
                 </div>
@@ -336,7 +351,7 @@ export function ScheduleTimeGrid({
                 <div
                   key={day}
                   className={cn(
-                    "relative border-l border-border/60",
+                    "relative min-w-0 border-l border-border/60",
                     isToday && "bg-primary/5"
                   )}
                 >
@@ -351,7 +366,9 @@ export function ScheduleTimeGrid({
                     <div
                       key={hour}
                       className="pointer-events-none absolute inset-x-0 border-t border-border/50"
-                      style={{ top: index * HOUR_HEIGHT }}
+                      style={{
+                        top: `${hours.length ? (index / hours.length) * 100 : 0}%`,
+                      }}
                     />
                   ))}
 
@@ -359,7 +376,7 @@ export function ScheduleTimeGrid({
                     <div
                       className="pointer-events-none absolute inset-x-0 z-10"
                       style={{
-                        top: ((nowMinutes - gridStartMin) / 60) * HOUR_HEIGHT,
+                        top: `${offsetPct(nowMinutes, gridStartMin, spanMin)}%`,
                       }}
                     >
                       <div className="relative border-t-2 border-red-500">
@@ -372,31 +389,26 @@ export function ScheduleTimeGrid({
                     <div
                       className="pointer-events-none absolute inset-x-1 z-[2] rounded-md border border-chart-3/40 bg-chart-3/20"
                       style={{
-                        top:
-                          ((Math.min(drag.originMin, drag.currentMin) -
-                            gridStartMin) /
-                            60) *
-                          HOUR_HEIGHT,
-                        height: Math.max(
+                        top: `${offsetPct(
+                          Math.min(drag.originMin, drag.currentMin),
+                          gridStartMin,
+                          spanMin
+                        )}%`,
+                        height: `${Math.max(
                           (Math.max(
                             SNAP_MINUTES,
                             Math.abs(drag.currentMin - drag.originMin)
                           ) /
-                            60) *
-                            HOUR_HEIGHT,
-                          MIN_EVENT_HEIGHT
-                        ),
+                            spanMin) *
+                            100,
+                          0
+                        )}%`,
+                        minHeight: MIN_EVENT_HEIGHT,
                       }}
                     />
                   ) : null}
 
                   {laidOut.map((entry) => {
-                    const top =
-                      ((entry.startMin - gridStartMin) / 60) * HOUR_HEIGHT;
-                    const heightPx = Math.max(
-                      ((entry.endMin - entry.startMin) / 60) * HOUR_HEIGHT,
-                      MIN_EVENT_HEIGHT
-                    );
                     const widthPct = 100 / entry.colCount;
                     return (
                       <ScheduleEvent
@@ -406,10 +418,10 @@ export function ScheduleTimeGrid({
                         view={view}
                         date={date}
                         variant="block"
-                        className="z-[1] pointer-events-auto"
+                        className="z-[1] pointer-events-auto min-h-[1.375rem]"
                         style={{
-                          top,
-                          height: heightPx,
+                          top: `${offsetPct(entry.startMin, gridStartMin, spanMin)}%`,
+                          height: `${((entry.endMin - entry.startMin) / spanMin) * 100}%`,
                           left: `calc(${entry.col * widthPct}% + 2px)`,
                           width: `calc(${widthPct}% - 4px)`,
                         }}

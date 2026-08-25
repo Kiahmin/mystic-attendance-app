@@ -134,7 +134,7 @@ export function ScheduleEvent({
           >
             {variant === "chip" ? (
               <>
-                <span className="shrink-0 font-medium">
+                <span className="hidden shrink-0 font-medium sm:inline">
                   {formatSessionTime(startTime)}
                 </span>
                 <span className="min-w-0 truncate font-semibold">
@@ -144,9 +144,23 @@ export function ScheduleEvent({
             ) : (
               <>
                 <p className="truncate font-semibold">{displayName}</p>
-                <p className="truncate opacity-80">{timeLabel}</p>
+                <p
+                  className={cn(
+                    "truncate opacity-80",
+                    view !== "day" && "hidden sm:block"
+                  )}
+                >
+                  {timeLabel}
+                </p>
                 {coachName ? (
-                  <p className="truncate opacity-80">{coachName}</p>
+                  <p
+                    className={cn(
+                      "truncate opacity-80",
+                      view !== "day" && "hidden md:block"
+                    )}
+                  >
+                    {coachName}
+                  </p>
                 ) : null}
               </>
             )}
