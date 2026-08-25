@@ -3,12 +3,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Plus, UserRound } from "lucide-react";
 import { requireRole } from "@/lib/auth/profile";
 import { ageFromDob, SKILL_LEVEL_LABELS } from "@/lib/admin-utils";
-import { packageIsTrialProduct } from "@/lib/package-utils";
 import { listClasses } from "@/lib/queries/classes";
-import {
-  listPackagesForStudent,
-  listTrialPackageProducts,
-} from "@/lib/queries/packages";
+import { listPackagesForStudent } from "@/lib/queries/packages";
 import { getStudentById } from "@/lib/queries/students";
 import { ArchiveStudentButton } from "@/components/admin/archive-student-button";
 import { EnrolmentManager } from "@/components/admin/enrolment-manager";
@@ -34,17 +30,15 @@ export default async function AdminStudentDetailPage({
   await requireRole(["admin"]);
   const { id } = await params;
 
-  const [student, classes, packages, trialProducts] = await Promise.all([
+  const [student, classes, packages] = await Promise.all([
     getStudentById(id),
     listClasses({ activeOnly: true }),
     listPackagesForStudent(id),
-    listTrialPackageProducts(),
   ]);
 
   if (!student) notFound();
 
   const age = ageFromDob(student.date_of_birth);
-  const hasTrialPackage = packages.some(packageIsTrialProduct);
 
   return (
     <div className="space-y-6">
@@ -174,11 +168,7 @@ export default async function AdminStudentDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <StudentForm
-              student={student}
-              trialProducts={trialProducts}
-              hasTrialPackage={hasTrialPackage}
-            />
+            <StudentForm student={student} />
           </CardContent>
         </Card>
       </div>

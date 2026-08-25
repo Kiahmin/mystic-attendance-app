@@ -35,7 +35,8 @@ import { Textarea } from "@/components/ui/textarea";
 
 type StudentFormProps = {
   student?: Student;
-  trialProducts: PackageProduct[];
+  /** Only used when creating a student; trial setup is not offered when editing. */
+  trialProducts?: PackageProduct[];
   hasTrialPackage?: boolean;
   onSuccess?: (id: string) => void;
   submitLabel?: string;
@@ -45,7 +46,7 @@ type StudentFormProps = {
 
 export function StudentForm({
   student,
-  trialProducts,
+  trialProducts = [],
   hasTrialPackage = false,
   onSuccess,
   submitLabel,
@@ -95,7 +96,8 @@ export function StudentForm({
     [dateOfBirth]
   );
   const age = useMemo(() => ageFromDob(dateOfBirth || null), [dateOfBirth]);
-  const needsTrialPackage = isTrial && !hasTrialPackage;
+  const showTrialFields = !student;
+  const needsTrialPackage = showTrialFields && isTrial && !hasTrialPackage;
 
   function handleTrialProductChange(product: PackageProduct) {
     setTrialProductId(product.id);
@@ -230,34 +232,24 @@ export function StudentForm({
           />
         </div>
 
-        <label className="flex cursor-pointer items-center gap-2">
-          <input
-            type="checkbox"
-            checked={isTrial}
-            onChange={(event) => setIsTrial(event.target.checked)}
-            className="size-4 accent-primary"
-          />
-          <span className="text-sm font-medium">Trial student</span>
-        </label>
-        {!isTrial
-          ? student?.is_trial
-            ? (
-                <p className="text-sm text-muted-foreground">
-                  Clears the trial flag. Existing packages stay as they are.
-                </p>
-              )
-            : null
-          : hasTrialPackage
-            ? (
-                <p className="text-sm text-muted-foreground">
-                  Student already has a trial pack.
-                </p>
-              )
-            : (
-                <p className="text-sm text-muted-foreground">
-                  Requires a Trial (Group) or Trial (Private) pack.
-                </p>
-              )}
+        {showTrialFields ? (
+          <>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={isTrial}
+                onChange={(event) => setIsTrial(event.target.checked)}
+                className="size-4 accent-primary"
+              />
+              <span className="text-sm font-medium">Trial student</span>
+            </label>
+            {isTrial ? (
+              <p className="text-sm text-muted-foreground">
+                Requires a Trial (Group) or Trial (Private) pack.
+              </p>
+            ) : null}
+          </>
+        ) : null}
 
         {needsTrialPackage ? (
           <div className="space-y-4 rounded-xl border border-border/70 p-4">
