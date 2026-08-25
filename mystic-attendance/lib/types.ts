@@ -1,16 +1,8 @@
 export type UserRole = "admin" | "coach";
 
-export type AttendanceStatus =
-  | "present"
-  | "absent"
-  | "no_show"
-  | "cancelled_valid"
-  | "cancelled_late"
-  | "session_cancelled"
-  | "complimentary"
-  | "walk_in";
+export type AttendanceStatus = "present" | "absent" | "no_show";
 
-export type WalkInStatus = "admitted" | "declined";
+export type AttendeeSource = "enrolled" | "one_off" | "walk_in";
 
 export type PackageStatus =
   | "unpaid"
@@ -193,12 +185,31 @@ export interface Attendance {
   session_id: string;
   student_id: string;
   status: AttendanceStatus | null;
-  walk_in_status: WalkInStatus | null;
+  attendee_source: AttendeeSource;
   decline_reason: string | null;
   deduct_credit: boolean;
   package_id: string | null;
   marked_by: string | null;
   marked_at: string | null;
+}
+
+/** One attendance row flattened for the student attendance history table. */
+export interface StudentAttendanceEntry {
+  id: string;
+  status: AttendanceStatus | null;
+  attendeeSource: AttendeeSource;
+  decline_reason: string | null;
+  deduct_credit: boolean;
+  package_id: string | null;
+  marked_at: string | null;
+  sessionId: string;
+  sessionDate: string;
+  sessionKind: SessionKind;
+  sessionName: string;
+  startTime: string;
+  coachName: string | null;
+  markedByName: string | null;
+  packageName: string | null;
 }
 
 export interface SessionWithClass extends Session {

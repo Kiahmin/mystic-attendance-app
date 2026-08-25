@@ -66,9 +66,7 @@ export function AttendancePanel({
   const addSearchSeq = useRef(0);
 
   const checkedInCount = enrolledStudents.filter(
-    (entry) =>
-      entry.attendance?.status === "present" ||
-      entry.attendance?.status === "walk_in"
+    (entry) => entry.attendance?.status === "present"
   ).length;
 
   const trimmedAddQuery = addQuery.trim();
