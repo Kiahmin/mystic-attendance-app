@@ -12,7 +12,6 @@ import {
 import { ArchiveStudentButton } from "@/components/admin/archive-student-button";
 import { PackageStatusBadge } from "@/components/admin/package-status-badge";
 import {
-  ColumnFilter,
   SortHeader,
   cycleColumnSort,
   type TableSort,
@@ -179,13 +178,15 @@ function RosterValidityCell({ pkg }: { pkg: StudentRosterPackage | null }) {
     return <span className="text-sm text-muted-foreground">—</span>;
   }
 
+  if (!pkg.first_lesson_date) {
+    return <span className="text-sm text-muted-foreground">Not started</span>;
+  }
+
   return (
     <div className="min-w-0">
       <p className="text-sm">{formatPackageExpiry(pkg.expires_at)}</p>
       <p className="text-xs text-muted-foreground">
-        {pkg.first_lesson_date
-          ? `First lesson ${formatCalendarDate(pkg.first_lesson_date)}`
-          : "Not started"}
+        First lesson {formatCalendarDate(pkg.first_lesson_date)}
       </p>
     </div>
   );
@@ -236,7 +237,9 @@ export function StudentList({
   const [trialsOnly, setTrialsOnly] = useState(false);
   const [inactiveOnly, setInactiveOnly] = useState(initialInactive);
   const [skillFilters, setSkillFilters] = useState<SkillFilter[]>([]);
-  const [packageFilters, setPackageFilters] = useState<PackageFilter[]>([]);
+  const [statusFilter, setStatusFilter] = useState<PackageFilter | "all">(
+    "all"
+  );
   const [classFilter, setClassFilter] = useState<string>("all");
   const [venueFilter, setVenueFilter] = useState<string>("all");
   const [sort, setSort] = useState<StudentSort>(DEFAULT_SORT);
@@ -272,9 +275,9 @@ export function StudentList({
         const skillValue: SkillFilter = s.skill_level ?? "unset";
         if (!skillFilters.includes(skillValue)) return false;
       }
-      if (packageFilters.length > 0) {
+      if (statusFilter !== "all") {
         const packageValue: PackageFilter = s.roster_package?.status ?? "none";
-        if (!packageFilters.includes(packageValue)) return false;
+        if (packageValue !== statusFilter) return false;
       }
       if (classFilter !== "all" && !s.class_ids.includes(classFilter)) {
         return false;
@@ -296,7 +299,7 @@ export function StudentList({
     trialsOnly,
     inactiveOnly,
     skillFilters,
-    packageFilters,
+    statusFilter,
     classFilter,
     venueFilter,
     sort,
@@ -380,6 +383,28 @@ export function StudentList({
               {venues.map((venue) => (
                 <SelectItem key={venue} value={venue}>
                   {venue}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value as PackageFilter | "all");
+              resetPage();
+            }}
+          >
+            <SelectTrigger
+              className="h-11 w-full min-w-[10.5rem] border-border/80 bg-card sm:w-auto"
+              aria-label="Filter status"
+            >
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {PACKAGE_FILTER_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -486,7 +511,7 @@ export function StudentList({
             <div className="lg:min-w-[56rem]">
               <div
                 className={cn(
-                  "flex gap-6 border-b border-border/60 bg-muted/50 px-5 py-3.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase lg:grid",
+                  "hidden gap-6 border-b border-border/60 bg-muted/50 px-5 py-3.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase lg:grid",
                   ROSTER_GRID
                 )}
               >
@@ -504,15 +529,7 @@ export function StudentList({
                   />
                 </span>
                 <span className="hidden lg:block">Venue & schedule</span>
-                <ColumnFilter
-                  label="Package"
-                  options={PACKAGE_FILTER_OPTIONS}
-                  selected={packageFilters}
-                  onChange={(next) => {
-                    setPackageFilters(next);
-                    resetPage();
-                  }}
-                />
+                <span className="hidden lg:block">Package</span>
                 <span className="hidden lg:block">Validity</span>
                 <span className="hidden lg:block">Status</span>
                 <span className="hidden w-full lg:block" aria-hidden />
