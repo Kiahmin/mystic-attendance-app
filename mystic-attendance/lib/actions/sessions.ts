@@ -6,7 +6,6 @@ import {
   timeToMinutes,
 } from "@/lib/admin-utils";
 import { requireRole } from "@/lib/auth/profile";
-import { loadEffectiveSessionRoster } from "@/lib/session-roster";
 import { isValidCalendarDate } from "@/lib/datetime";
 import {
   CANCELLATION_REASONS,
@@ -159,7 +158,7 @@ export async function cancelSession(
 
   const { data: session, error: sessionError } = await supabase
     .from("sessions")
-    .select("id, class_id, cancelled")
+    .select("id, cancelled")
     .eq("id", sessionId)
     .single();
 
@@ -186,39 +185,13 @@ export async function cancelSession(
     return { error: updateError.message };
   }
 
-  let roster;
-  try {
-    roster = await loadEffectiveSessionRoster(
-      supabase,
-      sessionId,
-      session.class_id as string | null
-    );
-  } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : "Failed to load roster.",
-    };
-  }
+  const { error: attendanceError } = await supabase
+    .from("attendance")
+    .delete()
+    .eq("session_id", sessionId);
 
-  if (roster.length) {
-    const rows = roster.map((entry) => ({
-      session_id: sessionId,
-      student_id: entry.studentId,
-      status: "session_cancelled" as const,
-      deduct_credit: false,
-      marked_by: profile.id,
-      marked_at: new Date().toISOString(),
-      walk_in_status: null,
-      decline_reason: null,
-      package_id: null,
-    }));
-
-    const { error: attendanceError } = await supabase
-      .from("attendance")
-      .upsert(rows, { onConflict: "session_id,student_id" });
-
-    if (attendanceError) {
-      return { error: attendanceError.message };
-    }
+  if (attendanceError) {
+    return { error: attendanceError.message };
   }
 
   revalidateSessionPaths(sessionId);

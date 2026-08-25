@@ -1,4 +1,4 @@
-import type { AttendanceStatus } from "@/lib/types";
+import type { AttendanceStatus, AttendeeSource } from "@/lib/types";
 import {
   formatCalendarDate,
   isOnOrBeforeDaysFromToday,
@@ -8,21 +8,35 @@ export function defaultDeductCredit(status: AttendanceStatus): boolean {
   switch (status) {
     case "present":
     case "no_show":
-    case "cancelled_late":
       return true;
     default:
       return false;
   }
 }
 
+export type AttendanceCreditState = "charged" | "uncharged" | "free";
+
+/**
+ * Mirrors the `attendance_is_charged` SQL predicate: a credit only moves once a
+ * package is attached, so rows awaiting payment backfill are "uncharged".
+ */
+export function attendanceCreditState(row: {
+  deduct_credit: boolean;
+  package_id: string | null;
+}): AttendanceCreditState {
+  if (!row.deduct_credit) return "free";
+  return row.package_id ? "charged" : "uncharged";
+}
+
 export const ATTENDANCE_STATUS_LABELS: Record<AttendanceStatus, string> = {
   present: "Present",
   absent: "Absent",
   no_show: "No-show",
-  cancelled_valid: "Cancelled (in time)",
-  cancelled_late: "Cancelled (late)",
-  session_cancelled: "Session cancelled",
-  complimentary: "Complimentary",
+};
+
+export const ATTENDEE_SOURCE_LABELS: Record<AttendeeSource, string> = {
+  enrolled: "Enrolled",
+  one_off: "One-off",
   walk_in: "Walk-in",
 };
 
