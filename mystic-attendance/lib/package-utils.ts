@@ -222,6 +222,16 @@ export function atRiskReason(pkg: Package): string | null {
   return null;
 }
 
+/** Finished, expired, or an event pack whose event day has gone by. */
+export function isPastPackage(
+  pkg: Package,
+  today: string = todayInSingapore()
+): boolean {
+  if (pkg.status === "expired" || pkg.status === "exhausted") return true;
+  const eventDate = pkg.sessions?.session_date;
+  return Boolean(pkg.session_id && eventDate && eventDate < today);
+}
+
 export function canPausePackage(pkg: Package): boolean {
   return (
     !pkg.session_id &&

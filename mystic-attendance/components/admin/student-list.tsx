@@ -298,7 +298,7 @@ export function AddStudentButton({
       <DialogTrigger asChild>
         <Button className="inline-flex h-11 min-h-11 items-center px-6">
           <Plus className="size-4" />
-          Add Skater
+          Add Student
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -478,7 +478,7 @@ export function StudentList({
         <button
           type="button"
           className={cn(
-            "border-b-2 px-1 pb-3 text-xs font-semibold tracking-wide uppercase transition-colors",
+            "-mb-px border-b-2 px-1 pb-3 text-xs font-semibold tracking-wide uppercase transition-colors",
             tab === "active"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -493,7 +493,7 @@ export function StudentList({
         <button
           type="button"
           className={cn(
-            "border-b-2 px-1 pb-3 text-xs font-semibold tracking-wide uppercase transition-colors",
+            "-mb-px border-b-2 px-1 pb-3 text-xs font-semibold tracking-wide uppercase transition-colors",
             tab === "archived"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -598,15 +598,7 @@ export function StudentList({
                     )}
                   >
                     <div className="min-w-0">
-                      <p
-                        className={cn(
-                          "truncate",
-                          archived &&
-                            "line-through decoration-muted-foreground"
-                        )}
-                      >
-                        {student.full_name}
-                      </p>
+                      <p className="truncate">{student.full_name}</p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-2">
                         {student.is_trial ? (
                           <Badge variant="warning">Trial</Badge>
