@@ -194,6 +194,7 @@ export async function getStudentById(
           classes (
             id,
             name,
+            venue,
             day_of_week,
             start_time,
             end_time,

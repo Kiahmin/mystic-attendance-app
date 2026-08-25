@@ -40,6 +40,7 @@ const STUDENT_ATTENDANCE_SELECT = `
     classes (
       id,
       name,
+      venue,
       day_of_week,
       start_time,
       end_time,
