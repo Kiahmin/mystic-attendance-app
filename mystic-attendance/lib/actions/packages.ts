@@ -11,6 +11,7 @@ import {
   PAYMENT_METHODS,
   buildPauseReason,
   isTrialProductType,
+  LOW_CREDIT_THRESHOLD,
   type PauseReasonValue,
 } from "@/lib/package-utils";
 import { getPackageProductById } from "@/lib/queries/packages";
@@ -391,6 +392,46 @@ export async function resumePackage(
   const { error } = await supabase
     .from("packages")
     .update(updates)
+    .eq("id", packageId);
+
+  if (error) return { error: error.message };
+
+  revalidatePackagePaths(existing.student_id as string, packageId);
+  return { success: true as const };
+}
+
+export async function markPackageInformed(packageId: string) {
+  await requireRole(["admin"]);
+
+  if (!packageId) return { error: "Package id is required." };
+
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from("packages")
+    .select(
+      "id, student_id, session_id, status, remaining_credits, informed_at"
+    )
+    .eq("id", packageId)
+    .maybeSingle();
+
+  if (fetchError) return { error: fetchError.message };
+  if (!existing) return { error: "Package not found." };
+  if (existing.session_id) {
+    return { error: "Event packages cannot be marked as informed." };
+  }
+  if (existing.status !== "active") {
+    return { error: "Only active packages can be marked as informed." };
+  }
+  if (Number(existing.remaining_credits) > LOW_CREDIT_THRESHOLD) {
+    return { error: "Only packages with two or fewer lessons remaining can be informed." };
+  }
+  if (existing.informed_at) {
+    return { error: "This package is already on the informed list." };
+  }
+
+  const { error } = await supabase
+    .from("packages")
+    .update({ informed_at: new Date().toISOString() })
     .eq("id", packageId);
 
   if (error) return { error: error.message };
