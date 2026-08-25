@@ -172,31 +172,29 @@ export function StudentCheckInRow({
         </p>
       ) : null}
 
-      {!entry.isWalkIn ? (
-        <div className="grid grid-cols-3 gap-2">
-          {STATUS_BUTTONS.map(
-            ({ status, label, icon: Icon, inactiveClass, activeClass }) => {
-              const active = optimisticStatus === status;
-              return (
-                <Button
-                  key={status}
-                  type="button"
-                  disabled={disabled || pending}
-                  onClick={() => handleMark(status)}
-                  variant="ghost"
-                  className={cn(
-                    "h-12 flex-col gap-1 rounded-lg text-xs font-medium",
-                    active ? activeClass : inactiveClass
-                  )}
-                >
-                  <Icon className="size-4" />
-                  {label}
-                </Button>
-              );
-            }
-          )}
-        </div>
-      ) : null}
+      <div className="grid grid-cols-3 gap-2">
+        {STATUS_BUTTONS.map(
+          ({ status, label, icon: Icon, inactiveClass, activeClass }) => {
+            const active = optimisticStatus === status;
+            return (
+              <Button
+                key={status}
+                type="button"
+                disabled={disabled || pending}
+                onClick={() => handleMark(status)}
+                variant="ghost"
+                className={cn(
+                  "h-12 flex-col gap-1 rounded-lg text-xs font-medium",
+                  active ? activeClass : inactiveClass
+                )}
+              >
+                <Icon className="size-4" />
+                {label}
+              </Button>
+            );
+          }
+        )}
+      </div>
     </div>
   );
 }

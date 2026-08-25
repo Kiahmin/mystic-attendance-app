@@ -82,8 +82,8 @@ export function CancelSessionDialog({
         <DialogHeader>
           <DialogTitle>Cancel session</DialogTitle>
           <DialogDescription>
-            Cancel {className}. Enrolled students keep their credits; attendance
-            is marked as session cancelled.
+            Cancel {className}. Attendance records for this session are removed
+            and any deducted credits are returned.
           </DialogDescription>
         </DialogHeader>
 

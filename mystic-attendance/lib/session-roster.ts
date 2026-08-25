@@ -147,7 +147,7 @@ export async function loadEffectiveSessionRosters(
     result.set(
       session.sessionId,
       computeEffectiveRoster(
-        enrolmentsByClass.get(session.classId) ?? [],
+        (session.classId ? enrolmentsByClass.get(session.classId) : null) ?? [],
         overridesBySession.get(session.sessionId) ?? []
       )
     );
