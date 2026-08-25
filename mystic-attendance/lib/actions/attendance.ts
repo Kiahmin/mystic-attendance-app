@@ -3,7 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { defaultDeductCredit } from "@/lib/attendance-utils";
 import { requireProfile } from "@/lib/auth/profile";
-import type { AttendanceStatus, WalkInStatus } from "@/lib/types";
+import { loadEffectiveSessionRoster } from "@/lib/session-roster";
+import type { AttendanceStatus, AttendeeSource } from "@/lib/types";
 import { revalidateSessionAttendance } from "@/lib/revalidate-session";
 
 async function resolveChargeablePackage(
@@ -57,6 +58,19 @@ async function resolveEventPackage(
   return data.id as string;
 }
 
+async function resolveAttendeeSource(
+  sessionId: string,
+  studentId: string,
+  classId: string | null
+): Promise<AttendeeSource> {
+  const supabase = await createClient();
+  const roster = await loadEffectiveSessionRoster(supabase, sessionId, classId);
+  const entry = roster.find((row) => row.studentId === studentId);
+  if (entry?.source === "include") return "one_off";
+  if (entry?.source === "enrolled") return "enrolled";
+  return "walk_in";
+}
+
 export async function markAttendance(
   sessionId: string,
   studentId: string,
@@ -67,7 +81,7 @@ export async function markAttendance(
 
   const { data: session, error: sessionError } = await supabase
     .from("sessions")
-    .select("session_date, cancelled, requires_attendance, kind")
+    .select("session_date, cancelled, requires_attendance, kind, class_id")
     .eq("id", sessionId)
     .single();
 
@@ -83,27 +97,50 @@ export async function markAttendance(
     return { error: "Attendance is not taken for this event." };
   }
 
-  const deduct_credit = defaultDeductCredit(status);
+  const { data: existing, error: existingError } = await supabase
+    .from("attendance")
+    .select("attendee_source")
+    .eq("session_id", sessionId)
+    .eq("student_id", studentId)
+    .maybeSingle();
+
+  if (existingError) {
+    return { error: existingError.message };
+  }
+
+  const attendee_source: AttendeeSource = existing
+    ? (existing.attendee_source as AttendeeSource)
+    : await resolveAttendeeSource(
+        sessionId,
+        studentId,
+        (session.class_id as string | null) ?? null
+      );
+
+  const deduct_credit =
+    attendee_source === "walk_in" ? false : defaultDeductCredit(status);
   const package_id = deduct_credit
     ? session.kind === "event"
       ? await resolveEventPackage(studentId, sessionId, session.session_date)
       : await resolveChargeablePackage(studentId, session.session_date)
     : null;
 
-  const { error } = await supabase.from("attendance").upsert(
-    {
-      session_id: sessionId,
-      student_id: studentId,
-      status,
-      deduct_credit,
-      package_id,
-      marked_by: profile.id,
-      marked_at: new Date().toISOString(),
-      walk_in_status: null,
-      decline_reason: null,
-    },
-    { onConflict: "session_id,student_id" }
-  );
+  const payload: Record<string, unknown> = {
+    session_id: sessionId,
+    student_id: studentId,
+    status,
+    deduct_credit,
+    package_id,
+    marked_by: profile.id,
+    marked_at: new Date().toISOString(),
+    decline_reason: null,
+  };
+  if (!existing) {
+    payload.attendee_source = attendee_source;
+  }
+
+  const { error } = await supabase
+    .from("attendance")
+    .upsert(payload, { onConflict: "session_id,student_id" });
 
   if (error) {
     return { error: error.message };
@@ -116,7 +153,7 @@ export async function markAttendance(
 export async function markWalkIn(
   sessionId: string,
   studentId: string,
-  walkInStatus: WalkInStatus,
+  walkInStatus: "admitted" | "declined",
   declineReason?: string
 ) {
   const profile = await requireProfile();
@@ -148,8 +185,8 @@ export async function markWalkIn(
     {
       session_id: sessionId,
       student_id: studentId,
-      status: "walk_in",
-      walk_in_status: walkInStatus,
+      status: walkInStatus === "admitted" ? "present" : "absent",
+      attendee_source: "walk_in",
       decline_reason:
         walkInStatus === "declined" ? declineReason?.trim() ?? null : null,
       deduct_credit: false,

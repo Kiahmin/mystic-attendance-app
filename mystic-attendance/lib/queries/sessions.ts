@@ -183,12 +183,13 @@ async function enrichDashboardSessions(
               session_id: string;
               student_id: string;
               status: string | null;
+              attendee_source: string | null;
             }[],
             error: null,
           })
         : supabase
             .from("attendance")
-            .select("session_id, student_id, status")
+            .select("session_id, student_id, status, attendee_source")
             .in("session_id", sessionIds),
       studentIds.length === 0
         ? Promise.resolve({ data: [] as DashboardPackageRow[], error: null })
@@ -218,13 +219,14 @@ async function enrichDashboardSessions(
     const sessionId = row.session_id as string;
     const studentId = row.student_id as string;
     const status = row.status;
-    if (status === "present" || status === "walk_in") {
+    const attendeeSource = row.attendee_source as string | null;
+    if (status === "present") {
       checkedInBySession.set(
         sessionId,
         (checkedInBySession.get(sessionId) ?? 0) + 1
       );
     }
-    if (status !== "walk_in") {
+    if (attendeeSource !== "walk_in") {
       const recorded = recordedExpectedBySession.get(sessionId) ?? new Set();
       recorded.add(studentId);
       recordedExpectedBySession.set(sessionId, recorded);
@@ -445,7 +447,7 @@ export async function getSessionCheckInList(
   const walkInStudentIds = attendanceRows
     .filter(
       (row) =>
-        row.status === "walk_in" &&
+        row.attendee_source === "walk_in" &&
         !expectedStudentIds.has(row.student_id as string)
     )
     .map((row) => row.student_id as string);
@@ -453,7 +455,7 @@ export async function getSessionCheckInList(
   const formerStudentIds = attendanceRows
     .filter(
       (row) =>
-        row.status !== "walk_in" &&
+        row.attendee_source !== "walk_in" &&
         !expectedStudentIds.has(row.student_id as string)
     )
     .map((row) => row.student_id as string);
@@ -523,7 +525,10 @@ export async function getSessionCheckInList(
       package: pkg,
       chargeablePackageId:
         pkg && pkg.is_paid && pkg.remaining_credits > 0 ? pkg.id : null,
-      isWalkIn,
+      isWalkIn:
+        isWalkIn ||
+        (attendanceByStudent.get(student.id) as CheckInStudent["attendance"])
+          ?.attendee_source === "walk_in",
       rosterSource,
     };
   }

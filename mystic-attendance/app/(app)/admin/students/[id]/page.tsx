@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Plus, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarCheck, Plus, UserRound } from "lucide-react";
 import { requireRole } from "@/lib/auth/profile";
 import { ageFromDob, SKILL_LEVEL_LABELS } from "@/lib/admin-utils";
 import { listClasses } from "@/lib/queries/classes";
@@ -53,11 +53,20 @@ export default async function AdminStudentDetailPage({
           <ArrowLeft className="size-4" />
           Back to Students
         </Link>
-        <ArchiveStudentButton
-          studentId={student.id}
-          studentName={student.full_name}
-          archived={Boolean(student.archived_at)}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/admin/students/${student.id}/attendance`}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
+            <CalendarCheck className="size-4" />
+            Attendance History
+          </Link>
+          <ArchiveStudentButton
+            studentId={student.id}
+            studentName={student.full_name}
+            archived={Boolean(student.archived_at)}
+          />
+        </div>
       </div>
 
       {student.archived_at ? (
