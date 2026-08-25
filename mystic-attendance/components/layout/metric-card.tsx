@@ -10,6 +10,7 @@ import {
 interface MetricCardProps {
   label: string;
   value: React.ReactNode;
+  detail?: string;
   icon?: React.ReactNode;
   accent?: "default" | "warning" | "destructive";
   className?: string;
@@ -25,6 +26,7 @@ const accentClasses = {
 export function MetricCard({
   label,
   value,
+  detail,
   icon,
   accent = "default",
   className,
@@ -52,6 +54,11 @@ export function MetricCard({
         <p className="font-heading text-3xl font-semibold tracking-tight">
           {value}
         </p>
+        {detail ? (
+          <p className="mt-1 text-sm font-normal text-muted-foreground">
+            {detail}
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );

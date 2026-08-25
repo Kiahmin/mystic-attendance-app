@@ -45,6 +45,7 @@ const PACKAGE_COLUMNS = `
   paused_reason,
   resumed_at,
   pause_used,
+  informed_at,
   status,
   created_at,
   package_products (
@@ -95,6 +96,8 @@ function mapPackage(row: {
         : Number(row.amount_sgd),
     package_products: product,
     sessions: asSingle(row.sessions),
+    informed_at:
+      typeof row.informed_at === "string" ? row.informed_at : null,
   };
 }
 
