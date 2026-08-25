@@ -97,7 +97,7 @@ insert into profiles (id, full_name, role, phone) values
 -- Classes
 -- ---------------------------------------------------------------------------
 
-insert into classes (id, name, day_of_week, start_time, end_time, coach_id, is_active) values
+insert into classes (id, name, day_of_week, start_time, end_time, coach_id, is_active, venue_id) values
   (
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     'Saturday Beginners',
@@ -105,7 +105,8 @@ insert into classes (id, name, day_of_week, start_time, end_time, coach_id, is_a
     '09:00',
     '10:00',
     '22222222-2222-2222-2222-222222222222',
-    true
+    true,
+    (select id from venues where name = 'Stadium')
   ),
   (
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
@@ -114,7 +115,8 @@ insert into classes (id, name, day_of_week, start_time, end_time, coach_id, is_a
     '10:30',
     '11:30',
     '22222222-2222-2222-2222-222222222222',
-    true
+    true,
+    (select id from venues where name = 'Stadium')
   );
 
 -- ---------------------------------------------------------------------------
@@ -208,14 +210,15 @@ insert into packages (
 -- Sessions (upcoming Saturday class — dates in Asia/Singapore)
 -- ---------------------------------------------------------------------------
 
-insert into sessions (id, class_id, session_date, coach_id, start_time, end_time)
+insert into sessions (id, class_id, session_date, coach_id, start_time, end_time, venue_id)
 select
   '30303030-3030-3030-3030-303030303030',
   c.id,
   sg.today,
   c.coach_id,
   c.start_time,
-  c.end_time
+  c.end_time,
+  c.venue_id
 from classes c
 cross join (
   select (current_timestamp at time zone 'Asia/Singapore')::date as today
@@ -234,7 +237,8 @@ select
   ),
   c.coach_id,
   c.start_time,
-  c.end_time
+  c.end_time,
+  c.venue_id
 from classes c
 cross join (
   select (current_timestamp at time zone 'Asia/Singapore')::date as today
