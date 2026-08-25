@@ -29,7 +29,11 @@ export default async function AdminStudentsPage({
       </PageHeader>
       <StudentList
         students={students}
-        classes={classes.map((cls) => ({ id: cls.id, name: cls.name }))}
+        classes={classes.map((cls) => ({
+          id: cls.id,
+          name: cls.name,
+          venue: cls.venue,
+        }))}
         initialSearch={params.q ?? ""}
         initialInactive={params.inactive === "1"}
       />

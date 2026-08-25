@@ -99,11 +99,24 @@ export interface StudentWithEnrolments extends Student {
   enrolments: EnrolmentWithClass[];
 }
 
+export type StudentRosterClass = Pick<
+  ClassGroup,
+  "id" | "name" | "venue" | "day_of_week" | "start_time"
+>;
+
 export type StudentRosterPackage = {
   remaining_credits: number;
   total_credits: number;
+  used_credits: number;
+  bonus_credits: number;
   status: PackageStatus;
   expires_at: string | null;
+  first_lesson_date: string | null;
+  package_products: Pick<
+    PackageProduct,
+    "product_type" | "label" | "total_credits"
+  > | null;
+  sessions: Pick<Session, "name" | "session_date"> | null;
 };
 
 export interface StudentListItem extends Student {
@@ -111,6 +124,7 @@ export interface StudentListItem extends Student {
   created_at: string;
   last_attended_on: string | null;
   class_ids: string[];
+  classes: StudentRosterClass[];
   roster_package: StudentRosterPackage | null;
 }
 
