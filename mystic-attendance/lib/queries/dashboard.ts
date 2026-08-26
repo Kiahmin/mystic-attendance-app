@@ -13,7 +13,9 @@ import type {
   PackageSession,
   PackageStatus,
   Student,
+  VenueRef,
 } from "@/lib/types";
+import { mapVenueRef, venueName } from "@/lib/venue-utils";
 
 export type DashboardQueueItem = {
   packageId: string;
@@ -136,10 +138,13 @@ export async function getDashboardOperations(
           class_id,
           kind,
           name,
+          venue_id,
+          venues (id, name),
           classes (
             id,
             name,
-            venue
+            venue_id,
+            venues (id, name)
           )
         `
         )
@@ -282,9 +287,15 @@ export async function getDashboardOperations(
     class_id: string | null;
     kind: string | null;
     name: string | null;
+    venue_id: string | null;
+    venues: VenueRef | VenueRef[] | null;
     classes:
-      | Pick<ClassGroup, "id" | "name" | "venue">
-      | Pick<ClassGroup, "id" | "name" | "venue">[]
+      | (Pick<ClassGroup, "id" | "name" | "venue_id"> & {
+          venues?: VenueRef | VenueRef[] | null;
+        })
+      | (Pick<ClassGroup, "id" | "name" | "venue_id"> & {
+          venues?: VenueRef | VenueRef[] | null;
+        })[]
       | null;
   };
 
@@ -318,10 +329,9 @@ export async function getDashboardOperations(
     if (!session) continue;
     const classRow = asSingle(session.classes);
     const venue =
-      classRow?.venue?.trim() ||
-      (session.kind === "event"
-        ? session.name?.trim() || "Events"
-        : classRow?.name?.trim() || "Unspecified");
+      venueName(mapVenueRef(session.venues)) ||
+      venueName(mapVenueRef(classRow?.venues)) ||
+      "Unspecified";
     const existing = venueTotals.get(venue);
     if (existing) {
       existing.total += count;

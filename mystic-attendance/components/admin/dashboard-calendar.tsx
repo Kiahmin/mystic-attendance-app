@@ -19,8 +19,15 @@ import {
   type CalendarRange,
   type CalendarView,
 } from "@/lib/session-utils";
-import type { DashboardSession, Profile } from "@/lib/types";
+import type { DashboardSession, Profile, Venue } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const VIEW_LABELS = {
   day: "Day",
@@ -38,12 +45,14 @@ type DashboardCalendarProps = {
   range: CalendarRange;
   sessions: DashboardSession[];
   coaches: Pick<Profile, "id" | "full_name">[];
+  venues: Venue[];
 };
 
 export function DashboardCalendar({
   range,
   sessions,
   coaches,
+  venues,
 }: DashboardCalendarProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -51,6 +60,7 @@ export function DashboardCalendar({
   const [date, setDate] = useState(range.date);
   const [showProgress, setShowProgress] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [venueFilter, setVenueFilter] = useState("all");
   const [draft, setDraft] = useState<{
     date: string;
     startTime: string;
@@ -122,6 +132,11 @@ export function DashboardCalendar({
     setCreateOpen(true);
   }
 
+  const visibleSessions =
+    venueFilter === "all"
+      ? sessions
+      : sessions.filter((item) => item.session.venue_id === venueFilter);
+
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-3" aria-busy={isPending}>
       {showProgress ? <NavigationProgressBar /> : null}
@@ -167,6 +182,24 @@ export function DashboardCalendar({
           <p className="min-w-0 px-1 text-sm font-medium">{display.label}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Select value={venueFilter} onValueChange={setVenueFilter}>
+            <SelectTrigger
+              className="h-8 w-[10.5rem]"
+              aria-label="Filter venue"
+            >
+              <SelectValue placeholder="All venues" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All venues</SelectItem>
+              {venues
+                .filter((venue) => venue.is_active)
+                .map((venue) => (
+                  <SelectItem key={venue.id} value={venue.id}>
+                    {venue.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
           <div className="inline-flex h-8 items-stretch rounded-lg bg-muted p-[3px]">
             {CALENDAR_VIEWS.map((nextView) => (
               <button
@@ -206,8 +239,9 @@ export function DashboardCalendar({
         <ScheduleMonthGrid
           dates={display.dates}
           monthStart={display.monthStart}
-          sessions={sessions}
+          sessions={visibleSessions}
           coaches={coaches}
+          venues={venues}
           view={view}
           date={date}
           onCreateEvent={openCreateEvent}
@@ -215,8 +249,9 @@ export function DashboardCalendar({
       ) : (
         <ScheduleTimeGrid
           dates={display.dates}
-          sessions={sessions}
+          sessions={visibleSessions}
           coaches={coaches}
+          venues={venues}
           view={view}
           date={date}
           onCreateEvent={openCreateEvent}
@@ -225,6 +260,7 @@ export function DashboardCalendar({
       </div>
       <EventFormDialog
         coaches={coaches}
+        venues={venues}
         defaultDate={draft?.date ?? display.date}
         defaultStartTime={draft?.startTime}
         defaultEndTime={draft?.endTime}

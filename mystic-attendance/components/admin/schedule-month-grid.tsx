@@ -4,7 +4,7 @@ import Link from "next/link";
 import { DAYS_OF_WEEK, DAY_OF_WEEK_LETTER_LABELS, DAY_OF_WEEK_SHORT_LABELS } from "@/lib/admin-utils";
 import { calendarDayNumber, todayInSingapore } from "@/lib/datetime";
 import { adminCalendarHref, type CalendarView } from "@/lib/session-utils";
-import type { DashboardSession, Profile } from "@/lib/types";
+import type { DashboardSession, Profile, Venue } from "@/lib/types";
 import { ScheduleEvent } from "@/components/admin/schedule-event";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +21,7 @@ type ScheduleMonthGridProps = {
   monthStart: string;
   sessions: DashboardSession[];
   coaches: Pick<Profile, "id" | "full_name">[];
+  venues: Venue[];
   view: CalendarView;
   date: string;
   onCreateEvent?: (draft: CreateEventDraft) => void;
@@ -31,6 +32,7 @@ export function ScheduleMonthGrid({
   monthStart,
   sessions,
   coaches,
+  venues,
   view,
   date,
   onCreateEvent,
@@ -113,6 +115,7 @@ export function ScheduleMonthGrid({
                     key={item.session.id}
                     item={item}
                     coaches={coaches}
+                    venues={venues}
                     view={view}
                     date={date}
                     variant="chip"

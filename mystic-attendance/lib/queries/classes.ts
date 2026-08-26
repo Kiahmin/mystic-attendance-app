@@ -7,17 +7,25 @@ import type {
   EnrolmentWithStudent,
   Profile,
   Student,
+  VenueRef,
 } from "@/lib/types";
+import { mapVenueRef } from "@/lib/venue-utils";
 
 function asSingle<T>(value: T | T[] | null | undefined): T | null {
   if (value == null) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
+const CLASS_VENUE_SELECT = `
+  venue_id,
+  venues (id, name)
+`;
+
 function mapClassWithCoach(row: {
   id: string;
   name: string;
-  venue?: string | null;
+  venue_id?: string | null;
+  venues?: VenueRef | VenueRef[] | null;
   day_of_week: ClassGroup["day_of_week"];
   start_time: string;
   end_time: string;
@@ -39,11 +47,13 @@ function mapClassWithCoach(row: {
     const student = asSingle(enrolment.students);
     return !student?.archived_at;
   });
+  const venue = mapVenueRef(row.venues);
 
   return {
     id: row.id,
     name: row.name,
-    venue: row.venue?.trim() || null,
+    venue_id: row.venue_id ?? venue?.id ?? null,
+    venue,
     day_of_week: row.day_of_week,
     start_time: row.start_time,
     end_time: row.end_time,
@@ -65,7 +75,7 @@ export async function listClasses(options?: {
       `
         id,
         name,
-        venue,
+        ${CLASS_VENUE_SELECT},
         day_of_week,
         start_time,
         end_time,
@@ -117,7 +127,7 @@ export async function getClassById(id: string): Promise<ClassDetail | null> {
       `
         id,
         name,
-        venue,
+        ${CLASS_VENUE_SELECT},
         day_of_week,
         start_time,
         end_time,
@@ -143,6 +153,7 @@ export async function getClassById(id: string): Promise<ClassDetail | null> {
             skill_level,
             notes,
             is_trial,
+            payer_id,
             archived_at
           )
         )
@@ -157,7 +168,8 @@ export async function getClassById(id: string): Promise<ClassDetail | null> {
   const row = data as {
     id: string;
     name: string;
-    venue?: string | null;
+    venue_id?: string | null;
+    venues?: VenueRef | VenueRef[] | null;
     day_of_week: ClassGroup["day_of_week"];
     start_time: string;
     end_time: string;

@@ -15,7 +15,7 @@ import {
   sessionDisplayStart,
   type CalendarView,
 } from "@/lib/session-utils";
-import type { DashboardSession, Profile } from "@/lib/types";
+import type { DashboardSession, Profile, Venue } from "@/lib/types";
 import { ScheduleEvent } from "@/components/admin/schedule-event";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +36,7 @@ type ScheduleTimeGridProps = {
   dates: string[];
   sessions: DashboardSession[];
   coaches: Pick<Profile, "id" | "full_name">[];
+  venues: Venue[];
   view: CalendarView;
   date: string;
   onCreateEvent?: (draft: CreateEventDraft) => void;
@@ -173,6 +174,7 @@ export function ScheduleTimeGrid({
   dates,
   sessions,
   coaches,
+  venues,
   view,
   date,
   onCreateEvent,
@@ -415,6 +417,7 @@ export function ScheduleTimeGrid({
                         key={entry.item.session.id}
                         item={entry.item}
                         coaches={coaches}
+                        venues={venues}
                         view={view}
                         date={date}
                         variant="block"
