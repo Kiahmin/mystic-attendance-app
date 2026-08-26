@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
-  Receipt,
   Users,
 } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
@@ -46,12 +45,6 @@ const LINKS = [
     href: "/admin/packages",
     label: "Packages",
     icon: Package,
-    exact: false,
-  },
-  {
-    href: "/admin/invoices",
-    label: "Invoices",
-    icon: Receipt,
     exact: false,
   },
 ] as const;
