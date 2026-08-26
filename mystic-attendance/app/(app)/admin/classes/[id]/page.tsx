@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { requireRole } from "@/lib/auth/profile";
 import { getClassById } from "@/lib/queries/classes";
 import { listCoaches } from "@/lib/queries/profiles";
+import { listVenues } from "@/lib/queries/venues";
 import { ClassForm } from "@/components/admin/class-form";
 import { ClassRoster } from "@/components/admin/class-roster";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -24,9 +25,10 @@ export default async function AdminClassDetailPage({
   await requireRole(["admin"]);
   const { id } = await params;
 
-  const [classDetail, coaches] = await Promise.all([
+  const [classDetail, coaches, venues] = await Promise.all([
     getClassById(id),
     listCoaches(),
+    listVenues(),
   ]);
 
   if (!classDetail) notFound();
@@ -59,7 +61,11 @@ export default async function AdminClassDetailPage({
             <CardTitle>Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <ClassForm classGroup={classDetail} coaches={coaches} />
+            <ClassForm
+              classGroup={classDetail}
+              coaches={coaches}
+              venues={venues}
+            />
           </CardContent>
         </Card>
 

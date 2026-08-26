@@ -34,10 +34,33 @@ export interface Profile {
   created_at: string;
 }
 
+export interface Venue {
+  id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export type VenueRef = Pick<Venue, "id" | "name">;
+
+export type PayerKind = "person" | "company";
+
+export interface Payer {
+  id: string;
+  kind: PayerKind;
+  display_name: string | null;
+  phone: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export type PayerRef = Pick<Payer, "id" | "kind" | "display_name" | "phone">;
+
 export interface ClassGroup {
   id: string;
   name: string;
-  venue: string | null;
+  venue_id: string | null;
+  venue: VenueRef | null;
   day_of_week: DayOfWeek;
   start_time: string;
   end_time: string;
@@ -54,6 +77,8 @@ export interface Session {
   name: string | null;
   requires_attendance: boolean;
   session_date: string;
+  venue_id: string | null;
+  venue: VenueRef | null;
   coach_id: string | null;
   start_time: string | null;
   end_time: string | null;
@@ -73,6 +98,8 @@ export interface Student {
   guardian_name: string | null;
   guardian_phone: string | null;
   contact_phone: string | null;
+  payer_id: string | null;
+  payer?: PayerRef | null;
   skill_level: SkillLevel | null;
   notes: string | null;
   is_trial: boolean;
@@ -101,7 +128,7 @@ export interface StudentWithEnrolments extends Student {
 
 export type StudentRosterClass = Pick<
   ClassGroup,
-  "id" | "name" | "venue" | "day_of_week" | "start_time"
+  "id" | "name" | "venue_id" | "venue" | "day_of_week" | "start_time"
 >;
 
 export type StudentRosterPackage = {
@@ -163,9 +190,35 @@ export interface PackageProduct {
 
 export type PackageSession = Pick<Session, "id" | "name" | "session_date">;
 
+export interface Invoice {
+  id: string;
+  invoice_number: number;
+  package_id: string;
+  payer_id: string;
+  student_id: string;
+  amount_sgd: number;
+  payment_method: PaymentMethod;
+  paid_at: string;
+  created_at: string;
+}
+
+export interface InvoiceWithRelations extends Invoice {
+  payers: PayerRef;
+  students: Pick<Student, "id" | "full_name">;
+  packages: Pick<Package, "id" | "student_id" | "is_paid" | "status"> & {
+    package_products?: Pick<
+      PackageProduct,
+      "product_type" | "label" | "total_credits"
+    > | null;
+  };
+}
+
 export interface Package {
   id: string;
   student_id: string;
+  payer_id: string | null;
+  payer?: PayerRef | null;
+  invoice?: Pick<Invoice, "id" | "invoice_number"> | null;
   package_product_id: string | null;
   session_id: string | null;
   total_credits: number;
@@ -193,7 +246,7 @@ export interface Package {
 }
 
 export interface PackageWithStudent extends Package {
-  students: Pick<Student, "id" | "full_name" | "contact_phone">;
+  students: Pick<Student, "id" | "full_name" | "contact_phone" | "payer_id">;
 }
 
 export interface Attendance {

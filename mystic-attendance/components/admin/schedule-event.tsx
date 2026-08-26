@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Ban, ClipboardCheck, Pencil, Trash2, UserRound, Users } from "lucide-react";
-import type { DashboardSession, Profile } from "@/lib/types";
+import type { DashboardSession, Profile, Venue } from "@/lib/types";
+import { venueName } from "@/lib/venue-utils";
 import {
   CANCELLATION_REASON_LABELS,
   formatDate,
@@ -36,6 +37,7 @@ import { cn } from "@/lib/utils";
 type ScheduleEventProps = {
   item: DashboardSession;
   coaches: Pick<Profile, "id" | "full_name">[];
+  venues: Venue[];
   view: CalendarView;
   date: string;
   variant: "block" | "chip";
@@ -84,6 +86,7 @@ function eventTone(status: SessionScheduleStatus, isEvent: boolean) {
 export function ScheduleEvent({
   item,
   coaches,
+  venues,
   view,
   date,
   variant,
@@ -99,6 +102,7 @@ export function ScheduleEvent({
   const router = useRouter();
   const { session, expectedCount, checkedInCount, coachName } = item;
   const displayName = sessionDisplayName(session);
+  const venueLabel = venueName(session.venue);
   const isEvent = session.kind === "event";
   const takesAttendance = session.requires_attendance !== false;
   const startTime = sessionDisplayStart(session);
@@ -120,7 +124,7 @@ export function ScheduleEvent({
             type="button"
             data-schedule-event
             style={style}
-            title={`${displayName} · ${timeLabel}`}
+            title={`${displayName}${venueLabel ? ` · ${venueLabel}` : ""} · ${timeLabel}`}
             className={cn(
               "overflow-hidden border-l-4 text-left shadow-sm transition-colors",
               eventTone(status, isEvent),
@@ -140,6 +144,11 @@ export function ScheduleEvent({
                 <span className="min-w-0 truncate font-semibold">
                   {displayName}
                 </span>
+                {venueLabel ? (
+                  <span className="hidden min-w-0 truncate opacity-80 md:inline">
+                    {venueLabel}
+                  </span>
+                ) : null}
               </>
             ) : (
               <>
@@ -190,6 +199,9 @@ export function ScheduleEvent({
                 <br />
                 {timeLabel}
               </p>
+              {venueLabel ? (
+                <p className="text-sm text-muted-foreground">{venueLabel}</p>
+              ) : null}
               <p className="text-sm text-muted-foreground">
                 {coachName ?? "Unassigned"}
               </p>
@@ -326,6 +338,7 @@ export function ScheduleEvent({
         <>
           <EventFormDialog
             coaches={coaches}
+            venues={venues}
             defaultDate={session.session_date}
             event={{
               id: session.id,
@@ -333,6 +346,7 @@ export function ScheduleEvent({
               session_date: session.session_date,
               start_time: session.start_time,
               end_time: session.end_time,
+              venue_id: session.venue_id,
               coach_id: session.coach_id,
               requires_attendance: takesAttendance,
             }}

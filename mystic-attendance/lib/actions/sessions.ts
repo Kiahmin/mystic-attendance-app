@@ -23,6 +23,7 @@ export type EventInput = {
   session_date: string;
   start_time: string;
   end_time: string;
+  venue_id: string;
   coach_id?: string | null;
   requires_attendance?: boolean;
 };
@@ -49,7 +50,7 @@ async function generateSessionsForDate(
 
   const { data: classes, error: classesError } = await supabase
     .from("classes")
-    .select("id, coach_id, start_time, end_time")
+    .select("id, coach_id, start_time, end_time, venue_id")
     .eq("is_active", true)
     .eq("day_of_week", dayOfWeek);
 
@@ -91,6 +92,7 @@ async function generateSessionsForDate(
       coach_id: cls.coach_id,
       start_time: cls.start_time,
       end_time: cls.end_time,
+      venue_id: cls.venue_id,
     }))
   );
 
@@ -206,6 +208,10 @@ function validateEventInput(input: EventInput): string | null {
     return "Select a valid date.";
   }
 
+  if (!input.venue_id) {
+    return "Select a venue.";
+  }
+
   const start = normalizeTime(input.start_time ?? "");
   const end = normalizeTime(input.end_time ?? "");
   const startMins = timeToMinutes(start);
@@ -247,6 +253,7 @@ function toEventRow(input: EventInput) {
     session_date: input.session_date,
     start_time: normalizeTime(input.start_time),
     end_time: normalizeTime(input.end_time),
+    venue_id: input.venue_id,
     coach_id: emptyToNull(input.coach_id),
     requires_attendance: input.requires_attendance ?? true,
   };

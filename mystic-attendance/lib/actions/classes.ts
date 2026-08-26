@@ -13,7 +13,7 @@ import { revalidatePath } from "next/cache";
 
 export type ClassInput = {
   name: string;
-  venue?: string | null;
+  venue_id: string;
   day_of_week?: DayOfWeek;
   days_of_week?: DayOfWeek[];
   start_time: string;
@@ -34,6 +34,10 @@ function resolveDays(input: ClassInput): DayOfWeek[] {
 function validateClassInput(input: ClassInput): string | null {
   const name = input.name?.trim() ?? "";
   if (!name) return "Class name is required.";
+
+  if (!input.venue_id) {
+    return "Select a venue.";
+  }
 
   if (resolveDays(input).length === 0) {
     return "Select at least one day of the week.";
@@ -58,7 +62,7 @@ function validateClassInput(input: ClassInput): string | null {
 function toClassRow(input: ClassInput, dayOfWeek: DayOfWeek) {
   return {
     name: input.name.trim(),
-    venue: emptyToNull(input.venue),
+    venue_id: input.venue_id,
     day_of_week: dayOfWeek,
     start_time: normalizeTime(input.start_time),
     end_time: normalizeTime(input.end_time),
