@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth/profile";
 import { payerLabel } from "@/lib/payer-utils";
 import { listClasses } from "@/lib/queries/classes";
 import { listPackagesForStudent } from "@/lib/queries/packages";
-import { getStudentById } from "@/lib/queries/students";
+import { getStudentById, listStudents } from "@/lib/queries/students";
 import { listPayers } from "@/lib/queries/payers";
 import { ArchiveStudentButton } from "@/components/admin/archive-student-button";
 import { EnrolmentManager } from "@/components/admin/enrolment-manager";
@@ -32,11 +32,12 @@ export default async function AdminStudentDetailPage({
   await requireRole(["admin"]);
   const { id } = await params;
 
-  const [student, classes, packages, payers] = await Promise.all([
+  const [student, classes, packages, payers, students] = await Promise.all([
     getStudentById(id),
     listClasses({ activeOnly: true }),
     listPackagesForStudent(id),
     listPayers(),
+    listStudents(),
   ]);
 
   if (!student) notFound();
@@ -173,7 +174,14 @@ export default async function AdminStudentDetailPage({
             </div>
           </CardHeader>
           <CardContent>
-            <StudentPackages packages={packages} />
+            <StudentPackages
+              packages={packages}
+              studentId={student.id}
+              students={students.map((item) => ({
+                id: item.id,
+                full_name: item.full_name,
+              }))}
+            />
           </CardContent>
         </Card>
 

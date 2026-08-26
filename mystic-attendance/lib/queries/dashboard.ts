@@ -5,10 +5,11 @@ import {
   startOfMonth,
   weekdayOfCalendarDate,
 } from "@/lib/datetime";
-import { packageLabel, LOW_CREDIT_THRESHOLD } from "@/lib/package-utils";
+import { packageLabel, LOW_CREDIT_THRESHOLD, packageStudentNames } from "@/lib/package-utils";
 import type {
   ClassGroup,
   DayOfWeek,
+  PackageMember,
   PackageProduct,
   PackageSession,
   PackageStatus,
@@ -57,19 +58,23 @@ function asSingle<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-function studentHasRenewal(
-  studentId: string,
+function membersHaveRenewal(
+  memberIds: string[],
+  currentPackageId: string,
   packages: Array<{
-    student_id: string;
+    id: string;
+    memberIds: string[];
     status: PackageStatus;
     remaining_credits: number;
   }>
 ): boolean {
+  const members = new Set(memberIds);
   return packages.some(
     (pkg) =>
-      pkg.student_id === studentId &&
+      pkg.id !== currentPackageId &&
       pkg.status === "active" &&
-      pkg.remaining_credits > LOW_CREDIT_THRESHOLD
+      pkg.remaining_credits > LOW_CREDIT_THRESHOLD &&
+      pkg.memberIds.some((id) => members.has(id))
   );
 }
 
@@ -84,13 +89,19 @@ export async function getDashboardOperations(
     await Promise.all([
       supabase
         .from("packages")
-        .select("id, students!inner(archived_at)", { count: "exact", head: true })
+        .select("id, students!packages_student_id_fkey!inner(archived_at)", {
+          count: "exact",
+          head: true,
+        })
         .is("session_id", null)
         .eq("status", "active")
         .is("students.archived_at", null),
       supabase
         .from("packages")
-        .select("id, students!inner(archived_at)", { count: "exact", head: true })
+        .select("id, students!packages_student_id_fkey!inner(archived_at)", {
+          count: "exact",
+          head: true,
+        })
         .is("session_id", null)
         .eq("status", "exhausted")
         .is("students.archived_at", null),
@@ -117,10 +128,17 @@ export async function getDashboardOperations(
             name,
             session_date
           ),
-          students!inner (
+          students!packages_student_id_fkey!inner (
             id,
             full_name,
             archived_at
+          ),
+          package_students (
+            student_id,
+            students!package_students_student_id_fkey (
+              id,
+              full_name
+            )
           )
         `
         )
@@ -153,10 +171,34 @@ export async function getDashboardOperations(
         .eq("cancelled", false),
     ]);
 
-  if (activeResult.error) throw activeResult.error;
-  if (exhaustedResult.error) throw exhaustedResult.error;
-  if (queueResult.error) throw queueResult.error;
-  if (sessionsResult.error) throw sessionsResult.error;
+  if (activeResult.error) {
+    throw new Error(
+      [activeResult.error.message, activeResult.error.hint, activeResult.error.details, activeResult.error.code]
+        .filter(Boolean)
+        .join(" — ") || "Failed to load active packages"
+    );
+  }
+  if (exhaustedResult.error) {
+    throw new Error(
+      [exhaustedResult.error.message, exhaustedResult.error.hint, exhaustedResult.error.details, exhaustedResult.error.code]
+        .filter(Boolean)
+        .join(" — ") || "Failed to load exhausted packages"
+    );
+  }
+  if (queueResult.error) {
+    throw new Error(
+      [queueResult.error.message, queueResult.error.hint, queueResult.error.details, queueResult.error.code]
+        .filter(Boolean)
+        .join(" — ") || "Failed to load package queue"
+    );
+  }
+  if (sessionsResult.error) {
+    throw new Error(
+      [sessionsResult.error.message, sessionsResult.error.hint, sessionsResult.error.details, sessionsResult.error.code]
+        .filter(Boolean)
+        .join(" — ") || "Failed to load month sessions"
+    );
+  }
 
   type QueueRow = {
     id: string;
@@ -174,11 +216,45 @@ export async function getDashboardOperations(
       | null;
     sessions: PackageSession | PackageSession[] | null;
     students: Pick<Student, "id" | "full_name"> | Pick<Student, "id" | "full_name">[] | null;
+    package_students?:
+      | {
+          student_id: string;
+          students?:
+            | Pick<Student, "id" | "full_name">
+            | Pick<Student, "id" | "full_name">[]
+            | null;
+        }
+      | {
+          student_id: string;
+          students?:
+            | Pick<Student, "id" | "full_name">
+            | Pick<Student, "id" | "full_name">[]
+            | null;
+        }[]
+      | null;
   };
 
   const queuePackages = (queueResult.data ?? []) as QueueRow[];
+
+  function queueMembers(pkg: QueueRow): PackageMember[] {
+    const nested = Array.isArray(pkg.package_students)
+      ? pkg.package_students
+      : pkg.package_students
+        ? [pkg.package_students]
+        : [];
+    const members = nested
+      .map((row) => asSingle(row.students))
+      .filter((item): item is Pick<Student, "id" | "full_name"> => Boolean(item));
+    const primary = asSingle(pkg.students);
+    if (primary && !members.some((member) => member.id === primary.id)) {
+      members.unshift(primary);
+    }
+    return members;
+  }
+
   const renewalSource = queuePackages.map((pkg) => ({
-    student_id: pkg.student_id,
+    id: pkg.id,
+    memberIds: queueMembers(pkg).map((member) => member.id),
     status: pkg.status,
     remaining_credits: Number(pkg.remaining_credits),
   }));
@@ -187,18 +263,28 @@ export async function getDashboardOperations(
     (pkg) =>
       Number(pkg.remaining_credits) <= LOW_CREDIT_THRESHOLD &&
       !pkg.informed_at &&
-      !studentHasRenewal(pkg.student_id, renewalSource)
+      !membersHaveRenewal(
+        queueMembers(pkg).map((member) => member.id),
+        pkg.id,
+        renewalSource
+      )
   );
   const informedRows = queuePackages.filter(
     (pkg) =>
       Boolean(pkg.informed_at) &&
       Number(pkg.remaining_credits) > 0 &&
-      !studentHasRenewal(pkg.student_id, renewalSource)
+      !membersHaveRenewal(
+        queueMembers(pkg).map((member) => member.id),
+        pkg.id,
+        renewalSource
+      )
   );
 
   const studentIds = [
     ...new Set(
-      [...dueSoonRows, ...informedRows].map((pkg) => pkg.student_id)
+      [...dueSoonRows, ...informedRows].flatMap((pkg) =>
+        queueMembers(pkg).map((member) => member.id)
+      )
     ),
   ];
 
@@ -252,10 +338,28 @@ export async function getDashboardOperations(
     const student = asSingle(pkg.students);
     const product = asSingle(pkg.package_products);
     const session = asSingle(pkg.sessions);
+    const members = queueMembers(pkg);
+    const classIds = [
+      ...new Set(members.flatMap((member) => classIdsByStudent.get(member.id) ?? [])),
+    ];
+    const classNames = [
+      ...new Set(
+        members.flatMap((member) => classNamesByStudent.get(member.id) ?? [])
+      ),
+    ];
+    const lastAttendedOn =
+      members
+        .map((member) => lastAttendedByStudent.get(member.id) ?? null)
+        .filter((value): value is string => Boolean(value))
+        .sort()
+        .at(-1) ?? null;
     return {
       packageId: pkg.id,
       studentId: pkg.student_id,
-      studentName: student?.full_name ?? "Student",
+      studentName: packageStudentNames(
+        { student_id: pkg.student_id, members },
+        student?.full_name
+      ),
       packageLabel: packageLabel(
         {
           total_credits: Number(pkg.total_credits),
@@ -266,9 +370,9 @@ export async function getDashboardOperations(
       ),
       remainingCredits: Number(pkg.remaining_credits),
       totalCredits: Number(pkg.total_credits),
-      lastAttendedOn: lastAttendedByStudent.get(pkg.student_id) ?? null,
-      classIds: classIdsByStudent.get(pkg.student_id) ?? [],
-      classNames: classNamesByStudent.get(pkg.student_id) ?? [],
+      lastAttendedOn,
+      classIds,
+      classNames,
       informedAt: pkg.informed_at,
     };
   }

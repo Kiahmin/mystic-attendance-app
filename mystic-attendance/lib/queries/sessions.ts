@@ -144,12 +144,48 @@ function groupByStudentId<T extends { student_id: string }>(
   return byStudent;
 }
 
+function groupPackagesByMembership<T extends { id: string }>(
+  packages: T[],
+  memberships: { package_id: string; student_id: string }[]
+): Map<string, T[]> {
+  const byId = new Map(packages.map((pkg) => [pkg.id, pkg]));
+  const byStudent = new Map<string, T[]>();
+  for (const row of memberships) {
+    const pkg = byId.get(row.package_id);
+    if (!pkg) continue;
+    const list = byStudent.get(row.student_id);
+    if (list) {
+      if (!list.some((item) => item.id === pkg.id)) list.push(pkg);
+    } else {
+      byStudent.set(row.student_id, [pkg]);
+    }
+  }
+  return byStudent;
+}
+
+async function loadClassPackageMemberships(
+  supabase: SupabaseClient,
+  studentIds: string[]
+): Promise<{ package_id: string; student_id: string }[]> {
+  if (studentIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("package_students")
+    .select("package_id, student_id")
+    .in("student_id", studentIds);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    package_id: row.package_id as string,
+    student_id: row.student_id as string,
+  }));
+}
+
 function mapPackageRow(data: Record<string, unknown>): Package {
   return {
     ...(data as unknown as Package),
     package_product_id:
       (data.package_product_id as string | null | undefined) ?? null,
     session_id: (data.session_id as string | null | undefined) ?? null,
+    members: [],
     bonus_credits: Number(data.bonus_credits ?? 0),
     customisation_notes:
       (data.customisation_notes as string | null | undefined) ?? null,
@@ -187,6 +223,14 @@ async function enrichDashboardSessions(
     .filter(({ session }) => session.kind === "event")
     .map(({ session }) => session.id);
 
+  const classMemberships = await loadClassPackageMemberships(
+    supabase,
+    studentIds
+  );
+  const classPackageIds = [
+    ...new Set(classMemberships.map((row) => row.package_id)),
+  ];
+
   const [attendanceResult, classPackagesResult, eventPackagesResult] =
     await Promise.all([
       sessionIds.length === 0
@@ -203,12 +247,12 @@ async function enrichDashboardSessions(
             .from("attendance")
             .select("session_id, student_id, status, attendee_source")
             .in("session_id", sessionIds),
-      studentIds.length === 0
+      classPackageIds.length === 0
         ? Promise.resolve({ data: [] as DashboardPackageRow[], error: null })
         : supabase
             .from("packages")
             .select(DASHBOARD_PACKAGE_SELECT)
-            .in("student_id", studentIds)
+            .in("id", classPackageIds)
             .is("session_id", null)
             .eq("is_paid", true)
             .gt("remaining_credits", 0),
@@ -245,8 +289,9 @@ async function enrichDashboardSessions(
     }
   }
 
-  const packagesByStudent = groupByStudentId(
-    (classPackagesResult.data ?? []) as DashboardPackageRow[]
+  const packagesByStudent = groupPackagesByMembership(
+    (classPackagesResult.data ?? []) as DashboardPackageRow[],
+    classMemberships
   );
   const eventPackageByStudentSession = new Map<string, DashboardPackageRow>();
   for (const row of (eventPackagesResult.data ?? []) as DashboardPackageRow[]) {
@@ -487,12 +532,18 @@ export async function getSessionCheckInList(
   ];
 
   const isEvent = sessionWithClass.kind === "event";
+  const classMemberships = isEvent
+    ? []
+    : await loadClassPackageMemberships(supabase, studentIds);
+  const classPackageIds = [
+    ...new Set(classMemberships.map((row) => row.package_id)),
+  ];
 
   const [studentsResult, packagesResult] = await Promise.all([
     studentIds.length === 0
       ? Promise.resolve({ data: [] as Student[], error: null })
       : supabase.from("students").select("*").in("id", studentIds),
-    studentIds.length === 0
+    studentIds.length === 0 || (!isEvent && classPackageIds.length === 0)
       ? Promise.resolve({ data: [] as Package[], error: null })
       : isEvent
         ? supabase
@@ -503,7 +554,7 @@ export async function getSessionCheckInList(
         : supabase
             .from("packages")
             .select(CHECKIN_PACKAGE_SELECT)
-            .in("student_id", studentIds)
+            .in("id", classPackageIds)
             .is("session_id", null)
             .eq("is_paid", true)
             .gt("remaining_credits", 0),
@@ -515,11 +566,12 @@ export async function getSessionCheckInList(
   const studentsById = new Map(
     (studentsResult.data ?? []).map((row) => [row.id as string, row as Student])
   );
-  const packagesByStudent = groupByStudentId(
-    (packagesResult.data ?? []).map((row) =>
-      mapPackageRow(row as unknown as Record<string, unknown>)
-    )
+  const mappedPackages = (packagesResult.data ?? []).map((row) =>
+    mapPackageRow(row as unknown as Record<string, unknown>)
   );
+  const packagesByStudent = isEvent
+    ? groupByStudentId(mappedPackages)
+    : groupPackagesByMembership(mappedPackages, classMemberships);
   const today = todayInSingapore();
 
   function buildCheckIn(

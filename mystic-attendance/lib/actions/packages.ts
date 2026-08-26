@@ -40,6 +40,7 @@ async function backfillUnchargedAttendance(
 
 export type AssignPackageInput = {
   student_id: string;
+  shared_student_ids?: string[];
   payer_id?: string | null;
   package_product_id: string;
   is_paid: boolean;
@@ -61,16 +62,39 @@ export type ResumePackageInput = {
   resumed_at?: string | null;
 };
 
-function revalidatePackagePaths(studentId: string, packageId?: string) {
+function revalidatePackagePaths(studentIds: string[], packageId?: string) {
+  const unique = [...new Set(studentIds.filter(Boolean))];
   revalidatePath("/admin/packages");
   revalidatePath("/admin/students");
-  revalidatePath(`/admin/students/${studentId}`);
+  for (const studentId of unique) {
+    revalidatePath(`/admin/students/${studentId}`);
+  }
   revalidatePath("/admin");
   revalidatePath("/coach");
   if (packageId) {
     revalidatePath(`/admin/packages/${packageId}/pause`);
     revalidatePath(`/admin/packages/${packageId}/pay`);
   }
+}
+
+async function loadPackageMemberIds(
+  supabase: SupabaseClient,
+  packageId: string,
+  fallbackStudentId?: string | null
+): Promise<string[]> {
+  const { data } = await supabase
+    .from("package_students")
+    .select("student_id")
+    .eq("package_id", packageId);
+  const ids = (data ?? []).map((row) => row.student_id as string);
+  if (fallbackStudentId && !ids.includes(fallbackStudentId)) {
+    ids.push(fallbackStudentId);
+  }
+  return ids;
+}
+
+function uniqueStudentIds(ids: Array<string | null | undefined>): string[] {
+  return [...new Set(ids.filter((id): id is string => Boolean(id)))];
 }
 
 async function resolvePackagePayerId(
@@ -172,6 +196,10 @@ export async function assignPackage(input: AssignPackageInput) {
     return { error: "Select a payer before recording payment." };
   }
 
+  const sharedStudentIds = uniqueStudentIds(
+    (input.shared_student_ids ?? []).filter((id) => id !== input.student_id)
+  );
+
   const { data, error } = await supabase
     .from("packages")
     .insert({
@@ -193,10 +221,32 @@ export async function assignPackage(input: AssignPackageInput) {
   }
 
   const packageId = data.id as string;
+
+  if (sharedStudentIds.length > 0) {
+    if (product.product_type === "event") {
+      return { error: "Event packages cannot be shared.", id: packageId };
+    }
+    const { error: shareError } = await supabase.from("package_students").insert(
+      sharedStudentIds.map((studentId) => ({
+        package_id: packageId,
+        student_id: studentId,
+      }))
+    );
+    if (shareError) {
+      revalidatePackagePaths(
+        [input.student_id, ...sharedStudentIds],
+        packageId
+      );
+      return { error: shareError.message, id: packageId };
+    }
+  }
+
+  const memberIds = [input.student_id, ...sharedStudentIds];
+
   if (input.is_paid) {
     const backfill = await backfillUnchargedAttendance(supabase, packageId);
     if (backfill.backfillError) {
-      revalidatePackagePaths(input.student_id, packageId);
+      revalidatePackagePaths(memberIds, packageId);
       return { error: backfill.backfillError, id: packageId };
     }
   }
@@ -205,9 +255,9 @@ export async function assignPackage(input: AssignPackageInput) {
     const { error: trialError } = await supabase
       .from("students")
       .update({ is_trial: true })
-      .eq("id", input.student_id);
+      .in("id", memberIds);
     if (trialError) {
-      revalidatePackagePaths(input.student_id, packageId);
+      revalidatePackagePaths(memberIds, packageId);
       return {
         error: `The package was saved, but the student could not be marked as trial: ${trialError.message}`,
         id: packageId,
@@ -215,7 +265,7 @@ export async function assignPackage(input: AssignPackageInput) {
     }
   }
 
-  revalidatePackagePaths(input.student_id, packageId);
+  revalidatePackagePaths(memberIds, packageId);
   return { success: true as const, id: packageId };
 }
 
@@ -305,7 +355,12 @@ export async function markPackagePaid(
   if (error) return { error: error.message };
 
   const backfill = await backfillUnchargedAttendance(supabase, packageId);
-  revalidatePackagePaths(existing.student_id as string, packageId);
+  const memberIds = await loadPackageMemberIds(
+    supabase,
+    packageId,
+    existing.student_id as string
+  );
+  revalidatePackagePaths(memberIds, packageId);
   if (backfill.backfillError) {
     return { error: backfill.backfillError };
   }
@@ -367,7 +422,10 @@ export async function pausePackage(
 
   if (error) return { error: error.message };
 
-  revalidatePackagePaths(existing.student_id as string, packageId);
+  revalidatePackagePaths(
+    await loadPackageMemberIds(supabase, packageId, existing.student_id as string),
+    packageId
+  );
   return { success: true as const };
 }
 
@@ -450,7 +508,10 @@ export async function resumePackage(
 
   if (error) return { error: error.message };
 
-  revalidatePackagePaths(existing.student_id as string, packageId);
+  revalidatePackagePaths(
+    await loadPackageMemberIds(supabase, packageId, existing.student_id as string),
+    packageId
+  );
   return { success: true as const };
 }
 
@@ -490,6 +551,88 @@ export async function markPackageInformed(packageId: string) {
 
   if (error) return { error: error.message };
 
-  revalidatePackagePaths(existing.student_id as string, packageId);
+  revalidatePackagePaths(
+    await loadPackageMemberIds(supabase, packageId, existing.student_id as string),
+    packageId
+  );
+  return { success: true as const };
+}
+
+export async function addPackageStudent(packageId: string, studentId: string) {
+  await requireRole(["admin"]);
+
+  if (!packageId) return { error: "Package id is required." };
+  if (!studentId) return { error: "Select a student to share with." };
+
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from("packages")
+    .select("id, student_id, session_id")
+    .eq("id", packageId)
+    .maybeSingle();
+
+  if (fetchError) return { error: fetchError.message };
+  if (!existing) return { error: "Package not found." };
+  if (existing.session_id) {
+    return { error: "Event packages cannot be shared." };
+  }
+  if (studentId === existing.student_id) {
+    return { error: "That student already owns this package." };
+  }
+
+  const { error } = await supabase.from("package_students").insert({
+    package_id: packageId,
+    student_id: studentId,
+  });
+  if (error) {
+    if (error.code === "23505") {
+      return { error: "That student already shares this package." };
+    }
+    return { error: error.message };
+  }
+
+  const memberIds = await loadPackageMemberIds(
+    supabase,
+    packageId,
+    existing.student_id as string
+  );
+  revalidatePackagePaths(memberIds, packageId);
+  return { success: true as const };
+}
+
+export async function removePackageStudent(
+  packageId: string,
+  studentId: string
+) {
+  await requireRole(["admin"]);
+
+  if (!packageId) return { error: "Package id is required." };
+  if (!studentId) return { error: "Student is required." };
+
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from("packages")
+    .select("id, student_id, session_id")
+    .eq("id", packageId)
+    .maybeSingle();
+
+  if (fetchError) return { error: fetchError.message };
+  if (!existing) return { error: "Package not found." };
+  if (studentId === existing.student_id) {
+    return { error: "The primary student cannot be removed." };
+  }
+
+  const { error } = await supabase
+    .from("package_students")
+    .delete()
+    .eq("package_id", packageId)
+    .eq("student_id", studentId);
+
+  if (error) return { error: error.message };
+
+  revalidatePackagePaths(
+    [existing.student_id as string, studentId],
+    packageId
+  );
   return { success: true as const };
 }
