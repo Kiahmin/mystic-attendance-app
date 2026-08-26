@@ -21,11 +21,13 @@ import {
 } from "@/lib/package-utils";
 import type {
   PackageProduct,
+  Payer,
   PaymentMethod,
   SkillLevel,
   Student,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { PayerPicker } from "@/components/admin/payer-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 type StudentFormProps = {
   student?: Student;
+  payers?: Payer[];
   /** Only used when creating a student; trial setup is not offered when editing. */
   trialProducts?: PackageProduct[];
   hasTrialPackage?: boolean;
@@ -46,6 +49,7 @@ type StudentFormProps = {
 
 export function StudentForm({
   student,
+  payers: initialPayers = [],
   trialProducts = [],
   hasTrialPackage = false,
   onSuccess,
@@ -56,6 +60,8 @@ export function StudentForm({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [payers, setPayers] = useState(initialPayers);
+  const [payerId, setPayerId] = useState(student?.payer_id ?? "");
 
   const [fullName, setFullName] = useState(student?.full_name ?? "");
   const [dateOfBirth, setDateOfBirth] = useState(
@@ -123,6 +129,10 @@ export function StudentForm({
       setError("Enter a valid amount in SGD.");
       return;
     }
+    if (needsTrialPackage && trialPaid && !payerId) {
+      setError("Select a payer before recording payment.");
+      return;
+    }
 
     const input: StudentInput = {
       full_name: fullName,
@@ -130,6 +140,7 @@ export function StudentForm({
       contact_phone: contactPhone || null,
       guardian_name: guardianName || null,
       guardian_phone: guardianPhone || null,
+      payer_id: payerId || null,
       skill_level: skillLevel || null,
       notes: notes || null,
       is_trial: isTrial,
@@ -405,6 +416,33 @@ export function StudentForm({
         </div>
       </section>
 
+      <section className="space-y-4">
+        <h3 className="text-xs font-semibold tracking-[0.08em] text-primary uppercase">
+          Payer
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Who is billed for this student — a parent, company, or phone number
+          if the name is not on file.
+        </p>
+        <PayerPicker
+          id="student_payer"
+          payers={payers}
+          value={payerId}
+          onChange={setPayerId}
+          onCreated={(payer) =>
+            setPayers((current) =>
+              current.some((item) => item.id === payer.id)
+                ? current
+                : [...current, payer]
+            )
+          }
+          allowNone={!(needsTrialPackage && trialPaid)}
+          noneLabel={
+            needsTrialPackage && trialPaid ? "Select a payer" : "No payer"
+          }
+        />
+      </section>
+
       <section
         className={cn(
           "space-y-4 rounded-xl p-4",
@@ -419,7 +457,31 @@ export function StudentForm({
         </div>
 
         {isMinor ? (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-4">
+            {(() => {
+              const selectedPayer = payers.find((payer) => payer.id === payerId);
+              if (!selectedPayer || selectedPayer.kind !== "person") {
+                return null;
+              }
+              return (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (selectedPayer.display_name) {
+                      setGuardianName(selectedPayer.display_name);
+                    }
+                    if (selectedPayer.phone) {
+                      setGuardianPhone(selectedPayer.phone);
+                    }
+                  }}
+                >
+                  Copy payer into guardian
+                </Button>
+              );
+            })()}
+            <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="guardian_name">
                 Parent / guardian name{" "}
@@ -441,6 +503,7 @@ export function StudentForm({
                 value={guardianPhone}
                 onChange={(e) => setGuardianPhone(e.target.value)}
               />
+            </div>
             </div>
           </div>
         ) : (

@@ -34,11 +34,14 @@ import {
 import type {
   PackageProduct,
   PackageStatus,
+  Payer,
   SkillLevel,
   StudentListItem,
   StudentRosterClass,
   StudentRosterPackage,
 } from "@/lib/types";
+import { payerShortLabel } from "@/lib/payer-utils";
+import { venueName } from "@/lib/venue-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,7 +74,8 @@ const PAGE_SIZE = 25;
 
 type StudentListProps = {
   students: StudentListItem[];
-  classes: { id: string; name: string; venue: string | null }[];
+  classes: { id: string; name: string; venue_id: string | null }[];
+  venues: { id: string; name: string }[];
   initialSearch?: string;
   initialInactive?: boolean;
 };
@@ -103,7 +107,7 @@ const PACKAGE_FILTER_OPTIONS: { value: PackageFilter; label: string }[] = [
 const DEFAULT_SORT: StudentSort = { column: "name", dir: "asc" };
 
 const ROSTER_GRID =
-  "lg:grid-cols-[minmax(12rem,1.6fr)_minmax(10rem,1.2fr)_minmax(10rem,1.2fr)_minmax(8rem,1fr)_minmax(5.5rem,0.7fr)_4.75rem] lg:gap-4";
+  "lg:grid-cols-[minmax(11rem,1.4fr)_minmax(8.5rem,1fr)_minmax(10rem,1.15fr)_minmax(9.5rem,1.1fr)_minmax(7.5rem,0.9fr)_minmax(5.5rem,0.7fr)_4.75rem] lg:gap-4";
 
 function compareName(
   a: StudentListItem,
@@ -123,17 +127,19 @@ function matchesSearch(student: StudentListItem, query: string) {
     student.guardian_name,
     student.guardian_phone,
     student.contact_phone,
+    student.payer?.display_name,
+    student.payer?.phone,
   ];
   return haystacks.some((value) => value?.toLowerCase().includes(query));
 }
 
 function contactSubline(student: StudentListItem) {
-  const name = student.guardian_name?.trim() || null;
-  const phone =
-    student.contact_phone?.trim() || student.guardian_phone?.trim() || null;
-  if (!name && !phone) return null;
-  if (name && phone) return `${name} · ${phone}`;
-  return name ?? phone;
+  const payer = payerShortLabel(student.payer);
+  const guardian = student.guardian_name?.trim() || null;
+  if (guardian && guardian !== payer) {
+    return `Guardian: ${guardian}`;
+  }
+  return null;
 }
 
 function RosterVenueCell({ classes }: { classes: StudentRosterClass[] }) {
@@ -145,7 +151,9 @@ function RosterVenueCell({ classes }: { classes: StudentRosterClass[] }) {
     <div className="space-y-1.5">
       {classes.map((cls) => (
         <div key={cls.id} className="min-w-0">
-          <p className="truncate text-sm">{cls.venue || cls.name}</p>
+          <p className="truncate text-sm">
+            {venueName(cls.venue) || cls.name}
+          </p>
           <p className="text-xs text-muted-foreground">
             {DAY_OF_WEEK_SHORT_LABELS[cls.day_of_week]} ·{" "}
             {formatSessionTime(cls.start_time)}
@@ -194,8 +202,10 @@ function RosterValidityCell({ pkg }: { pkg: StudentRosterPackage | null }) {
 
 export function AddStudentButton({
   trialProducts,
+  payers = [],
 }: {
   trialProducts: PackageProduct[];
+  payers?: Payer[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -219,6 +229,7 @@ export function AddStudentButton({
         </DialogHeader>
         <StudentForm
           trialProducts={trialProducts}
+          payers={payers}
           onSuccess={() => setOpen(false)}
         />
       </DialogContent>
@@ -229,6 +240,7 @@ export function AddStudentButton({
 export function StudentList({
   students,
   classes,
+  venues,
   initialSearch = "",
   initialInactive = false,
 }: StudentListProps) {
@@ -249,14 +261,10 @@ export function StudentList({
     setPage(1);
   }
 
-  const venues = useMemo(() => {
-    const unique = new Set<string>();
-    for (const cls of classes) {
-      const venue = cls.venue?.trim();
-      if (venue) unique.add(venue);
-    }
-    return [...unique].sort((a, b) => a.localeCompare(b));
-  }, [classes]);
+  const venueOptions = useMemo(
+    () => [...venues].sort((a, b) => a.name.localeCompare(b.name)),
+    [venues]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -284,7 +292,7 @@ export function StudentList({
       }
       if (
         venueFilter !== "all" &&
-        !s.classes.some((cls) => cls.venue === venueFilter)
+        !s.classes.some((cls) => cls.venue_id === venueFilter)
       ) {
         return false;
       }
@@ -338,7 +346,7 @@ export function StudentList({
                 setSearch(e.target.value);
                 resetPage();
               }}
-              placeholder="Search by name or contact…"
+              placeholder="Search by name, payer, or contact…"
               className="h-11 rounded-lg border-border/80 bg-card pl-9"
               aria-label="Search students"
             />
@@ -380,9 +388,9 @@ export function StudentList({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All venues</SelectItem>
-              {venues.map((venue) => (
-                <SelectItem key={venue} value={venue}>
-                  {venue}
+              {venueOptions.map((venue) => (
+                <SelectItem key={venue.id} value={venue.id}>
+                  {venue.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -528,6 +536,7 @@ export function StudentList({
                     descLabel="Sorted by name, Z to A. Click to reverse."
                   />
                 </span>
+                <span className="hidden lg:block">Payer</span>
                 <span className="hidden lg:block">Venue & schedule</span>
                 <span className="hidden lg:block">Package</span>
                 <span className="hidden lg:block">Validity</span>
@@ -590,6 +599,19 @@ export function StudentList({
                                 <Badge variant="guardian">Guardian req</Badge>
                               ) : null}
                             </div>
+                          </div>
+
+                          <div>
+                            <span className="lg:hidden text-xs text-muted-foreground">
+                              Payer:{" "}
+                            </span>
+                            <p className="truncate text-sm">
+                              {payerShortLabel(student.payer) ?? (
+                                <span className="text-muted-foreground">
+                                  No payer
+                                </span>
+                              )}
+                            </p>
                           </div>
 
                           <div>

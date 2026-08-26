@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/profile";
 import { listCoaches } from "@/lib/queries/profiles";
 import { getSessionsForDashboardRange } from "@/lib/queries/sessions";
+import { listVenues } from "@/lib/queries/venues";
 import { resolveCalendarRange, weekDatesContaining } from "@/lib/session-utils";
 import { DashboardCalendar } from "@/components/admin/dashboard-calendar";
 import { PageHeader } from "@/components/layout/page-header";
@@ -24,9 +25,10 @@ export default async function AdminSchedulePage({
       ? range.end
       : weekDatesContaining(range.date).sunday;
 
-  const [sessions, coaches] = await Promise.all([
+  const [sessions, coaches, venues] = await Promise.all([
     getSessionsForDashboardRange(sessionStart, sessionEnd),
     listCoaches(),
+    listVenues(),
   ]);
 
   return (
@@ -35,9 +37,13 @@ export default async function AdminSchedulePage({
         className="shrink-0"
         title="Schedule"
         description="Class timetable, events, and session generation."
-        className="shrink-0"
       />
-      <DashboardCalendar range={range} sessions={sessions} coaches={coaches} />
+      <DashboardCalendar
+        range={range}
+        sessions={sessions}
+        coaches={coaches}
+        venues={venues}
+      />
     </div>
   );
 }

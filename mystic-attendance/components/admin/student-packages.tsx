@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Pause, Play, Wallet } from "lucide-react";
 import { resumePackageFormAction } from "@/lib/actions/packages";
 import { formatCalendarDate, todayInSingapore } from "@/lib/datetime";
+import { payerLabel } from "@/lib/payer-utils";
 import {
   PACKAGE_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
@@ -15,6 +16,10 @@ import {
   packageLabel,
 } from "@/lib/package-utils";
 import type { Package, PackageStatus } from "@/lib/types";
+import {
+  CreateInvoiceButton,
+  InvoiceLink,
+} from "@/components/admin/invoice-actions";
 import { PackageTabs } from "@/components/admin/package-tabs";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
@@ -142,6 +147,11 @@ function PackageCard({ pkg }: { pkg: Package }) {
           {creditBreakdown ? (
             <p className="text-xs text-muted-foreground">{creditBreakdown}</p>
           ) : null}
+          {pkg.payer ? (
+            <p className="text-xs text-muted-foreground">
+              Payer: {payerLabel(pkg.payer)}
+            </p>
+          ) : null}
           <p className="text-xs text-muted-foreground">
             {assignedDate
               ? `Assigned ${formatCalendarDate(assignedDate)}`
@@ -211,7 +221,14 @@ function PackageCard({ pkg }: { pkg: Package }) {
               <Wallet className="size-3.5" />
               Mark as Paid
             </Link>
-          ) : null}
+          ) : pkg.invoice ? (
+            <InvoiceLink
+              invoiceId={pkg.invoice.id}
+              invoiceNumber={pkg.invoice.invoice_number}
+            />
+          ) : (
+            <CreateInvoiceButton packageId={pkg.id} />
+          )}
           {canPausePackage(pkg) ? (
             <Link
               href={`/admin/packages/${pkg.id}/pause`}
