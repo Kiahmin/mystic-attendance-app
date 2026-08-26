@@ -32,6 +32,7 @@ export type StudentInput = {
   contact_phone?: string | null;
   guardian_name?: string | null;
   guardian_phone?: string | null;
+  payer_id?: string | null;
   skill_level?: SkillLevel | null;
   notes?: string | null;
   is_trial: boolean;
@@ -94,6 +95,7 @@ function toStudentRow(input: StudentInput) {
     contact_phone: emptyToNull(input.contact_phone),
     guardian_name: emptyToNull(input.guardian_name),
     guardian_phone: emptyToNull(input.guardian_phone),
+    payer_id: emptyToNull(input.payer_id),
     skill_level: input.skill_level ?? null,
     notes: emptyToNull(input.notes),
     is_trial: input.is_trial,
@@ -121,6 +123,9 @@ export async function createStudent(input: StudentInput) {
     if (trialError) return { error: trialError };
     const trial = input.trial;
     if (!trial) return { error: "Choose a trial package." };
+    if (trial.is_paid && !emptyToNull(input.payer_id)) {
+      return { error: "Select a payer before recording payment." };
+    }
     const resolved = await resolveTrialProduct(trial.package_product_id);
     if ("error" in resolved) return { error: resolved.error };
   }
@@ -141,6 +146,7 @@ export async function createStudent(input: StudentInput) {
   if (input.is_trial && input.trial) {
     const assigned = await assignPackage({
       student_id: studentId,
+      payer_id: emptyToNull(input.payer_id),
       package_product_id: input.trial.package_product_id,
       is_paid: input.trial.is_paid,
       payment_method: input.trial.is_paid ? input.trial.payment_method : null,
@@ -173,6 +179,9 @@ export async function updateStudent(id: string, input: StudentInput) {
     if (trialError) return { error: trialError };
     const trial = input.trial;
     if (!trial) return { error: "Choose a trial package." };
+    if (trial.is_paid && !emptyToNull(input.payer_id)) {
+      return { error: "Select a payer before recording payment." };
+    }
     const resolved = await resolveTrialProduct(trial.package_product_id);
     if ("error" in resolved) return { error: resolved.error };
   }
@@ -190,6 +199,7 @@ export async function updateStudent(id: string, input: StudentInput) {
   if (needsTrialPackage && input.trial) {
     const assigned = await assignPackage({
       student_id: id,
+      payer_id: emptyToNull(input.payer_id),
       package_product_id: input.trial.package_product_id,
       is_paid: input.trial.is_paid,
       payment_method: input.trial.is_paid ? input.trial.payment_method : null,
