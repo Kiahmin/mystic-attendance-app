@@ -65,49 +65,12 @@ function revalidatePackagePaths(studentId: string, packageId?: string) {
   revalidatePath("/admin/packages");
   revalidatePath("/admin/students");
   revalidatePath(`/admin/students/${studentId}`);
-  revalidatePath("/admin/invoices");
   revalidatePath("/admin");
   revalidatePath("/coach");
   if (packageId) {
     revalidatePath(`/admin/packages/${packageId}/pause`);
     revalidatePath(`/admin/packages/${packageId}/pay`);
   }
-}
-
-async function insertInvoiceForPackage(
-  supabase: SupabaseClient,
-  input: {
-    packageId: string;
-    payerId: string;
-    studentId: string;
-    amountSgd: number;
-    paymentMethod: PaymentMethod;
-  }
-): Promise<{ error?: string; id?: string }> {
-  const { data: existing, error: existingError } = await supabase
-    .from("invoices")
-    .select("id")
-    .eq("package_id", input.packageId)
-    .maybeSingle();
-
-  if (existingError) return { error: existingError.message };
-  if (existing) return { id: existing.id as string };
-
-  const { data, error } = await supabase
-    .from("invoices")
-    .insert({
-      package_id: input.packageId,
-      payer_id: input.payerId,
-      student_id: input.studentId,
-      amount_sgd: input.amountSgd,
-      payment_method: input.paymentMethod,
-      paid_at: todayInSingapore(),
-    })
-    .select("id")
-    .single();
-
-  if (error) return { error: error.message };
-  return { id: data.id as string };
 }
 
 async function resolvePackagePayerId(
@@ -231,17 +194,6 @@ export async function assignPackage(input: AssignPackageInput) {
 
   const packageId = data.id as string;
   if (input.is_paid) {
-    const invoice = await insertInvoiceForPackage(supabase, {
-      packageId,
-      payerId: payer.payerId as string,
-      studentId: input.student_id,
-      amountSgd: input.amount_sgd as number,
-      paymentMethod: input.payment_method as PaymentMethod,
-    });
-    if (invoice.error) {
-      revalidatePackagePaths(input.student_id, packageId);
-      return { error: invoice.error, id: packageId };
-    }
     const backfill = await backfillUnchargedAttendance(supabase, packageId);
     if (backfill.backfillError) {
       revalidatePackagePaths(input.student_id, packageId);
@@ -352,76 +304,12 @@ export async function markPackagePaid(
 
   if (error) return { error: error.message };
 
-  const invoice = await insertInvoiceForPackage(supabase, {
-    packageId,
-    payerId: payer.payerId,
-    studentId: existing.student_id as string,
-    amountSgd: input.amount_sgd,
-    paymentMethod: input.payment_method,
-  });
-  if (invoice.error) {
-    revalidatePackagePaths(existing.student_id as string, packageId);
-    return { error: invoice.error };
-  }
-
   const backfill = await backfillUnchargedAttendance(supabase, packageId);
   revalidatePackagePaths(existing.student_id as string, packageId);
   if (backfill.backfillError) {
     return { error: backfill.backfillError };
   }
-  return { success: true as const, invoiceId: invoice.id };
-}
-
-export async function createInvoiceForPaidPackage(packageId: string) {
-  await requireRole(["admin"]);
-
-  if (!packageId) return { error: "Package id is required." };
-
-  const supabase = await createClient();
-  const { data: existing, error: fetchError } = await supabase
-    .from("packages")
-    .select("id, student_id, payer_id, is_paid, amount_sgd, payment_method")
-    .eq("id", packageId)
-    .maybeSingle();
-
-  if (fetchError) return { error: fetchError.message };
-  if (!existing) return { error: "Package not found." };
-  if (!existing.is_paid) {
-    return { error: "Only paid packages can have an invoice." };
-  }
-  if (existing.amount_sgd == null || !existing.payment_method) {
-    return { error: "Payment amount and method are required to create an invoice." };
-  }
-
-  const payer = await resolvePackagePayerId(
-    supabase,
-    existing.student_id as string,
-    existing.payer_id as string | null
-  );
-  if (payer.error) return { error: payer.error };
-  if (!payer.payerId) {
-    return { error: "Select a payer before creating an invoice." };
-  }
-
-  if (!existing.payer_id) {
-    const { error: payerUpdateError } = await supabase
-      .from("packages")
-      .update({ payer_id: payer.payerId })
-      .eq("id", packageId);
-    if (payerUpdateError) return { error: payerUpdateError.message };
-  }
-
-  const invoice = await insertInvoiceForPackage(supabase, {
-    packageId,
-    payerId: payer.payerId,
-    studentId: existing.student_id as string,
-    amountSgd: Number(existing.amount_sgd),
-    paymentMethod: existing.payment_method as PaymentMethod,
-  });
-  if (invoice.error) return { error: invoice.error };
-
-  revalidatePackagePaths(existing.student_id as string, packageId);
-  return { success: true as const, invoiceId: invoice.id };
+  return { success: true as const };
 }
 
 export async function pausePackage(

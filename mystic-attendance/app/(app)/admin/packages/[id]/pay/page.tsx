@@ -13,7 +13,6 @@ import {
   packageLabel,
   unchargedClassesNote,
 } from "@/lib/package-utils";
-import { formatInvoiceNumber } from "@/lib/invoice-utils";
 import { payerLabel } from "@/lib/payer-utils";
 import { PageHeader } from "@/components/layout/page-header";
 import { MarkPackagePaidForm } from "@/components/admin/mark-package-paid-form";
@@ -93,17 +92,6 @@ export default async function MarkPackagePaidPage({
               : ""}
             {pkg.payer ? ` · ${payerLabel(pkg.payer)}` : ""}
             .
-            {pkg.invoice ? (
-              <>
-                {" "}
-                <Link
-                  href={`/admin/invoices/${pkg.invoice.id}`}
-                  className="underline underline-offset-2"
-                >
-                  {formatInvoiceNumber(pkg.invoice.invoice_number)}
-                </Link>
-              </>
-            ) : null}
           </AlertDescription>
         </Alert>
       ) : (

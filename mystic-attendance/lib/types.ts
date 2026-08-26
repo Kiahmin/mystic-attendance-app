@@ -190,35 +190,11 @@ export interface PackageProduct {
 
 export type PackageSession = Pick<Session, "id" | "name" | "session_date">;
 
-export interface Invoice {
-  id: string;
-  invoice_number: number;
-  package_id: string;
-  payer_id: string;
-  student_id: string;
-  amount_sgd: number;
-  payment_method: PaymentMethod;
-  paid_at: string;
-  created_at: string;
-}
-
-export interface InvoiceWithRelations extends Invoice {
-  payers: PayerRef;
-  students: Pick<Student, "id" | "full_name">;
-  packages: Pick<Package, "id" | "student_id" | "is_paid" | "status"> & {
-    package_products?: Pick<
-      PackageProduct,
-      "product_type" | "label" | "total_credits"
-    > | null;
-  };
-}
-
 export interface Package {
   id: string;
   student_id: string;
   payer_id: string | null;
   payer?: PayerRef | null;
-  invoice?: Pick<Invoice, "id" | "invoice_number"> | null;
   package_product_id: string | null;
   session_id: string | null;
   total_credits: number;

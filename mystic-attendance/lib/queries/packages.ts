@@ -5,7 +5,6 @@ import {
   packageIsTrialProduct,
 } from "@/lib/package-utils";
 import type {
-  Invoice,
   Package,
   PackageProduct,
   PackageSession,
@@ -64,10 +63,6 @@ const PACKAGE_COLUMNS = `
     kind,
     display_name,
     phone
-  ),
-  invoices (
-    id,
-    invoice_number
   )
 `;
 
@@ -96,24 +91,16 @@ function mapPackage(row: {
   package_products?: PackageProduct | PackageProduct[] | null;
   sessions?: PackageSession | PackageSession[] | null;
   payers?: PayerRef | PayerRef[] | null;
-  invoices?:
-    | Pick<Invoice, "id" | "invoice_number">
-    | Pick<Invoice, "id" | "invoice_number">[]
-    | null;
   [key: string]: unknown;
 }): Package {
   const product = mapPackageProduct(asSingle(row.package_products));
   const payer = asSingle(row.payers);
-  const invoice = asSingle(row.invoices);
   return {
     ...(row as unknown as Package),
     package_product_id: row.package_product_id ?? null,
     session_id: row.session_id ?? null,
     payer_id: row.payer_id ?? payer?.id ?? null,
     payer,
-    invoice: invoice
-      ? { id: invoice.id, invoice_number: Number(invoice.invoice_number) }
-      : null,
     bonus_credits: Number(row.bonus_credits ?? 0),
     customisation_notes: row.customisation_notes ?? null,
     amount_sgd:

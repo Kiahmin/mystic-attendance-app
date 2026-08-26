@@ -16,10 +16,6 @@ import {
   packageLabel,
 } from "@/lib/package-utils";
 import type { Package, PackageStatus } from "@/lib/types";
-import {
-  CreateInvoiceButton,
-  InvoiceLink,
-} from "@/components/admin/invoice-actions";
 import { PackageTabs } from "@/components/admin/package-tabs";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
@@ -221,14 +217,7 @@ function PackageCard({ pkg }: { pkg: Package }) {
               <Wallet className="size-3.5" />
               Mark as Paid
             </Link>
-          ) : pkg.invoice ? (
-            <InvoiceLink
-              invoiceId={pkg.invoice.id}
-              invoiceNumber={pkg.invoice.invoice_number}
-            />
-          ) : (
-            <CreateInvoiceButton packageId={pkg.id} />
-          )}
+          ) : null}
           {canPausePackage(pkg) ? (
             <Link
               href={`/admin/packages/${pkg.id}/pause`}

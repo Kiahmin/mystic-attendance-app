@@ -17,7 +17,6 @@ export type PayerInput = {
 function revalidatePayerPaths() {
   revalidatePath("/admin/students");
   revalidatePath("/admin/packages");
-  revalidatePath("/admin/invoices");
 }
 
 function validatePayerInput(input: PayerInput): string | null {
