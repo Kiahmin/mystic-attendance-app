@@ -6,12 +6,15 @@ import type {
   EnrolmentWithClass,
   PackageProduct,
   PackageStatus,
+  PayerRef,
   Student,
   StudentListItem,
   StudentRosterClass,
   StudentRosterPackage,
   StudentWithEnrolments,
+  VenueRef,
 } from "@/lib/types";
+import { mapVenueRef } from "@/lib/venue-utils";
 
 const STUDENT_COLUMNS = `
   id,
@@ -21,6 +24,7 @@ const STUDENT_COLUMNS = `
   guardian_name,
   guardian_phone,
   contact_phone,
+  payer_id,
   skill_level,
   notes,
   is_trial,
@@ -57,7 +61,8 @@ type RosterEnrolmentRow = {
     | {
         id: string;
         name: string;
-        venue?: string | null;
+        venue_id?: string | null;
+        venues?: VenueRef | VenueRef[] | null;
         day_of_week: DayOfWeek;
         start_time: string;
         is_active?: boolean;
@@ -65,7 +70,8 @@ type RosterEnrolmentRow = {
     | {
         id: string;
         name: string;
-        venue?: string | null;
+        venue_id?: string | null;
+        venues?: VenueRef | VenueRef[] | null;
         day_of_week: DayOfWeek;
         start_time: string;
         is_active?: boolean;
@@ -106,10 +112,12 @@ function mapRosterClasses(
     .map((enrolment) => {
       const classGroup = asSingle(enrolment.classes);
       if (!classGroup) return null;
+      const venue = mapVenueRef(classGroup.venues);
       return {
         id: classGroup.id,
         name: classGroup.name,
-        venue: classGroup.venue?.trim() || null,
+        venue_id: classGroup.venue_id ?? venue?.id ?? null,
+        venue,
         day_of_week: classGroup.day_of_week,
         start_time: classGroup.start_time,
       } satisfies StudentRosterClass;
@@ -135,12 +143,19 @@ export async function listStudents(
       `
         ${STUDENT_COLUMNS},
         created_at,
+        payers (
+          id,
+          kind,
+          display_name,
+          phone
+        ),
         enrolments (
           class_id,
           classes (
             id,
             name,
-            venue,
+            venue_id,
+            venues (id, name),
             day_of_week,
             start_time,
             end_time,
@@ -227,11 +242,16 @@ export async function listStudents(
   }
 
   return rows.map((row) => {
-    const { enrolments, ...student } = row;
+    const { enrolments, payers, ...student } = row as typeof row & {
+      payers?: PayerRef | PayerRef[] | null;
+    };
     const enrolmentRows = (enrolments ?? []) as RosterEnrolmentRow[];
     const classIds = enrolmentRows.map((enrolment) => enrolment.class_id);
+    const payer = asSingle(payers);
     return {
       ...(student as Student & { created_at: string }),
+      payer_id: (student as Student).payer_id ?? payer?.id ?? null,
+      payer,
       last_attended_on: lastAttendedByStudent.get(student.id as string) ?? null,
       enrolment_count: classIds.length,
       class_ids: classIds,
@@ -301,6 +321,12 @@ export async function getStudentById(
     .select(
       `
         ${STUDENT_COLUMNS},
+        payers (
+          id,
+          kind,
+          display_name,
+          phone
+        ),
         enrolments (
           id,
           student_id,
@@ -309,7 +335,8 @@ export async function getStudentById(
           classes (
             id,
             name,
-            venue,
+            venue_id,
+            venues (id, name),
             day_of_week,
             start_time,
             end_time,
@@ -325,7 +352,8 @@ export async function getStudentById(
   if (error) throw error;
   if (!data) return null;
 
-  const { enrolments, ...student } = data as Student & {
+  const { enrolments, payers, ...student } = data as Student & {
+    payers?: PayerRef | PayerRef[] | null;
     enrolments: Array<{
       id: string;
       student_id: string;
@@ -339,12 +367,20 @@ export async function getStudentById(
     .map((enrolment) => {
       const classGroup = asSingle(enrolment.classes);
       if (!classGroup) return null;
+      const venue = mapVenueRef(
+        (classGroup as ClassGroup & { venues?: VenueRef | VenueRef[] | null })
+          .venues
+      );
       return {
         id: enrolment.id,
         student_id: enrolment.student_id,
         class_id: enrolment.class_id,
         enrolled_at: enrolment.enrolled_at,
-        classes: classGroup,
+        classes: {
+          ...classGroup,
+          venue_id: classGroup.venue_id ?? venue?.id ?? null,
+          venue,
+        },
       };
     })
     .filter((item): item is EnrolmentWithClass => item !== null);
@@ -355,6 +391,8 @@ export async function getStudentById(
 
   return {
     ...student,
+    payer_id: student.payer_id ?? asSingle(payers)?.id ?? null,
+    payer: asSingle(payers),
     enrolments: typedEnrolments,
   };
 }
