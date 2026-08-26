@@ -23,6 +23,7 @@ import {
   formatPackageExpiry,
   isCustomisedPackage,
   packageLabel,
+  packageStudentNames,
   PAYMENT_METHOD_LABELS,
 } from "@/lib/package-utils";
 import type { PackageListFilter } from "@/lib/queries/packages";
@@ -111,6 +112,7 @@ export function PackageList({
         pkg.students.full_name,
         pkg.payer?.display_name,
         pkg.payer?.phone,
+        ...pkg.members.map((member) => member.full_name),
       ];
       return haystacks.some((value) => value?.toLowerCase().includes(q));
     });
@@ -251,7 +253,7 @@ export function PackageList({
                   >
                     <div className="min-w-0">
                       <p className="truncate font-semibold">
-                        {pkg.students.full_name}
+                        {packageStudentNames(pkg, pkg.students.full_name)}
                       </p>
                       {pkg.payer ? (
                         <p className="truncate text-xs text-muted-foreground">
