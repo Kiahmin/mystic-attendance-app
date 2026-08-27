@@ -13,6 +13,7 @@ const FILTERS = new Set<PackageListFilter>([
   "paused",
   "expired",
   "finished",
+  "overshot",
 ]);
 
 const FILTER_ALIASES: Record<string, PackageListFilter> = {

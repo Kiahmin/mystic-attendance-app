@@ -6,6 +6,7 @@ import {
 } from "@/lib/package-utils";
 import type {
   Package,
+  PackageCreditTransfer,
   PackageMember,
   PackageProduct,
   PackageSession,
@@ -266,6 +267,67 @@ export async function getPackageById(id: string): Promise<Package | null> {
   if (error) throw error;
   if (!data) return null;
   return mapPackage(data);
+}
+
+export async function listPackageCreditTransfers(
+  packageIds: string[]
+): Promise<PackageCreditTransfer[]> {
+  if (packageIds.length === 0) return [];
+  const supabase = await createClient();
+  const select = `
+    id,
+    from_package_id,
+    to_package_id,
+    from_student_id,
+    to_student_id,
+    credits,
+    note,
+    created_at,
+    from_student:students!from_student_id ( full_name ),
+    to_student:students!to_student_id ( full_name )
+  `;
+
+  const [fromResult, toResult] = await Promise.all([
+    supabase
+      .from("package_credit_transfers")
+      .select(select)
+      .in("from_package_id", packageIds)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("package_credit_transfers")
+      .select(select)
+      .in("to_package_id", packageIds)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  if (fromResult.error) throw fromResult.error;
+  if (toResult.error) throw toResult.error;
+
+  const byId = new Map<string, PackageCreditTransfer>();
+  for (const row of [...(fromResult.data ?? []), ...(toResult.data ?? [])]) {
+    const fromStudent = asSingle(
+      row.from_student as { full_name: string } | { full_name: string }[] | null
+    );
+    const toStudent = asSingle(
+      row.to_student as { full_name: string } | { full_name: string }[] | null
+    );
+    byId.set(row.id as string, {
+      id: row.id as string,
+      from_package_id: row.from_package_id as string,
+      to_package_id: row.to_package_id as string,
+      from_student_id: row.from_student_id as string,
+      to_student_id: row.to_student_id as string,
+      credits: Number(row.credits),
+      note: (row.note as string | null) ?? null,
+      created_at: row.created_at as string,
+      from_student_name: fromStudent?.full_name ?? "Student",
+      to_student_name: toStudent?.full_name ?? "Student",
+    });
+  }
+
+  return [...byId.values()].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at)
+  );
 }
 
 export async function getPackageWithStudent(

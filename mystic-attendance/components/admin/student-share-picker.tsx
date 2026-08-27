@@ -19,6 +19,9 @@ type StudentSharePickerProps = {
   excludeIds: string[];
   value: string[];
   onChange: (studentIds: string[]) => void;
+  preferredIds?: string[];
+  single?: boolean;
+  placeholder?: string;
 };
 
 export function StudentSharePicker({
@@ -27,24 +30,34 @@ export function StudentSharePicker({
   excludeIds,
   value,
   onChange,
+  preferredIds = [],
+  single = false,
+  placeholder,
 }: StudentSharePickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const excluded = new Set(excludeIds);
 
   const selected = students.filter((student) => value.includes(student.id));
+  const preferred = new Set(preferredIds);
   const available = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return students.filter((student) => {
+    const matches = students.filter((student) => {
       if (excluded.has(student.id) || value.includes(student.id)) return false;
       if (!q) return true;
       return student.full_name.toLowerCase().includes(q);
     });
-  }, [students, excluded, value, query]);
+    return matches.sort((a, b) => {
+      const aPref = preferred.has(a.id) ? 0 : 1;
+      const bPref = preferred.has(b.id) ? 0 : 1;
+      if (aPref !== bPref) return aPref - bPref;
+      return a.full_name.localeCompare(b.full_name);
+    });
+  }, [students, excluded, value, query, preferredIds]);
 
   function addStudent(studentId: string) {
     if (excluded.has(studentId) || value.includes(studentId)) return;
-    onChange([...value, studentId]);
+    onChange(single ? [studentId] : [...value, studentId]);
     setQuery("");
     setOpen(false);
   }
@@ -86,9 +99,11 @@ export function StudentSharePicker({
             className="h-9 w-full justify-between font-normal"
           >
             <span className="truncate text-muted-foreground">
-              {selected.length > 0
-                ? "Add another sibling…"
-                : "Share credits with siblings…"}
+              {placeholder
+                ? placeholder
+                : selected.length > 0
+                  ? "Add another sibling…"
+                  : "Share credits with siblings…"}
             </span>
             <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
           </Button>
@@ -112,6 +127,11 @@ export function StudentSharePicker({
                 onClick={() => addStudent(student.id)}
               >
                 <span className="min-w-0 truncate">{student.full_name}</span>
+                {preferred.has(student.id) ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    Same payer
+                  </span>
+                ) : null}
               </button>
             ))}
             {available.length === 0 ? (

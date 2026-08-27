@@ -45,6 +45,7 @@ const FILTER_OPTIONS: { value: FilterValue; label: string }[] = [
   { value: "paused", label: "Paused" },
   { value: "expired", label: "Expired" },
   { value: "finished", label: "Finished" },
+  { value: "overshot", label: "Overshot" },
 ];
 
 function orderedFilters(filters: FilterValue[]): FilterValue[] {
@@ -286,7 +287,9 @@ export function PackageList({
                       <span className="lg:hidden font-normal text-muted-foreground">
                         Credits:{" "}
                       </span>
-                      {pkg.remaining_credits}/{pkg.total_credits}
+                      {pkg.status === "overshot"
+                        ? `+${pkg.used_credits - pkg.total_credits}/${pkg.total_credits}`
+                        : `${pkg.remaining_credits}/${pkg.total_credits}`}
                     </p>
 
                     <p className="text-sm text-muted-foreground">

@@ -1,13 +1,9 @@
 import {
-  Bell,
-  CalendarDays,
   CheckCircle2,
-  Clock,
   Package,
   UserMinus,
   Users,
 } from "lucide-react";
-import Link from "next/link";
 import { requireRole } from "@/lib/auth/profile";
 import { isValidYearMonth, todayInSingapore } from "@/lib/datetime";
 import { listClasses } from "@/lib/queries/classes";
@@ -20,12 +16,10 @@ import { countInactiveStudents } from "@/lib/queries/students";
 import { weekDatesContaining } from "@/lib/session-utils";
 import { DashboardDueSoonPanel } from "@/components/admin/dashboard-due-soon-panel";
 import { DashboardInformedPanel } from "@/components/admin/dashboard-informed-panel";
+import { DashboardOvershotPanel } from "@/components/admin/dashboard-overshot-panel";
 import { DashboardMonthlyAttendance } from "@/components/admin/dashboard-monthly-attendance";
 import { MetricCard } from "@/components/layout/metric-card";
 import { PageHeader } from "@/components/layout/page-header";
-
-const PACKAGE_ATTENTION_HREF =
-  "/admin/packages?filter=finishing,unpaid,expired,finished";
 
 function parseReportMonth(value: string | undefined, today: string): string {
   if (value && isValidYearMonth(value)) return value;
@@ -66,6 +60,7 @@ export default async function AdminDashboardPage({
     (sum, item) => sum + item.checkedInCount,
     0
   );
+  const noSessionsToday = todaySessions.length === 0;
 
   return (
     <div className="space-y-8">
@@ -76,85 +71,77 @@ export default async function AdminDashboardPage({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Expected Students This Week"
+          label="Expected this week"
           value={totalExpectedWeek}
+          detail="This week"
           icon={<Users />}
+          href="/admin/schedule"
         />
         <MetricCard
-          label="Checked-in Count"
+          label="Checked in today"
           value={
-            <span>
-              {totalCheckedIn}
-              <span className="text-lg font-medium text-muted-foreground">
-                {" "}
-                / {totalExpectedToday}
+            noSessionsToday ? (
+              totalCheckedIn
+            ) : (
+              <span>
+                {totalCheckedIn}
+                <span className="text-lg font-medium text-muted-foreground">
+                  {" "}
+                  / {totalExpectedToday}
+                </span>
               </span>
-            </span>
+            )
           }
+          valueText={
+            noSessionsToday
+              ? String(totalCheckedIn)
+              : `${totalCheckedIn} of ${totalExpectedToday}`
+          }
+          detail={noSessionsToday ? "No sessions today" : "Today"}
           icon={<CheckCircle2 />}
+          href={`/admin/schedule?view=day&date=${today}`}
         />
         <MetricCard
-          label="Inactive Students"
+          label="Inactive students"
           value={inactiveCount}
+          detail="No class in 6 months"
           icon={<UserMinus />}
           href="/admin/students?inactive=1"
         />
         <MetricCard
-          label="Student due soon"
-          value={operations.dueSoonCount}
-          detail="Two or fewer lessons remaining"
-          icon={<Clock />}
-          href={PACKAGE_ATTENTION_HREF}
-        />
-      </div>
-
-      {operations.dueSoonCount > 0 ? (
-        <p className="-mt-4 text-sm">
-          <Link
-            href={PACKAGE_ATTENTION_HREF}
-            className="font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Review packages that need attention
-          </Link>
-        </p>
-      ) : null}
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <MetricCard
           label="Active packages"
           value={operations.activePackageCount}
-          detail="Students still taking lessons"
+          detail="Still taking lessons"
           icon={<Package />}
           href="/admin/packages?filter=active"
         />
-        <MetricCard
-          label="Informed"
-          value={operations.informedCount}
-          detail="Waiting for renewal"
-          icon={<Bell />}
-        />
-        <MetricCard
-          label="This month"
-          value={operations.monthCheckInCount}
-          detail={`${operations.exhaustedPackageCount} packages finished overall`}
-          icon={<CalendarDays />}
-        />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <DashboardDueSoonPanel
-          items={operations.dueSoon}
-          classes={classes.map((cls) => ({ id: cls.id, name: cls.name }))}
-        />
-        <DashboardInformedPanel items={operations.informed} />
-      </div>
+      <section className="space-y-4" aria-labelledby="dashboard-queues">
+        <h2
+          id="dashboard-queues"
+          className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
+        >
+          Queues
+        </h2>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <DashboardDueSoonPanel
+            items={operations.dueSoon}
+            classes={classes.map((cls) => ({ id: cls.id, name: cls.name }))}
+          />
+          <DashboardInformedPanel items={operations.informed} />
+          <DashboardOvershotPanel items={operations.overshot} />
+        </div>
+      </section>
 
-      <DashboardMonthlyAttendance
-        reportMonth={reportMonth}
-        monthCheckInCount={operations.monthCheckInCount}
-        byVenue={operations.monthlyByVenue}
-        byDay={operations.monthlyByDay}
-      />
+      <section aria-labelledby="dashboard-reporting">
+        <DashboardMonthlyAttendance
+          reportMonth={reportMonth}
+          monthCheckInCount={operations.monthCheckInCount}
+          byVenue={operations.monthlyByVenue}
+          byDay={operations.monthlyByDay}
+        />
+      </section>
     </div>
   );
 }

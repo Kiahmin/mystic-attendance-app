@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Pause, Play, Wallet } from "lucide-react";
+import { ArrowLeftRight, Pause, Play, Wallet } from "lucide-react";
 import { resumePackageFormAction } from "@/lib/actions/packages";
 import { formatCalendarDate, todayInSingapore } from "@/lib/datetime";
 import { payerLabel } from "@/lib/payer-utils";
@@ -8,6 +8,7 @@ import {
   PAYMENT_METHOD_LABELS,
   canPausePackage,
   canResumePackage,
+  canTransferPackageCredits,
   formatAmountSgd,
   formatPackageExpiry,
   isCustomisedPackage,
@@ -15,7 +16,12 @@ import {
   packageCreditBreakdown,
   packageLabel,
 } from "@/lib/package-utils";
-import type { Package, PackageStatus, Student } from "@/lib/types";
+import type {
+  Package,
+  PackageCreditTransfer,
+  PackageStatus,
+  Student,
+} from "@/lib/types";
 import { PackageMembersEditor } from "@/components/admin/package-members-editor";
 import { PackageTabs } from "@/components/admin/package-tabs";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -23,6 +29,7 @@ import { cn } from "@/lib/utils";
 
 type StudentPackagesProps = {
   packages: Package[];
+  transfers?: PackageCreditTransfer[];
   students: Pick<Student, "id" | "full_name">[];
   studentId: string;
 };
@@ -33,10 +40,12 @@ const STATUS_CLASS: Record<PackageStatus, string> = {
   paused: "bg-secondary text-secondary-foreground",
   expired: "bg-destructive/10 text-destructive",
   exhausted: "border border-border text-foreground",
+  overshot: "bg-destructive/10 text-destructive",
 };
 
 export function StudentPackages({
   packages,
+  transfers = [],
   students,
   studentId,
 }: StudentPackagesProps) {
@@ -67,6 +76,7 @@ export function StudentPackages({
       current={
         <PackageCardList
           packages={current}
+          transfers={transfers}
           students={students}
           studentId={studentId}
           emptyMessage="No current packages"
@@ -76,6 +86,7 @@ export function StudentPackages({
       past={
         <PackageCardList
           packages={past}
+          transfers={transfers}
           students={students}
           studentId={studentId}
           emptyMessage="No past packages yet"
@@ -88,12 +99,14 @@ export function StudentPackages({
 
 function PackageCardList({
   packages,
+  transfers,
   students,
   studentId,
   emptyMessage,
   emptyHint,
 }: {
   packages: Package[];
+  transfers: PackageCreditTransfer[];
   students: Pick<Student, "id" | "full_name">[];
   studentId: string;
   emptyMessage: string;
@@ -112,7 +125,16 @@ function PackageCardList({
     <ul className="space-y-3">
       {packages.map((pkg) => (
         <li key={pkg.id}>
-          <PackageCard pkg={pkg} students={students} studentId={studentId} />
+          <PackageCard
+            pkg={pkg}
+            transfers={transfers.filter(
+              (transfer) =>
+                transfer.from_package_id === pkg.id ||
+                transfer.to_package_id === pkg.id
+            )}
+            students={students}
+            studentId={studentId}
+          />
         </li>
       ))}
     </ul>
@@ -134,10 +156,12 @@ function StatusPill({ status }: { status: PackageStatus }) {
 
 function PackageCard({
   pkg,
+  transfers,
   students,
   studentId,
 }: {
   pkg: Package;
+  transfers: PackageCreditTransfer[];
   students: Pick<Student, "id" | "full_name">[];
   studentId: string;
 }) {
@@ -191,9 +215,13 @@ function PackageCard({
 
         <div className="flex gap-8">
           <div className="text-center">
-            <p className="text-3xl font-semibold">{pkg.remaining_credits}</p>
+            <p className="text-3xl font-semibold">
+              {pkg.status === "overshot"
+                ? `+${pkg.used_credits - pkg.total_credits}`
+                : pkg.remaining_credits}
+            </p>
             <p className="text-xs tracking-wider text-muted-foreground uppercase">
-              Credits Left
+              {pkg.status === "overshot" ? "Extra" : "Credits Left"}
             </p>
           </div>
           <div className="text-center">
@@ -249,6 +277,15 @@ function PackageCard({
               Mark as Paid
             </Link>
           ) : null}
+          {canTransferPackageCredits(pkg) ? (
+            <Link
+              href={`/admin/packages/${pkg.id}/transfer`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <ArrowLeftRight className="size-3.5" />
+              Transfer credits
+            </Link>
+          ) : null}
           {canPausePackage(pkg) ? (
             <Link
               href={`/admin/packages/${pkg.id}/pause`}
@@ -275,6 +312,37 @@ function PackageCard({
       </div>
 
       <PackageMembersEditor pkg={pkg} students={students} />
+
+      {transfers.length > 0 ? (
+        <div className="mt-3 rounded-lg bg-muted/50 p-3 text-sm">
+          <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+            Credit transfers
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {transfers.map((transfer) => (
+              <li key={transfer.id} className="text-foreground">
+                {transfer.from_package_id === pkg.id
+                  ? `Transferred ${transfer.credits} credit${
+                      transfer.credits === 1 ? "" : "s"
+                    } to ${transfer.to_student_name}`
+                  : `Received ${transfer.credits} credit${
+                      transfer.credits === 1 ? "" : "s"
+                    } from ${transfer.from_student_name}`}
+                <span className="text-muted-foreground">
+                  {" · "}
+                  {formatCalendarDate(transfer.created_at.slice(0, 10))}
+                </span>
+                {transfer.note ? (
+                  <span className="text-muted-foreground">
+                    {" — "}
+                    {transfer.note}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {pkg.customisation_notes ? (
         <div className="mt-3 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
