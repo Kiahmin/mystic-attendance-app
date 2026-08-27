@@ -12,6 +12,7 @@ import {
 import { ArchiveStudentButton } from "@/components/admin/archive-student-button";
 import { PackageStatusBadge } from "@/components/admin/package-status-badge";
 import {
+  ColumnFilter,
   SortHeader,
   cycleColumnSort,
   type TableSort,
@@ -28,11 +29,13 @@ import { formatSessionTime } from "@/lib/attendance-utils";
 import { formatCalendarDate, formatCalendarDateLong } from "@/lib/datetime";
 import {
   formatPackageExpiry,
+  PACKAGE_PRODUCT_TYPE_LABELS,
   PACKAGE_STATUS_LABELS,
   packageLabel,
 } from "@/lib/package-utils";
 import type {
   PackageProduct,
+  PackageProductType,
   PackageStatus,
   Payer,
   SkillLevel,
@@ -61,13 +64,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
@@ -81,11 +77,11 @@ type StudentListProps = {
 };
 
 type RosterTab = "active" | "archived";
-type SortColumn = "name";
-type SortDir = "asc" | "desc";
+type SortColumn = "name" | "validity";
 type StudentSort = TableSort<SortColumn>;
-
+type ClassFilter = string | "none";
 type SkillFilter = SkillLevel | "unset";
+type ProductFilter = PackageProductType | "none";
 type PackageFilter = PackageStatus | "none";
 
 const SKILL_FILTER_OPTIONS: { value: SkillFilter; label: string }[] = [
@@ -104,20 +100,47 @@ const PACKAGE_FILTER_OPTIONS: { value: PackageFilter; label: string }[] = [
   { value: "none", label: "No package" },
 ];
 
+const PRODUCT_FILTER_OPTIONS: { value: ProductFilter; label: string }[] = [
+  ...(Object.keys(PACKAGE_PRODUCT_TYPE_LABELS) as PackageProductType[]).map(
+    (value) => ({ value, label: PACKAGE_PRODUCT_TYPE_LABELS[value] })
+  ),
+  { value: "none", label: "No package" },
+];
+
 const DEFAULT_SORT: StudentSort = { column: "name", dir: "asc" };
 
 const ROSTER_GRID =
   "lg:grid-cols-[minmax(11rem,1.4fr)_minmax(8.5rem,1fr)_minmax(10rem,1.15fr)_minmax(9.5rem,1.1fr)_minmax(7.5rem,0.9fr)_minmax(5.5rem,0.7fr)_4.75rem] lg:gap-4";
 
-function compareName(
-  a: StudentListItem,
-  b: StudentListItem,
-  direction: SortDir
-) {
-  const result = a.full_name.localeCompare(b.full_name, undefined, {
+function compareName(a: StudentListItem, b: StudentListItem) {
+  return a.full_name.localeCompare(b.full_name, undefined, {
     sensitivity: "base",
   });
-  return direction === "asc" ? result : -result;
+}
+
+function validityRank(student: StudentListItem) {
+  if (!student.roster_package) return 2;
+  if (!student.roster_package.first_lesson_date) return 1;
+  return 0;
+}
+
+function compareStudents(
+  a: StudentListItem,
+  b: StudentListItem,
+  sort: StudentSort
+) {
+  if (sort.column === "validity") {
+    const rank = validityRank(a) - validityRank(b);
+    if (rank !== 0) return rank;
+    const byExpiry = (a.roster_package?.expires_at ?? "9999-12-31").localeCompare(
+      b.roster_package?.expires_at ?? "9999-12-31"
+    );
+    if (byExpiry !== 0) {
+      return sort.dir === "asc" ? byExpiry : -byExpiry;
+    }
+  }
+  const byName = compareName(a, b);
+  return sort.dir === "asc" ? byName : -byName;
 }
 
 function matchesSearch(student: StudentListItem, query: string) {
@@ -240,7 +263,6 @@ export function AddStudentButton({
 export function StudentList({
   students,
   classes,
-  venues,
   initialSearch = "",
   initialInactive = false,
 }: StudentListProps) {
@@ -249,11 +271,9 @@ export function StudentList({
   const [trialsOnly, setTrialsOnly] = useState(false);
   const [inactiveOnly, setInactiveOnly] = useState(initialInactive);
   const [skillFilters, setSkillFilters] = useState<SkillFilter[]>([]);
-  const [statusFilter, setStatusFilter] = useState<PackageFilter | "all">(
-    "all"
-  );
-  const [classFilter, setClassFilter] = useState<string>("all");
-  const [venueFilter, setVenueFilter] = useState<string>("all");
+  const [statusFilters, setStatusFilters] = useState<PackageFilter[]>([]);
+  const [classFilters, setClassFilters] = useState<ClassFilter[]>([]);
+  const [productFilters, setProductFilters] = useState<ProductFilter[]>([]);
   const [sort, setSort] = useState<StudentSort>(DEFAULT_SORT);
   const [page, setPage] = useState(1);
 
@@ -261,9 +281,14 @@ export function StudentList({
     setPage(1);
   }
 
-  const venueOptions = useMemo(
-    () => [...venues].sort((a, b) => a.name.localeCompare(b.name)),
-    [venues]
+  const classFilterOptions = useMemo(
+    () => [
+      ...[...classes]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((cls) => ({ value: cls.id as ClassFilter, label: cls.name })),
+      { value: "none" as const, label: "No class" },
+    ],
+    [classes]
   );
 
   const filtered = useMemo(() => {
@@ -283,23 +308,26 @@ export function StudentList({
         const skillValue: SkillFilter = s.skill_level ?? "unset";
         if (!skillFilters.includes(skillValue)) return false;
       }
-      if (statusFilter !== "all") {
+      if (statusFilters.length > 0) {
         const packageValue: PackageFilter = s.roster_package?.status ?? "none";
-        if (packageValue !== statusFilter) return false;
+        if (!statusFilters.includes(packageValue)) return false;
       }
-      if (classFilter !== "all" && !s.class_ids.includes(classFilter)) {
-        return false;
+      if (classFilters.length > 0) {
+        const wantsNone = classFilters.includes("none");
+        const classIds = classFilters.filter((id) => id !== "none");
+        const matchesClass = classIds.some((id) => s.class_ids.includes(id));
+        const matchesNone = wantsNone && s.class_ids.length === 0;
+        if (!matchesClass && !matchesNone) return false;
       }
-      if (
-        venueFilter !== "all" &&
-        !s.classes.some((cls) => cls.venue_id === venueFilter)
-      ) {
-        return false;
+      if (productFilters.length > 0) {
+        const type: ProductFilter =
+          s.roster_package?.package_products?.product_type ?? "none";
+        if (!productFilters.includes(type)) return false;
       }
       return true;
     });
 
-    return [...rows].sort((a, b) => compareName(a, b, sort.dir));
+    return [...rows].sort((a, b) => compareStudents(a, b, sort));
   }, [
     students,
     search,
@@ -307,9 +335,9 @@ export function StudentList({
     trialsOnly,
     inactiveOnly,
     skillFilters,
-    statusFilter,
-    classFilter,
-    venueFilter,
+    statusFilters,
+    classFilters,
+    productFilters,
     sort,
   ]);
 
@@ -351,72 +379,6 @@ export function StudentList({
               aria-label="Search students"
             />
           </div>
-          <Select
-            value={classFilter}
-            onValueChange={(value) => {
-              setClassFilter(value);
-              resetPage();
-            }}
-          >
-            <SelectTrigger
-              className="h-11 w-full min-w-[10.5rem] border-border/80 bg-card sm:w-auto"
-              aria-label="Filter class"
-            >
-              <SelectValue placeholder="All Classes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Classes</SelectItem>
-              {classes.map((cls) => (
-                <SelectItem key={cls.id} value={cls.id}>
-                  {cls.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={venueFilter}
-            onValueChange={(value) => {
-              setVenueFilter(value);
-              resetPage();
-            }}
-          >
-            <SelectTrigger
-              className="h-11 w-full min-w-[10.5rem] border-border/80 bg-card sm:w-auto"
-              aria-label="Filter venue"
-            >
-              <SelectValue placeholder="All venues" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All venues</SelectItem>
-              {venueOptions.map((venue) => (
-                <SelectItem key={venue.id} value={venue.id}>
-                  {venue.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => {
-              setStatusFilter(value as PackageFilter | "all");
-              resetPage();
-            }}
-          >
-            <SelectTrigger
-              className="h-11 w-full min-w-[10.5rem] border-border/80 bg-card sm:w-auto"
-              aria-label="Filter status"
-            >
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {PACKAGE_FILTER_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -528,19 +490,65 @@ export function StudentList({
                     label="Student"
                     column="name"
                     sort={sort}
-                    onCycle={() =>
-                      setSort((current) => cycleColumnSort(current, "name"))
-                    }
+                    onCycle={() => {
+                      setSort((current) => cycleColumnSort(current, "name"));
+                      resetPage();
+                    }}
                     unsortedLabel="Sort by name"
                     ascLabel="Sorted by name, A to Z. Click to reverse."
                     descLabel="Sorted by name, Z to A. Click to reverse."
                   />
                 </span>
                 <span className="hidden lg:block">Payer</span>
-                <span className="hidden lg:block">Venue & schedule</span>
-                <span className="hidden lg:block">Package</span>
-                <span className="hidden lg:block">Validity</span>
-                <span className="hidden lg:block">Status</span>
+                <span className="hidden lg:inline-flex">
+                  <ColumnFilter
+                    label="Venue & schedule"
+                    options={classFilterOptions}
+                    selected={classFilters}
+                    onChange={(next) => {
+                      setClassFilters(next);
+                      resetPage();
+                    }}
+                  />
+                </span>
+                <span className="hidden lg:inline-flex">
+                  <ColumnFilter
+                    label="Package"
+                    options={PRODUCT_FILTER_OPTIONS}
+                    selected={productFilters}
+                    onChange={(next) => {
+                      setProductFilters(next);
+                      resetPage();
+                    }}
+                  />
+                </span>
+                <span className="hidden lg:inline-flex">
+                  <SortHeader
+                    label="Validity"
+                    column="validity"
+                    sort={sort}
+                    onCycle={() => {
+                      setSort((current) =>
+                        cycleColumnSort(current, "validity")
+                      );
+                      resetPage();
+                    }}
+                    unsortedLabel="Sort by expiry"
+                    ascLabel="Sorted by expiry, soonest first. Click to reverse."
+                    descLabel="Sorted by expiry, latest first. Click to reverse."
+                  />
+                </span>
+                <span className="hidden lg:inline-flex">
+                  <ColumnFilter
+                    label="Status"
+                    options={PACKAGE_FILTER_OPTIONS}
+                    selected={statusFilters}
+                    onChange={(next) => {
+                      setStatusFilters(next);
+                      resetPage();
+                    }}
+                  />
+                </span>
                 <span className="hidden w-full lg:block" aria-hidden />
               </div>
               {filtered.length === 0 ? (
