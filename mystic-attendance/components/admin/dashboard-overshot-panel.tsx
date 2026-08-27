@@ -17,7 +17,7 @@ type DashboardOvershotPanelProps = {
 
 export function DashboardOvershotPanel({ items }: DashboardOvershotPanelProps) {
   return (
-    <Card className="h-full">
+    <Card>
       <CardHeader>
         <div className="space-y-1">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">

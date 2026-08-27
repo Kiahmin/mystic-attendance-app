@@ -149,15 +149,14 @@ export default async function AdminDashboardPage({
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid items-start gap-4 xl:grid-cols-2">
         <DashboardDueSoonPanel
           items={operations.dueSoon}
           classes={classes.map((cls) => ({ id: cls.id, name: cls.name }))}
         />
         <DashboardInformedPanel items={operations.informed} />
+        <DashboardOvershotPanel items={operations.overshot} />
       </div>
-
-      <DashboardOvershotPanel items={operations.overshot} />
 
       <DashboardMonthlyAttendance
         reportMonth={reportMonth}
