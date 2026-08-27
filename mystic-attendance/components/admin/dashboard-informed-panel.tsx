@@ -1,9 +1,10 @@
 import { formatSingaporeDateTime } from "@/lib/datetime";
 import type { DashboardQueueItem } from "@/lib/queries/dashboard";
-import { buttonVariants } from "@/components/ui/button-variants";
 import { DashboardQueuePanel } from "@/components/admin/dashboard-queue-panel";
-import { DashboardQueueRow } from "@/components/admin/dashboard-queue-row";
-import Link from "next/link";
+import {
+  AssignPackageLink,
+  DashboardQueueRow,
+} from "@/components/admin/dashboard-queue-row";
 
 type DashboardInformedPanelProps = {
   items: DashboardQueueItem[];
@@ -34,12 +35,10 @@ export function DashboardInformedPanel({ items }: DashboardInformedPanelProps) {
           studentHref={`/admin/students/${item.studentId}`}
           why={informedWhy(item)}
           actions={
-            <Link
-              href={`/admin/packages/assign?studentId=${item.studentId}`}
-              className={buttonVariants({ size: "sm" })}
-            >
-              Paid
-            </Link>
+            <AssignPackageLink
+              studentId={item.studentId}
+              studentName={item.studentName}
+            />
           }
         />
       ))}

@@ -1,8 +1,9 @@
-import Link from "next/link";
 import type { DashboardQueueItem } from "@/lib/queries/dashboard";
-import { buttonVariants } from "@/components/ui/button-variants";
 import { DashboardQueuePanel } from "@/components/admin/dashboard-queue-panel";
-import { DashboardQueueRow } from "@/components/admin/dashboard-queue-row";
+import {
+  AssignPackageLink,
+  DashboardQueueRow,
+} from "@/components/admin/dashboard-queue-row";
 
 type DashboardOvershotPanelProps = {
   items: DashboardQueueItem[];
@@ -33,12 +34,10 @@ export function DashboardOvershotPanel({ items }: DashboardOvershotPanelProps) {
           why={overshotWhy(item)}
           whyClassName="text-destructive"
           actions={
-            <Link
-              href={`/admin/packages/assign?studentId=${item.studentId}`}
-              className={buttonVariants({ size: "sm" })}
-            >
-              Renew
-            </Link>
+            <AssignPackageLink
+              studentId={item.studentId}
+              studentName={item.studentName}
+            />
           }
         />
       ))}
