@@ -58,6 +58,7 @@ export const PACKAGE_STATUS_LABELS: Record<PackageStatus, string> = {
   paused: "Paused",
   expired: "Expired",
   exhausted: "Finished",
+  overshot: "Overshot",
 };
 
 export const PAUSE_REASONS = [
@@ -71,6 +72,13 @@ export type PauseReasonValue = (typeof PAUSE_REASONS)[number]["value"];
 
 export const LOW_CREDIT_THRESHOLD = 2;
 export const EXPIRING_WITHIN_DAYS = 14;
+
+export function extraCreditsUsed(pkg: {
+  used_credits: number;
+  total_credits: number;
+}): number {
+  return Math.max(0, pkg.used_credits - pkg.total_credits);
+}
 
 export function isTrialProductType(productType: PackageProductType): boolean {
   return productType === "trial_group" || productType === "trial_private";
@@ -204,6 +212,10 @@ export function atRiskReason(pkg: Package): string | null {
     return null;
   }
   if (pkg.status === "unpaid") return "Unpaid — blocked at check-in";
+  if (pkg.status === "overshot") {
+    const extra = extraCreditsUsed(pkg);
+    return `${extra} extra lesson${extra === 1 ? "" : "s"}`;
+  }
   if (pkg.status === "expired") {
     if (pkg.forfeited_credits != null) {
       return `${pkg.forfeited_credits} credit${pkg.forfeited_credits === 1 ? "" : "s"} forfeited`;
@@ -300,6 +312,7 @@ function livePackageStatus(
   if (pkg.paused_at != null && pkg.resumed_at == null && today >= pkg.paused_at) {
     return "paused";
   }
+  if (pkg.used_credits > pkg.total_credits) return "overshot";
   if (pkg.used_credits >= pkg.total_credits) return "exhausted";
   if (pkg.expires_at != null && pkg.expires_at < today) return "expired";
   return "active";
@@ -316,19 +329,40 @@ export function pickChargeablePackage<T extends ChargeablePackageFields>(
   sessionDate: string,
   today: string = todayInSingapore()
 ): T | null {
-  const eligible = packages.filter(
+  const classPacks = packages.filter((pkg) => !pkg.session_id);
+  const eligible = classPacks.filter(
     (pkg) =>
-      !pkg.session_id &&
       pkg.is_paid &&
       livePackageStatus(pkg, today) === "active" &&
       pkg.remaining_credits > 0 &&
       (pkg.expires_at == null || pkg.expires_at >= sessionDate)
   );
-  if (eligible.length === 0) return null;
-  eligible.sort((a, b) =>
-    chargeableSortKey(a).localeCompare(chargeableSortKey(b))
+  if (eligible.length > 0) {
+    eligible.sort((a, b) =>
+      chargeableSortKey(a).localeCompare(chargeableSortKey(b))
+    );
+    return eligible[0];
+  }
+
+  if (classPacks.some((pkg) => !pkg.is_paid)) return null;
+
+  const overshoot = classPacks.filter((pkg) => {
+    const status = livePackageStatus(pkg, today);
+    return (
+      pkg.is_paid &&
+      (status === "exhausted" || status === "overshot") &&
+      (pkg.expires_at == null || pkg.expires_at >= sessionDate)
+    );
+  });
+  if (overshoot.length === 0) return null;
+  overshoot.sort((a, b) =>
+    chargeableSortKey(b).localeCompare(chargeableSortKey(a))
   );
-  return eligible[0];
+  return overshoot[0];
+}
+
+export function canTransferPackageCredits(pkg: Package): boolean {
+  return !pkg.session_id && pkg.is_paid && pkg.remaining_credits >= 1;
 }
 
 /** True when a pause is recorded and not yet resumed (scheduled or in progress). */

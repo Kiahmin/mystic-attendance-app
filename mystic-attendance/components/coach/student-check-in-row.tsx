@@ -77,6 +77,7 @@ export function StudentCheckInRow({
         "rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(26,27,34,0.04)]",
         entry.isWalkIn && "border-dashed border-warning/50 bg-warning/5",
         warning === "expired" && "border-destructive/40",
+        warning === "overshot" && "border-destructive/40",
         warning === "low" && "border-warning/40"
       )}
     >
@@ -106,8 +107,13 @@ export function StudentCheckInRow({
             <p className="mt-1 text-sm text-muted-foreground">
               {entry.package ? (
                 <>
-                  {entry.package.remaining_credits} credit
-                  {entry.package.remaining_credits === 1 ? "" : "s"} left
+                  {entry.package.remaining_credits < 0
+                    ? `${Math.abs(entry.package.remaining_credits)} extra lesson${
+                        entry.package.remaining_credits === -1 ? "" : "s"
+                      }`
+                    : `${entry.package.remaining_credits} credit${
+                        entry.package.remaining_credits === 1 ? "" : "s"
+                      } left`}
                   {entry.package.expires_at
                     ? ` · expires ${formatDate(entry.package.expires_at)}`
                     : " · not yet activated"}
@@ -159,7 +165,9 @@ export function StudentCheckInRow({
         <p
           className={cn(
             "mb-3 text-sm font-medium",
-            warning === "expired" || warning === "unpaid"
+            warning === "expired" ||
+            warning === "unpaid" ||
+            warning === "overshot"
               ? "text-destructive"
               : "text-warning"
           )}
@@ -168,7 +176,9 @@ export function StudentCheckInRow({
             ? "Package expired — flag to admin"
             : warning === "unpaid"
               ? "Package unpaid — cannot deduct credits"
-              : "Low credits or expiring soon"}
+              : warning === "overshot"
+                ? "Overshot — extra lesson"
+                : "Low credits or expiring soon"}
         </p>
       ) : null}
 
