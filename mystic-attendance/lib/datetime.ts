@@ -1,3 +1,5 @@
+import type { DayOfWeek } from "@/lib/types";
+
 /** Mystic Skates operates in Singapore — all calendar dates use this zone. */
 export const APP_TIMEZONE = "Asia/Singapore";
 
@@ -110,6 +112,39 @@ export function calendarDayNumber(date: string): number {
 /** True when `date` falls on or before `today + days` (Singapore calendar). */
 export function isOnOrBeforeDaysFromToday(date: string, days: number): boolean {
   return date <= addCalendarDays(todayInSingapore(), days);
+}
+
+/** Weekday for a `YYYY-MM-DD` calendar date (Singapore / date-only). */
+export function weekdayOfCalendarDate(date: string): DayOfWeek {
+  const index = parseCalendarDate(date).getUTCDay();
+  return DAYS_FROM_SUNDAY[index];
+}
+
+const DAYS_FROM_SUNDAY: DayOfWeek[] = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
+
+/** True when `value` is `YYYY-MM`. */
+export function isValidYearMonth(value: string): boolean {
+  return /^\d{4}-\d{2}$/.test(value) && isValidCalendarDate(`${value}-01`);
+}
+
+/** Singapore date and time for an instant, e.g. `26 Aug, 2:20 am`. */
+export function formatSingaporeDateTime(instant: string): string {
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: APP_TIMEZONE,
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(instant));
 }
 
 /** Whole calendar days from `start` to `end` (`YYYY-MM-DD`). */

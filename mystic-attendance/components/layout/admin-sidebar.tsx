@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CalendarDays,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -26,6 +27,12 @@ const LINKS = [
     label: "Dashboard",
     icon: LayoutDashboard,
     exact: true,
+  },
+  {
+    href: "/admin/schedule",
+    label: "Schedule",
+    icon: CalendarDays,
+    exact: false,
   },
   { href: "/admin/students", label: "Students", icon: Users, exact: false },
   {

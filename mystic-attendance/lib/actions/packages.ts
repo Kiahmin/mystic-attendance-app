@@ -11,6 +11,7 @@ import {
   PAYMENT_METHODS,
   buildPauseReason,
   isTrialProductType,
+  LOW_CREDIT_THRESHOLD,
   type PauseReasonValue,
 } from "@/lib/package-utils";
 import { getPackageProductById } from "@/lib/queries/packages";
@@ -39,6 +40,7 @@ async function backfillUnchargedAttendance(
 
 export type AssignPackageInput = {
   student_id: string;
+  payer_id?: string | null;
   package_product_id: string;
   is_paid: boolean;
   payment_method?: PaymentMethod | null;
@@ -67,7 +69,35 @@ function revalidatePackagePaths(studentId: string, packageId?: string) {
   revalidatePath("/coach");
   if (packageId) {
     revalidatePath(`/admin/packages/${packageId}/pause`);
+    revalidatePath(`/admin/packages/${packageId}/pay`);
   }
+}
+
+async function resolvePackagePayerId(
+  supabase: SupabaseClient,
+  studentId: string,
+  payerId?: string | null
+): Promise<{ payerId: string | null; error?: string }> {
+  const explicit = emptyToNull(payerId);
+  if (explicit) {
+    const { data, error } = await supabase
+      .from("payers")
+      .select("id")
+      .eq("id", explicit)
+      .maybeSingle();
+    if (error) return { payerId: null, error: error.message };
+    if (!data) return { payerId: null, error: "Select a valid payer." };
+    return { payerId: explicit };
+  }
+
+  const { data: student, error } = await supabase
+    .from("students")
+    .select("payer_id")
+    .eq("id", studentId)
+    .maybeSingle();
+
+  if (error) return { payerId: null, error: error.message };
+  return { payerId: (student?.payer_id as string | null) ?? null };
 }
 
 function isPositiveInt(value: number): boolean {
@@ -132,10 +162,21 @@ export async function assignPackage(input: AssignPackageInput) {
   }
 
   const supabase = await createClient();
+  const payer = await resolvePackagePayerId(
+    supabase,
+    input.student_id,
+    input.payer_id
+  );
+  if (payer.error) return { error: payer.error };
+  if (input.is_paid && !payer.payerId) {
+    return { error: "Select a payer before recording payment." };
+  }
+
   const { data, error } = await supabase
     .from("packages")
     .insert({
       student_id: input.student_id,
+      payer_id: payer.payerId,
       package_product_id: product.id,
       total_credits: totalCredits,
       bonus_credits: bonusCredits,
@@ -185,10 +226,12 @@ export async function markPackagePaidFormAction(formData: FormData) {
   ) as PaymentMethod;
   const amountRaw = String(formData.get("amount_sgd") ?? "");
   const amountSgd = Number(amountRaw);
+  const payerId = String(formData.get("payer_id") ?? "") || null;
 
   const result = await markPackagePaid(packageId, {
     payment_method: paymentMethod,
     amount_sgd: amountSgd,
+    payer_id: payerId,
   });
 
   if (result.error) {
@@ -213,6 +256,7 @@ export async function markPackagePaid(
   input: {
     payment_method: PaymentMethod;
     amount_sgd: number;
+    payer_id?: string | null;
   }
 ) {
   await requireRole(["admin"]);
@@ -228,7 +272,7 @@ export async function markPackagePaid(
   const supabase = await createClient();
   const { data: existing, error: fetchError } = await supabase
     .from("packages")
-    .select("id, student_id, is_paid")
+    .select("id, student_id, payer_id, is_paid")
     .eq("id", packageId)
     .maybeSingle();
 
@@ -238,10 +282,21 @@ export async function markPackagePaid(
     return { error: "This package is already marked as paid." };
   }
 
+  const payer = await resolvePackagePayerId(
+    supabase,
+    existing.student_id as string,
+    input.payer_id ?? (existing.payer_id as string | null)
+  );
+  if (payer.error) return { error: payer.error };
+  if (!payer.payerId) {
+    return { error: "Select a payer before recording payment." };
+  }
+
   const { error } = await supabase
     .from("packages")
     .update({
       is_paid: true,
+      payer_id: payer.payerId,
       payment_method: input.payment_method,
       amount_sgd: input.amount_sgd,
     })
@@ -391,6 +446,46 @@ export async function resumePackage(
   const { error } = await supabase
     .from("packages")
     .update(updates)
+    .eq("id", packageId);
+
+  if (error) return { error: error.message };
+
+  revalidatePackagePaths(existing.student_id as string, packageId);
+  return { success: true as const };
+}
+
+export async function markPackageInformed(packageId: string) {
+  await requireRole(["admin"]);
+
+  if (!packageId) return { error: "Package id is required." };
+
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from("packages")
+    .select(
+      "id, student_id, session_id, status, remaining_credits, informed_at"
+    )
+    .eq("id", packageId)
+    .maybeSingle();
+
+  if (fetchError) return { error: fetchError.message };
+  if (!existing) return { error: "Package not found." };
+  if (existing.session_id) {
+    return { error: "Event packages cannot be marked as informed." };
+  }
+  if (existing.status !== "active") {
+    return { error: "Only active packages can be marked as informed." };
+  }
+  if (Number(existing.remaining_credits) > LOW_CREDIT_THRESHOLD) {
+    return { error: "Only packages with two or fewer lessons remaining can be informed." };
+  }
+  if (existing.informed_at) {
+    return { error: "This package is already on the informed list." };
+  }
+
+  const { error } = await supabase
+    .from("packages")
+    .update({ informed_at: new Date().toISOString() })
     .eq("id", packageId);
 
   if (error) return { error: error.message };

@@ -10,7 +10,9 @@ import type {
   Profile,
   SessionKind,
   StudentAttendanceEntry,
+  VenueRef,
 } from "@/lib/types";
+import { mapVenueRef } from "@/lib/venue-utils";
 
 const STUDENT_ATTENDANCE_SELECT = `
   id,
@@ -40,6 +42,8 @@ const STUDENT_ATTENDANCE_SELECT = `
     classes (
       id,
       name,
+      venue_id,
+      venues (id, name),
       day_of_week,
       start_time,
       end_time,
@@ -82,7 +86,12 @@ type AttendanceSessionRow = {
   end_time: string | null;
   class_id: string | null;
   profiles?: Embedded<CoachRef>;
-  classes?: Embedded<ClassGroup & { profiles?: Embedded<CoachRef> }>;
+  classes?: Embedded<
+    ClassGroup & {
+      venues?: Embedded<VenueRef>;
+      profiles?: Embedded<CoachRef>;
+    }
+  >;
 };
 
 type AttendancePackageRow = {
@@ -122,6 +131,14 @@ function mapAttendanceRow(
   if (!session) return null;
 
   const classGroup = asSingle(session.classes);
+  const venue = classGroup ? mapVenueRef(classGroup.venues) : null;
+  const mappedClass = classGroup
+    ? {
+        ...classGroup,
+        venue_id: classGroup.venue_id ?? venue?.id ?? null,
+        venue,
+      }
+    : null;
   const coach =
     asSingle(session.profiles) ??
     (classGroup ? asSingle(classGroup.profiles) : null);
@@ -129,7 +146,7 @@ function mapAttendanceRow(
   const sessionShape = {
     name: session.name ?? null,
     start_time: session.start_time ?? null,
-    classes: classGroup,
+    classes: mappedClass,
   };
 
   return {
