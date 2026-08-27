@@ -6,6 +6,7 @@ import {
 } from "@/lib/package-utils";
 import type {
   Package,
+  PackageMember,
   PackageProduct,
   PackageSession,
   PackageStatus,
@@ -63,6 +64,13 @@ const PACKAGE_COLUMNS = `
     kind,
     display_name,
     phone
+  ),
+  package_students (
+    student_id,
+    students!package_students_student_id_fkey (
+      id,
+      full_name
+    )
   )
 `;
 
@@ -81,7 +89,41 @@ function mapPackageProduct(
   };
 }
 
+type PackageStudentRow = {
+  student_id?: string;
+  students?:
+    | Pick<Student, "id" | "full_name">
+    | Pick<Student, "id" | "full_name">[]
+    | null;
+};
+
+function mapPackageMembers(
+  rows: PackageStudentRow[] | PackageStudentRow | null | undefined,
+  fallback?: PackageMember | null
+): PackageMember[] {
+  const list = Array.isArray(rows) ? rows : rows ? [rows] : [];
+  const members = list
+    .map((row) => {
+      const student = asSingle(row.students);
+      if (student?.id) {
+        return { id: student.id, full_name: student.full_name };
+      }
+      if (row.student_id) {
+        return { id: row.student_id, full_name: "Student" };
+      }
+      return null;
+    })
+    .filter((item): item is PackageMember => item != null);
+
+  if (fallback && !members.some((member) => member.id === fallback.id)) {
+    members.unshift(fallback);
+  }
+
+  return members;
+}
+
 function mapPackage(row: {
+  student_id?: string;
   package_product_id?: string | null;
   session_id?: string | null;
   payer_id?: string | null;
@@ -91,16 +133,22 @@ function mapPackage(row: {
   package_products?: PackageProduct | PackageProduct[] | null;
   sessions?: PackageSession | PackageSession[] | null;
   payers?: PayerRef | PayerRef[] | null;
+  package_students?: PackageStudentRow[] | PackageStudentRow | null;
   [key: string]: unknown;
 }): Package {
   const product = mapPackageProduct(asSingle(row.package_products));
   const payer = asSingle(row.payers);
+  const studentId = (row.student_id as string | undefined) ?? "";
   return {
     ...(row as unknown as Package),
     package_product_id: row.package_product_id ?? null,
     session_id: row.session_id ?? null,
     payer_id: row.payer_id ?? payer?.id ?? null,
     payer,
+    members: mapPackageMembers(
+      row.package_students,
+      studentId ? { id: studentId, full_name: "Student" } : null
+    ),
     bonus_credits: Number(row.bonus_credits ?? 0),
     customisation_notes: row.customisation_notes ?? null,
     amount_sgd:
@@ -139,6 +187,22 @@ export async function listTrialPackageProducts(): Promise<PackageProduct[]> {
   return products.filter((product) => isTrialProductType(product.product_type));
 }
 
+export async function listPackageMembershipsForStudents(
+  studentIds: string[]
+): Promise<{ package_id: string; student_id: string }[]> {
+  if (studentIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("package_students")
+    .select("package_id, student_id")
+    .in("student_id", studentIds);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    package_id: row.package_id as string,
+    student_id: row.student_id as string,
+  }));
+}
+
 export async function studentHasTrialProductPackage(
   studentId: string
 ): Promise<boolean> {
@@ -170,10 +234,21 @@ export async function listPackagesForStudent(
   studentId: string
 ): Promise<Package[]> {
   const supabase = await createClient();
+  const { data: memberships, error: membershipError } = await supabase
+    .from("package_students")
+    .select("package_id")
+    .eq("student_id", studentId);
+
+  if (membershipError) throw membershipError;
+  const packageIds = [
+    ...new Set((memberships ?? []).map((row) => row.package_id as string)),
+  ];
+  if (packageIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from("packages")
     .select(PACKAGE_COLUMNS)
-    .eq("student_id", studentId)
+    .in("id", packageIds)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -202,7 +277,7 @@ export async function getPackageWithStudent(
     .select(
       `
       ${PACKAGE_COLUMNS},
-      students (
+      students!packages_student_id_fkey (
         id,
         full_name,
         contact_phone,
@@ -231,7 +306,14 @@ export async function getPackageWithStudent(
   if (!student) return null;
 
   return {
-    ...mapPackage(pkg),
+    ...mapPackage({
+      ...pkg,
+      student_id: (pkg.student_id as string | undefined) ?? student.id,
+    }),
+    members: mapPackageMembers(
+      pkg.package_students as PackageStudentRow[] | PackageStudentRow | null,
+      { id: student.id, full_name: student.full_name }
+    ),
     students: student,
   };
 }
@@ -259,7 +341,7 @@ export async function listPackages(options?: {
     .select(
       `
       ${PACKAGE_COLUMNS},
-      students!inner (
+      students!packages_student_id_fkey!inner (
         id,
         full_name,
         contact_phone,
@@ -273,13 +355,10 @@ export async function listPackages(options?: {
     query = query.in("status", statuses);
   }
 
-  const trimmed = options?.search?.trim();
-  if (trimmed) {
-    query = query.ilike("students.full_name", `%${trimmed}%`);
-  }
-
   const { data, error } = await query;
   if (error) throw error;
+
+  const trimmed = options?.search?.trim().toLowerCase();
 
   const packages = (data ?? [])
     .map((row) => {
@@ -291,17 +370,39 @@ export async function listPackages(options?: {
         package_product_id?: string | null;
         amount_sgd?: number | string | null;
         package_products?: PackageProduct | PackageProduct[] | null;
+        package_students?:
+          | PackageStudentRow[]
+          | PackageStudentRow
+          | null;
         [key: string]: unknown;
       };
       const student = asSingle(students);
       if (!student) return null;
+      const mapped = mapPackage({
+        ...pkg,
+        student_id: (pkg.student_id as string | undefined) ?? student.id,
+      });
       return {
-        ...mapPackage(pkg),
+        ...mapped,
+        members: mapPackageMembers(pkg.package_students, {
+          id: student.id,
+          full_name: student.full_name,
+        }),
         students: student,
       } satisfies PackageWithStudent;
     })
     .filter((item): item is PackageWithStudent => item !== null)
-    .filter((pkg) => !(pkg.session_id && pkg.status === "exhausted"));
+    .filter((pkg) => !(pkg.session_id && pkg.status === "exhausted"))
+    .filter((pkg) => {
+      if (!trimmed) return true;
+      const haystacks = [
+        pkg.students.full_name,
+        pkg.payer?.display_name,
+        pkg.payer?.phone,
+        ...pkg.members.map((member) => member.full_name),
+      ];
+      return haystacks.some((value) => value?.toLowerCase().includes(trimmed));
+    });
 
   if (hasFinishing && statuses.length > 0) {
     return packages.filter(
@@ -333,9 +434,15 @@ export async function countUnchargedAttendanceForStudent(
 }
 
 export async function countUnchargedAttendanceForPackage(
-  pkg: Pick<Package, "student_id" | "session_id">
+  pkg: Pick<Package, "student_id" | "session_id" | "members">
 ): Promise<number> {
-  if (!pkg.student_id) return 0;
+  const studentIds = [
+    ...new Set([
+      pkg.student_id,
+      ...(pkg.members ?? []).map((member) => member.id),
+    ]),
+  ].filter(Boolean);
+  if (studentIds.length === 0) return 0;
   const supabase = await createClient();
 
   if (pkg.session_id) {
@@ -351,7 +458,16 @@ export async function countUnchargedAttendanceForPackage(
     return count ?? 0;
   }
 
-  return countUnchargedAttendanceForStudent(pkg.student_id);
+  const { data, error } = await supabase
+    .from("attendance")
+    .select("id, sessions!inner(kind)")
+    .in("student_id", studentIds)
+    .is("package_id", null)
+    .eq("deduct_credit", true)
+    .eq("sessions.kind", "class");
+
+  if (error) throw error;
+  return data?.length ?? 0;
 }
 
 export async function countUnchargedAttendanceByStudent(): Promise<

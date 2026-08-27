@@ -190,9 +190,12 @@ export interface PackageProduct {
 
 export type PackageSession = Pick<Session, "id" | "name" | "session_date">;
 
+export type PackageMember = Pick<Student, "id" | "full_name">;
+
 export interface Package {
   id: string;
   student_id: string;
+  members: PackageMember[];
   payer_id: string | null;
   payer?: PayerRef | null;
   package_product_id: string | null;

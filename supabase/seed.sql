@@ -158,6 +158,15 @@ insert into students (
     '+65 9333 3333',
     null,
     'beginner'
+  ),
+  (
+    'c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1',
+    'Alexa Tan',
+    '2017-08-04',
+    'Parent Tan',
+    '+65 9111 1111',
+    null,
+    'beginner'
   );
 
 -- ---------------------------------------------------------------------------
@@ -167,7 +176,8 @@ insert into students (
 insert into enrolments (student_id, class_id) values
   ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
   ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
-  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  ('c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
 
 -- ---------------------------------------------------------------------------
 -- Packages (paid, not yet activated — first_lesson_date set on first Present)
@@ -205,6 +215,9 @@ insert into packages (
     null,
     null
   );
+
+insert into package_students (package_id, student_id) values
+  ('ffffffff-ffff-ffff-ffff-ffffffffffff', 'c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1');
 
 -- ---------------------------------------------------------------------------
 -- Sessions (upcoming Saturday class — dates in Asia/Singapore)

@@ -11,6 +11,7 @@ import {
   PAYMENT_METHOD_LABELS,
   defaultAmountForProduct,
   packageLabel,
+  packageStudentNames,
   unchargedClassesNote,
 } from "@/lib/package-utils";
 import { payerLabel } from "@/lib/payer-utils";
@@ -78,7 +79,7 @@ export default async function MarkPackagePaidPage({
         </Link>
         <PageHeader
           title="Mark Package as Paid"
-          description={`Log payment for ${pkg.students.full_name}'s ${label}.`}
+          description={`Log payment for ${packageStudentNames(pkg, pkg.students.full_name)}'s ${label}.`}
         />
       </div>
 
