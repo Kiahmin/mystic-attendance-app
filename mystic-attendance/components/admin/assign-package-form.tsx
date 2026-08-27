@@ -12,6 +12,7 @@ import {
   PAYMENT_METHODS,
   defaultAmountForProduct,
   formatAmountSgd,
+  isEventProductType,
   isTrialProductType,
   packageCreditBreakdown,
   packageLabel,
@@ -20,6 +21,7 @@ import {
 import type { PackageProduct, PackageProductType, Payer, PaymentMethod, Student } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { PayerPicker } from "@/components/admin/payer-picker";
+import { StudentSharePicker } from "@/components/admin/student-share-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +70,7 @@ export function AssignPackageForm({
 
   const initialType = availableTypes[0] ?? "group";
   const [studentId, setStudentId] = useState(initialStudentId ?? "");
+  const [sharedStudentIds, setSharedStudentIds] = useState<string[]>([]);
   const [payers, setPayers] = useState(initialPayers);
   const initialPayerId =
     students.find((student) => student.id === (initialStudentId ?? ""))
@@ -132,13 +135,19 @@ export function AssignPackageForm({
   const backfillNote =
     isPaid && studentId
       ? unchargedClassesNote(
-          unchargedByStudent[studentId] ?? 0,
+          [studentId, ...sharedStudentIds].reduce(
+            (sum, id) => sum + (unchargedByStudent[id] ?? 0),
+            0
+          ),
           previewCredits.total_credits
         )
       : null;
 
   function handleProductTypeChange(next: PackageProductType) {
     setProductType(next);
+    if (isEventProductType(next)) {
+      setSharedStudentIds([]);
+    }
     const nextProducts = products
       .filter((p) => p.product_type === next)
       .sort((a, b) => a.total_credits - b.total_credits);
@@ -205,6 +214,9 @@ export function AssignPackageForm({
     startTransition(async () => {
       const result = await assignPackage({
         student_id: studentId,
+        shared_student_ids: isEventProductType(productType)
+          ? []
+          : sharedStudentIds,
         payer_id: payerId || null,
         package_product_id: selectedProduct.id,
         is_paid: isPaid,
@@ -238,7 +250,8 @@ export function AssignPackageForm({
               Student Information
             </CardTitle>
             <CardDescription>
-              Choose who this package belongs to.
+              Choose who this package belongs to. Optional siblings share the
+              same credit pool — each class they attend uses 1 credit.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -258,6 +271,9 @@ export function AssignPackageForm({
                     setStudentId(value);
                     const next = students.find((student) => student.id === value);
                     setPayerId(next?.payer_id ?? "");
+                    setSharedStudentIds((ids) =>
+                      ids.filter((id) => id !== value)
+                    );
                   }}
                 >
                   <SelectTrigger id="student" className="w-full">
@@ -273,6 +289,22 @@ export function AssignPackageForm({
                 </Select>
               </div>
             )}
+            {!isEventProductType(productType) ? (
+              <div className="mt-4 space-y-2">
+                <Label htmlFor="share_with">Share credits with</Label>
+                <StudentSharePicker
+                  id="share_with"
+                  students={students}
+                  excludeIds={studentId ? [studentId] : []}
+                  value={sharedStudentIds}
+                  onChange={setSharedStudentIds}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Both siblings can use this pack. If they attend the same
+                  class, two credits are deducted.
+                </p>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 

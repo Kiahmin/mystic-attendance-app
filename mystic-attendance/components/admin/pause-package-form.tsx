@@ -14,6 +14,7 @@ import {
   PAUSE_REASONS,
   formatPackageExpiry,
   packageLabel,
+  packageStudentNames,
   type PauseReasonValue,
 } from "@/lib/package-utils";
 import type { PackageWithStudent } from "@/lib/types";
@@ -97,7 +98,9 @@ export function PausePackageForm({ pkg }: PausePackageFormProps) {
               <UserRound className="size-6" />
             </div>
             <div>
-              <p className="text-lg font-semibold">{pkg.students.full_name}</p>
+              <p className="text-lg font-semibold">
+                {packageStudentNames(pkg, pkg.students.full_name)}
+              </p>
               <p className="text-sm text-muted-foreground">
                 {pkg.students.contact_phone ?? "No contact on file"}
               </p>

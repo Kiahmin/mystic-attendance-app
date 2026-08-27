@@ -6,6 +6,7 @@ import {
 } from "@/lib/datetime";
 import type {
   Package,
+  PackageMember,
   PackageProduct,
   PackageProductType,
   PackageStatus,
@@ -230,6 +231,36 @@ export function isPastPackage(
   if (pkg.status === "expired" || pkg.status === "exhausted") return true;
   const eventDate = pkg.sessions?.session_date;
   return Boolean(pkg.session_id && eventDate && eventDate < today);
+}
+
+export function extraPackageMembers(
+  pkg: Pick<Package, "student_id" | "members">
+): PackageMember[] {
+  return (pkg.members ?? [])
+    .filter((member) => member.id !== pkg.student_id)
+    .sort((a, b) => a.full_name.localeCompare(b.full_name));
+}
+
+export function packageStudentNames(
+  pkg: Pick<Package, "student_id" | "members">,
+  primaryName?: string | null
+): string {
+  const members = pkg.members ?? [];
+  if (members.length === 0) return primaryName?.trim() || "Student";
+
+  const primary =
+    members.find((member) => member.id === pkg.student_id) ??
+    (primaryName ? { id: pkg.student_id, full_name: primaryName } : null);
+  const rest = extraPackageMembers({
+    student_id: pkg.student_id,
+    members,
+  });
+  const names = [
+    ...(primary ? [primary.full_name] : []),
+    ...rest.map((member) => member.full_name),
+  ].filter(Boolean);
+
+  return names.join(", ") || primaryName?.trim() || "Student";
 }
 
 export function canPausePackage(pkg: Package): boolean {

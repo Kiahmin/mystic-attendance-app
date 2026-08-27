@@ -15,13 +15,16 @@ import {
   packageCreditBreakdown,
   packageLabel,
 } from "@/lib/package-utils";
-import type { Package, PackageStatus } from "@/lib/types";
+import type { Package, PackageStatus, Student } from "@/lib/types";
+import { PackageMembersEditor } from "@/components/admin/package-members-editor";
 import { PackageTabs } from "@/components/admin/package-tabs";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 
 type StudentPackagesProps = {
   packages: Package[];
+  students: Pick<Student, "id" | "full_name">[];
+  studentId: string;
 };
 
 const STATUS_CLASS: Record<PackageStatus, string> = {
@@ -32,7 +35,11 @@ const STATUS_CLASS: Record<PackageStatus, string> = {
   exhausted: "border border-border text-foreground",
 };
 
-export function StudentPackages({ packages }: StudentPackagesProps) {
+export function StudentPackages({
+  packages,
+  students,
+  studentId,
+}: StudentPackagesProps) {
   if (packages.length === 0) {
     return (
       <div className="rounded-xl border border-dashed bg-card p-6 text-center">
@@ -60,6 +67,8 @@ export function StudentPackages({ packages }: StudentPackagesProps) {
       current={
         <PackageCardList
           packages={current}
+          students={students}
+          studentId={studentId}
           emptyMessage="No current packages"
           emptyHint="Finished and expired packages are under Past."
         />
@@ -67,6 +76,8 @@ export function StudentPackages({ packages }: StudentPackagesProps) {
       past={
         <PackageCardList
           packages={past}
+          students={students}
+          studentId={studentId}
           emptyMessage="No past packages yet"
           emptyHint="Packages move here once they are finished or expired."
         />
@@ -77,10 +88,14 @@ export function StudentPackages({ packages }: StudentPackagesProps) {
 
 function PackageCardList({
   packages,
+  students,
+  studentId,
   emptyMessage,
   emptyHint,
 }: {
   packages: Package[];
+  students: Pick<Student, "id" | "full_name">[];
+  studentId: string;
   emptyMessage: string;
   emptyHint: string;
 }) {
@@ -97,7 +112,7 @@ function PackageCardList({
     <ul className="space-y-3">
       {packages.map((pkg) => (
         <li key={pkg.id}>
-          <PackageCard pkg={pkg} />
+          <PackageCard pkg={pkg} students={students} studentId={studentId} />
         </li>
       ))}
     </ul>
@@ -117,8 +132,19 @@ function StatusPill({ status }: { status: PackageStatus }) {
   );
 }
 
-function PackageCard({ pkg }: { pkg: Package }) {
+function PackageCard({
+  pkg,
+  students,
+  studentId,
+}: {
+  pkg: Package;
+  students: Pick<Student, "id" | "full_name">[];
+  studentId: string;
+}) {
   const assignedDate = pkg.created_at?.slice(0, 10);
+  const sharedWith = (pkg.members ?? []).filter(
+    (member) => member.id !== studentId
+  );
   const defaultResumeDate =
     pkg.pause_ends_at && pkg.pause_ends_at <= todayInSingapore()
       ? pkg.pause_ends_at
@@ -146,6 +172,11 @@ function PackageCard({ pkg }: { pkg: Package }) {
           {pkg.payer ? (
             <p className="text-xs text-muted-foreground">
               Payer: {payerLabel(pkg.payer)}
+            </p>
+          ) : null}
+          {sharedWith.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Shared with {sharedWith.map((member) => member.full_name).join(", ")}
             </p>
           ) : null}
           <p className="text-xs text-muted-foreground">
@@ -242,6 +273,8 @@ function PackageCard({ pkg }: { pkg: Package }) {
           ) : null}
         </div>
       </div>
+
+      <PackageMembersEditor pkg={pkg} students={students} />
 
       {pkg.customisation_notes ? (
         <div className="mt-3 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
