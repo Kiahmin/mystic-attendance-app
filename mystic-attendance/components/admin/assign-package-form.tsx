@@ -475,7 +475,7 @@ export function AssignPackageForm({
                 <span className="font-medium text-foreground">
                   Validity Rule:
                 </span>{" "}
-                All packages are valid for exactly 3 months starting from the
+                All packages are valid for exactly 6 months starting from the
                 date of the first attended lesson.
               </p>
             </div>
