@@ -68,6 +68,7 @@ export function DashboardDueSoonPanel({
     classId === "all"
       ? items
       : items.filter((item) => item.classIds.includes(classId));
+  const classFiltered = classId !== "all";
 
   return (
     <DashboardQueuePanel
@@ -75,8 +76,14 @@ export function DashboardDueSoonPanel({
       description="Two or fewer lessons left. Inform the student."
       count={filtered.length}
       listLabel="Students due soon"
-      emptyTitle="No students due soon"
-      emptyDescription="Packages with two or fewer lessons remaining will appear here."
+      emptyTitle={
+        classFiltered ? "No students due at this class" : "No students due soon"
+      }
+      emptyDescription={
+        classFiltered
+          ? "Try another class, or choose All classes."
+          : "Packages with two or fewer lessons remaining will appear here."
+      }
       footerHref="/admin/students"
       footerLabel="View students →"
       filter={
