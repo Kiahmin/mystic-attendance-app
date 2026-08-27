@@ -71,11 +71,7 @@ export function PackageMembersEditor({
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Credits are only for this student until you add a sibling.
-        </p>
-      )}
+      ) : null}
       <StudentSharePicker
         students={students}
         excludeIds={[pkg.student_id, ...extras.map((member) => member.id)]}
