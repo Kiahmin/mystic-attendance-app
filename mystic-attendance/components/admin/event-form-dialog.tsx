@@ -7,13 +7,14 @@ import {
   updateEvent,
   type EventInput,
 } from "@/lib/actions/sessions";
-import type { Profile } from "@/lib/types";
+import type { Profile, Venue } from "@/lib/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { TimePicker } from "@/components/ui/time-picker";
+import { VenueSelect } from "@/components/admin/venue-select";
 import {
   Dialog,
   DialogContent,
@@ -38,12 +39,14 @@ export type EventFormValues = {
   session_date: string;
   start_time: string | null;
   end_time: string | null;
+  venue_id: string | null;
   coach_id: string | null;
   requires_attendance: boolean;
 };
 
 type EventFormDialogProps = {
   coaches: Pick<Profile, "id" | "full_name">[];
+  venues: Venue[];
   defaultDate: string;
   defaultStartTime?: string;
   defaultEndTime?: string;
@@ -81,6 +84,7 @@ function addHoursToTime(time: string, hours: number): string {
 
 export function EventFormDialog({
   coaches,
+  venues: initialVenues,
   defaultDate,
   defaultStartTime,
   defaultEndTime,
@@ -104,6 +108,8 @@ export function EventFormDialog({
     toTimeInputValue(defaultEndTime) || addHoursToTime(initialStart, 1)
   );
   const [coachId, setCoachId] = useState("");
+  const [venueId, setVenueId] = useState("");
+  const [venues, setVenues] = useState(initialVenues);
   const [requiresAttendance, setRequiresAttendance] = useState(true);
 
   useEffect(() => {
@@ -122,6 +128,7 @@ export function EventFormDialog({
         addHoursToTime(start, 1)
     );
     setCoachId(event?.coach_id ?? "");
+    setVenueId(event?.venue_id ?? "");
     setRequiresAttendance(event?.requires_attendance ?? true);
   }, [
     open,
@@ -134,6 +141,7 @@ export function EventFormDialog({
     event?.start_time,
     event?.end_time,
     event?.coach_id,
+    event?.venue_id,
     event?.requires_attendance,
   ]);
 
@@ -153,12 +161,17 @@ export function EventFormDialog({
   function handleSubmit(formEvent: React.FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
     setError(null);
+    if (!venueId) {
+      setError("Select a venue.");
+      return;
+    }
 
     const input: EventInput = {
       name,
       session_date: sessionDate,
       start_time: startTime,
       end_time: endTime,
+      venue_id: venueId,
       coach_id: coachId || null,
       requires_attendance: requiresAttendance,
     };
@@ -239,6 +252,26 @@ export function EventFormDialog({
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="event_venue">
+              Venue <span className="text-destructive">*</span>
+            </Label>
+            <VenueSelect
+              id="event_venue"
+              venues={venues}
+              value={venueId}
+              onChange={setVenueId}
+              onCreated={(venue) =>
+                setVenues((current) =>
+                  current.some((item) => item.id === venue.id)
+                    ? current
+                    : [...current, venue]
+                )
+              }
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="event_coach_id">Coach</Label>
             <Select
               value={coachId || "__none__"}
@@ -281,7 +314,7 @@ export function EventFormDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
+              <Button type="submit" disabled={pending || !venueId}>
               {pending
                 ? isEditing
                   ? "Saving…"

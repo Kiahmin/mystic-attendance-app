@@ -2,19 +2,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireRole } from "@/lib/auth/profile";
-import { markPackagePaidFormAction } from "@/lib/actions/packages";
 import {
   getPackageWithStudent,
   countUnchargedAttendanceForPackage,
 } from "@/lib/queries/packages";
+import { listPayers } from "@/lib/queries/payers";
 import {
   PAYMENT_METHOD_LABELS,
-  PAYMENT_METHODS,
   defaultAmountForProduct,
   packageLabel,
   unchargedClassesNote,
 } from "@/lib/package-utils";
+import { payerLabel } from "@/lib/payer-utils";
 import { PageHeader } from "@/components/layout/page-header";
+import { MarkPackagePaidForm } from "@/components/admin/mark-package-paid-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
@@ -44,7 +45,10 @@ export default async function MarkPackagePaidPage({
 }) {
   await requireRole(["admin"]);
   const { id } = await params;
-  const pkg = await getPackageWithStudent(id);
+  const [pkg, payers] = await Promise.all([
+    getPackageWithStudent(id),
+    listPayers(),
+  ]);
 
   if (!pkg) notFound();
 
@@ -57,6 +61,7 @@ export default async function MarkPackagePaidPage({
 
   const backHref = `/admin/students/${pkg.student_id}`;
   const label = packageLabel(pkg, pkg.package_products);
+  const defaultPayerId = pkg.payer_id ?? pkg.students.payer_id ?? "";
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -85,6 +90,7 @@ export default async function MarkPackagePaidPage({
             {pkg.payment_method
               ? ` via ${PAYMENT_METHOD_LABELS[pkg.payment_method]}`
               : ""}
+            {pkg.payer ? ` · ${payerLabel(pkg.payer)}` : ""}
             .
           </AlertDescription>
         </Alert>
@@ -97,76 +103,26 @@ export default async function MarkPackagePaidPage({
               logged.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form action={markPackagePaidFormAction} className="space-y-5">
-              <input type="hidden" name="package_id" value={pkg.id} />
-
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Method</legend>
-                <div className="grid gap-2">
-                  {PAYMENT_METHODS.map((method, index) => (
-                    <label
-                      key={method}
-                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/80 px-3 py-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
-                    >
-                      <input
-                        type="radio"
-                        name="payment_method"
-                        value={method}
-                        defaultChecked={index === 0}
-                        className="size-4 accent-primary"
-                        required
-                      />
-                      <span className="text-sm">
-                        {PAYMENT_METHOD_LABELS[method]}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-
-              <div className="space-y-2">
-                <label htmlFor="amount_sgd" className="text-sm font-medium">
-                  Amount
-                </label>
-                <input
-                  id="amount_sgd"
-                  name="amount_sgd"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  required
-                  defaultValue={defaultAmount(pkg)}
-                  className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                />
-              </div>
-
-              {backfillNote ? (
-                <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-                  {backfillNote}
-                </p>
-              ) : null}
-
-              <div className="flex flex-col gap-2 pt-2">
-                <button
-                  type="submit"
-                  className={cn(buttonVariants({ className: "h-11 w-full" }))}
-                >
-                  Confirm Payment
-                </button>
-                <Link
-                  href={backHref}
-                  className={cn(
-                    buttonVariants({
-                      variant: "outline",
-                      className: "h-11 w-full",
-                    })
-                  )}
-                >
-                  Cancel
-                </Link>
-              </div>
-            </form>
+          <CardContent className="space-y-3">
+            <MarkPackagePaidForm
+              packageId={pkg.id}
+              studentId={pkg.student_id}
+              defaultPayerId={defaultPayerId}
+              defaultAmount={defaultAmount(pkg)}
+              payers={payers}
+              backfillNote={backfillNote}
+            />
+            <Link
+              href={backHref}
+              className={cn(
+                buttonVariants({
+                  variant: "outline",
+                  className: "h-11 w-full",
+                })
+              )}
+            >
+              Cancel
+            </Link>
           </CardContent>
         </Card>
       )}

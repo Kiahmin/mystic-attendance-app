@@ -18,7 +18,9 @@ import type {
   SessionWithClass,
   Student,
   StudentSearchHit,
+  VenueRef,
 } from "@/lib/types";
+import { mapVenueRef } from "@/lib/venue-utils";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 function asSingle<T>(value: T | T[] | null | undefined): T | null {
@@ -29,6 +31,8 @@ function asSingle<T>(value: T | T[] | null | undefined): T | null {
 type SessionClassFields = NonNullable<SessionWithClass["classes"]>;
 
 type SessionClassRow = SessionClassFields & {
+  venue_id?: string | null;
+  venues?: VenueRef | VenueRef[] | null;
   profiles?:
     | Pick<Profile, "id" | "full_name">
     | Pick<Profile, "id" | "full_name">[]
@@ -36,6 +40,8 @@ type SessionClassRow = SessionClassFields & {
 };
 
 type SessionCoachRow = {
+  venue_id?: string | null;
+  venues?: VenueRef | VenueRef[] | null;
   profiles?:
     | Pick<Profile, "id" | "full_name">
     | Pick<Profile, "id" | "full_name">[]
@@ -50,6 +56,8 @@ function mapSessionWithClass(
   const classRow = asSingle(row.classes);
   const coach =
     asSingle(row.profiles) ?? (classRow ? asSingle(classRow.profiles) : null);
+  const venue =
+    mapVenueRef(row.venues) ?? (classRow ? mapVenueRef(classRow.venues) : null);
   return {
     session: {
       ...row,
@@ -57,11 +65,15 @@ function mapSessionWithClass(
       name: row.name ?? null,
       requires_attendance: row.requires_attendance ?? true,
       class_id: row.class_id ?? null,
+      venue_id: row.venue_id ?? classRow?.venue_id ?? venue?.id ?? null,
+      venue,
       coach,
       classes: classRow
         ? {
             id: classRow.id,
             name: classRow.name,
+            venue_id: classRow.venue_id ?? mapVenueRef(classRow.venues)?.id ?? null,
+            venue: mapVenueRef(classRow.venues),
             day_of_week: classRow.day_of_week,
             start_time: classRow.start_time,
             end_time: classRow.end_time,
@@ -277,6 +289,7 @@ async function enrichDashboardSessions(
 
 const DASHBOARD_SESSION_SELECT = `
   *,
+  venues (id, name),
   profiles!sessions_coach_id_fkey (
     id,
     full_name
@@ -284,6 +297,8 @@ const DASHBOARD_SESSION_SELECT = `
   classes (
     id,
     name,
+    venue_id,
+    venues (id, name),
     day_of_week,
     start_time,
     end_time,
@@ -301,9 +316,12 @@ export async function getCoachSessionsForToday(coachId: string) {
     .select(
       `
         *,
+        venues (id, name),
         classes (
           id,
           name,
+          venue_id,
+          venues (id, name),
           day_of_week,
           start_time,
           end_time,

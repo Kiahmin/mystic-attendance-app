@@ -17,8 +17,9 @@ import {
   packageLabel,
   unchargedClassesNote,
 } from "@/lib/package-utils";
-import type { PackageProduct, PackageProductType, PaymentMethod, Student } from "@/lib/types";
+import type { PackageProduct, PackageProductType, Payer, PaymentMethod, Student } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { PayerPicker } from "@/components/admin/payer-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,8 +41,9 @@ import {
 } from "@/components/ui/card";
 
 type AssignPackageFormProps = {
-  students: Pick<Student, "id" | "full_name" | "contact_phone">[];
+  students: Pick<Student, "id" | "full_name" | "contact_phone" | "payer_id">[];
   products: PackageProduct[];
+  payers: Payer[];
   unchargedByStudent: Record<string, number>;
   initialStudentId?: string;
   cancelHref: string;
@@ -50,6 +52,7 @@ type AssignPackageFormProps = {
 export function AssignPackageForm({
   students,
   products,
+  payers: initialPayers,
   unchargedByStudent,
   initialStudentId,
   cancelHref,
@@ -65,6 +68,11 @@ export function AssignPackageForm({
 
   const initialType = availableTypes[0] ?? "group";
   const [studentId, setStudentId] = useState(initialStudentId ?? "");
+  const [payers, setPayers] = useState(initialPayers);
+  const initialPayerId =
+    students.find((student) => student.id === (initialStudentId ?? ""))
+      ?.payer_id ?? "";
+  const [payerId, setPayerId] = useState(initialPayerId);
   const [productType, setProductType] =
     useState<PackageProductType>(initialType);
 
@@ -166,6 +174,10 @@ export function AssignPackageForm({
       setError("Enter a valid amount in SGD.");
       return;
     }
+    if (isPaid && !payerId) {
+      setError("Select a payer before recording payment.");
+      return;
+    }
 
     const parsedBonus =
       bonusCredits.trim() === "" ? 0 : Number(bonusCredits);
@@ -193,6 +205,7 @@ export function AssignPackageForm({
     startTransition(async () => {
       const result = await assignPackage({
         student_id: studentId,
+        payer_id: payerId || null,
         package_product_id: selectedProduct.id,
         is_paid: isPaid,
         payment_method: isPaid ? paymentMethod : null,
@@ -241,7 +254,11 @@ export function AssignPackageForm({
                 <Label htmlFor="student">Student</Label>
                 <Select
                   value={studentId || undefined}
-                  onValueChange={setStudentId}
+                  onValueChange={(value) => {
+                    setStudentId(value);
+                    const next = students.find((student) => student.id === value);
+                    setPayerId(next?.payer_id ?? "");
+                  }}
                 >
                   <SelectTrigger id="student" className="w-full">
                     <SelectValue placeholder="Select a student…" />
@@ -444,6 +461,24 @@ export function AssignPackageForm({
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-2">
+              <Label htmlFor="package_payer">Payer</Label>
+              <PayerPicker
+                id="package_payer"
+                payers={payers}
+                value={payerId}
+                onChange={setPayerId}
+                onCreated={(payer) =>
+                  setPayers((current) =>
+                    current.some((item) => item.id === payer.id)
+                      ? current
+                      : [...current, payer]
+                  )
+                }
+                allowNone={!isPaid}
+                noneLabel="Use student default / none"
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Payment Status</Label>
               <div className="flex rounded-lg border border-border/80 bg-muted/40 p-1">
                 <button
@@ -560,7 +595,7 @@ export function AssignPackageForm({
               <Button
                 type="submit"
                 className="h-12 w-full"
-                disabled={pending || !selectedProduct}
+                disabled={pending || !selectedProduct || (isPaid && !payerId)}
               >
                 {pending ? "Assigning…" : "Confirm Assignment"}
               </Button>

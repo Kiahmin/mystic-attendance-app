@@ -8,13 +8,14 @@ import {
   updateClass,
   type ClassInput,
 } from "@/lib/actions/classes";
-import type { ClassGroup, DayOfWeek, Profile } from "@/lib/types";
+import type { ClassGroup, DayOfWeek, Profile, Venue } from "@/lib/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DayPicker } from "@/components/ui/day-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TimePicker } from "@/components/ui/time-picker";
+import { VenueSelect } from "@/components/admin/venue-select";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,7 @@ import {
 type ClassFormProps = {
   classGroup?: ClassGroup;
   coaches: Pick<Profile, "id" | "full_name">[];
+  venues: Venue[];
   onSuccess?: (id: string) => void;
   submitLabel?: string;
 };
@@ -62,14 +64,17 @@ function addHoursToTime(time: string, hours: number): string {
 export function ClassForm({
   classGroup,
   coaches,
+  venues: initialVenues,
   onSuccess,
   submitLabel,
 }: ClassFormProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [venues, setVenues] = useState(initialVenues);
 
   const [name, setName] = useState(classGroup?.name ?? "");
+  const [venueId, setVenueId] = useState(classGroup?.venue_id ?? "");
   const [daysOfWeek, setDaysOfWeek] = useState<DayOfWeek[]>(
     classGroup?.day_of_week ? [classGroup.day_of_week] : ["saturday"]
   );
@@ -87,6 +92,7 @@ export function ClassForm({
   const hasChanges =
     !classGroup ||
     name !== classGroup.name ||
+    venueId !== (classGroup.venue_id ?? "") ||
     daysOfWeek.length !== 1 ||
     daysOfWeek[0] !== classGroup.day_of_week ||
     startTime !== toTimeInputValue(classGroup.start_time) ||
@@ -103,9 +109,14 @@ export function ClassForm({
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    if (!venueId) {
+      setError("Select a venue.");
+      return;
+    }
 
     const input: ClassInput = {
       name,
+      venue_id: venueId,
       days_of_week: daysOfWeek,
       start_time: startTime,
       end_time: endTime,
@@ -174,6 +185,26 @@ export function ClassForm({
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="class_venue">
+          Venue <span className="text-destructive">*</span>
+        </Label>
+        <VenueSelect
+          id="class_venue"
+          venues={venues}
+          value={venueId}
+          onChange={setVenueId}
+          onCreated={(venue) =>
+            setVenues((current) =>
+              current.some((item) => item.id === venue.id)
+                ? current
+                : [...current, venue]
+            )
+          }
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="day_of_week">Day</Label>
         <DayPicker
           id="day_of_week"
@@ -234,6 +265,7 @@ export function ClassForm({
           disabled={
             pending ||
             daysOfWeek.length === 0 ||
+            !venueId ||
             (isEditing && !hasChanges)
           }
         >

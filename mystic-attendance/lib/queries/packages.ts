@@ -10,6 +10,7 @@ import type {
   PackageSession,
   PackageStatus,
   PackageWithStudent,
+  PayerRef,
   Student,
 } from "@/lib/types";
 
@@ -26,6 +27,7 @@ const PACKAGE_PRODUCT_COLUMNS = `
 const PACKAGE_COLUMNS = `
   id,
   student_id,
+  payer_id,
   package_product_id,
   session_id,
   total_credits,
@@ -45,6 +47,7 @@ const PACKAGE_COLUMNS = `
   paused_reason,
   resumed_at,
   pause_used,
+  informed_at,
   status,
   created_at,
   package_products (
@@ -54,6 +57,12 @@ const PACKAGE_COLUMNS = `
     id,
     name,
     session_date
+  ),
+  payers (
+    id,
+    kind,
+    display_name,
+    phone
   )
 `;
 
@@ -75,18 +84,23 @@ function mapPackageProduct(
 function mapPackage(row: {
   package_product_id?: string | null;
   session_id?: string | null;
+  payer_id?: string | null;
   amount_sgd?: number | string | null;
   bonus_credits?: number | string | null;
   customisation_notes?: string | null;
   package_products?: PackageProduct | PackageProduct[] | null;
   sessions?: PackageSession | PackageSession[] | null;
+  payers?: PayerRef | PayerRef[] | null;
   [key: string]: unknown;
 }): Package {
   const product = mapPackageProduct(asSingle(row.package_products));
+  const payer = asSingle(row.payers);
   return {
     ...(row as unknown as Package),
     package_product_id: row.package_product_id ?? null,
     session_id: row.session_id ?? null,
+    payer_id: row.payer_id ?? payer?.id ?? null,
+    payer,
     bonus_credits: Number(row.bonus_credits ?? 0),
     customisation_notes: row.customisation_notes ?? null,
     amount_sgd:
@@ -95,6 +109,8 @@ function mapPackage(row: {
         : Number(row.amount_sgd),
     package_products: product,
     sessions: asSingle(row.sessions),
+    informed_at:
+      typeof row.informed_at === "string" ? row.informed_at : null,
   };
 }
 
@@ -189,7 +205,8 @@ export async function getPackageWithStudent(
       students (
         id,
         full_name,
-        contact_phone
+        contact_phone,
+        payer_id
       )
     `
     )
@@ -201,8 +218,8 @@ export async function getPackageWithStudent(
 
   const { students, ...pkg } = data as {
     students:
-      | Pick<Student, "id" | "full_name" | "contact_phone">
-      | Pick<Student, "id" | "full_name" | "contact_phone">[]
+      | Pick<Student, "id" | "full_name" | "contact_phone" | "payer_id">
+      | Pick<Student, "id" | "full_name" | "contact_phone" | "payer_id">[]
       | null;
     package_product_id?: string | null;
     amount_sgd?: number | string | null;
@@ -245,7 +262,8 @@ export async function listPackages(options?: {
       students!inner (
         id,
         full_name,
-        contact_phone
+        contact_phone,
+        payer_id
       )
     `
     )
@@ -267,8 +285,8 @@ export async function listPackages(options?: {
     .map((row) => {
       const { students, ...pkg } = row as {
         students:
-          | Pick<Student, "id" | "full_name" | "contact_phone">
-          | Pick<Student, "id" | "full_name" | "contact_phone">[]
+          | Pick<Student, "id" | "full_name" | "contact_phone" | "payer_id">
+          | Pick<Student, "id" | "full_name" | "contact_phone" | "payer_id">[]
           | null;
         package_product_id?: string | null;
         amount_sgd?: number | string | null;

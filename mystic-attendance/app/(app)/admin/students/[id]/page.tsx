@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarCheck, Plus, UserRound } from "lucide-react";
-import { requireRole } from "@/lib/auth/profile";
 import { ageFromDob, SKILL_LEVEL_LABELS } from "@/lib/admin-utils";
+import { requireRole } from "@/lib/auth/profile";
+import { payerLabel } from "@/lib/payer-utils";
 import { listClasses } from "@/lib/queries/classes";
 import { listPackagesForStudent } from "@/lib/queries/packages";
 import { getStudentById } from "@/lib/queries/students";
+import { listPayers } from "@/lib/queries/payers";
 import { ArchiveStudentButton } from "@/components/admin/archive-student-button";
 import { EnrolmentManager } from "@/components/admin/enrolment-manager";
 import { StudentForm } from "@/components/admin/student-form";
@@ -30,10 +32,11 @@ export default async function AdminStudentDetailPage({
   await requireRole(["admin"]);
   const { id } = await params;
 
-  const [student, classes, packages] = await Promise.all([
+  const [student, classes, packages, payers] = await Promise.all([
     getStudentById(id),
     listClasses({ activeOnly: true }),
     listPackagesForStudent(id),
+    listPayers(),
   ]);
 
   if (!student) notFound();
@@ -120,7 +123,12 @@ export default async function AdminStudentDetailPage({
                   ) : null}
                 </div>
                 <CardDescription>
-                  {student.contact_phone ?? "No contact on file"}
+                  {student.payer
+                    ? `Payer: ${payerLabel(student.payer)}`
+                    : "No payer on file"}
+                  {student.contact_phone
+                    ? ` · ${student.contact_phone}`
+                    : ""}
                   {student.date_of_birth
                     ? ` · DOB ${student.date_of_birth}`
                     : ""}
@@ -177,7 +185,7 @@ export default async function AdminStudentDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <StudentForm student={student} />
+            <StudentForm student={student} payers={payers} />
           </CardContent>
         </Card>
       </div>

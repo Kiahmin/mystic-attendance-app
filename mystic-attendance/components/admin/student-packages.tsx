@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Pause, Play, Wallet } from "lucide-react";
 import { resumePackageFormAction } from "@/lib/actions/packages";
 import { formatCalendarDate, todayInSingapore } from "@/lib/datetime";
+import { payerLabel } from "@/lib/payer-utils";
 import {
   PACKAGE_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
@@ -141,6 +142,11 @@ function PackageCard({ pkg }: { pkg: Package }) {
           </div>
           {creditBreakdown ? (
             <p className="text-xs text-muted-foreground">{creditBreakdown}</p>
+          ) : null}
+          {pkg.payer ? (
+            <p className="text-xs text-muted-foreground">
+              Payer: {payerLabel(pkg.payer)}
+            </p>
           ) : null}
           <p className="text-xs text-muted-foreground">
             {assignedDate

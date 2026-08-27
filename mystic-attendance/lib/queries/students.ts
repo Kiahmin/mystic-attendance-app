@@ -1,14 +1,20 @@
 import { createClient } from "@/lib/supabase/server";
-import { isInactiveForSixMonths } from "@/lib/admin-utils";
+import { DAYS_OF_WEEK, isInactiveForSixMonths } from "@/lib/admin-utils";
 import type {
   ClassGroup,
+  DayOfWeek,
   EnrolmentWithClass,
+  PackageProduct,
   PackageStatus,
+  PayerRef,
   Student,
   StudentListItem,
+  StudentRosterClass,
   StudentRosterPackage,
   StudentWithEnrolments,
+  VenueRef,
 } from "@/lib/types";
+import { mapVenueRef } from "@/lib/venue-utils";
 
 const STUDENT_COLUMNS = `
   id,
@@ -18,6 +24,7 @@ const STUDENT_COLUMNS = `
   guardian_name,
   guardian_phone,
   contact_phone,
+  payer_id,
   skill_level,
   notes,
   is_trial,
@@ -27,6 +34,102 @@ const STUDENT_COLUMNS = `
 function asSingle<T>(value: T | T[] | null | undefined): T | null {
   if (value == null) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+type RosterPackageRow = {
+  student_id: string;
+  remaining_credits: number;
+  total_credits: number;
+  used_credits: number;
+  bonus_credits?: number | null;
+  status: PackageStatus;
+  expires_at: string | null;
+  first_lesson_date: string | null;
+  package_products?:
+    | Pick<PackageProduct, "product_type" | "label" | "total_credits">
+    | Pick<PackageProduct, "product_type" | "label" | "total_credits">[]
+    | null;
+  sessions?:
+    | { name: string | null; session_date: string }
+    | { name: string | null; session_date: string }[]
+    | null;
+};
+
+type RosterEnrolmentRow = {
+  class_id: string;
+  classes?:
+    | {
+        id: string;
+        name: string;
+        venue_id?: string | null;
+        venues?: VenueRef | VenueRef[] | null;
+        day_of_week: DayOfWeek;
+        start_time: string;
+        is_active?: boolean;
+      }
+    | {
+        id: string;
+        name: string;
+        venue_id?: string | null;
+        venues?: VenueRef | VenueRef[] | null;
+        day_of_week: DayOfWeek;
+        start_time: string;
+        is_active?: boolean;
+      }[]
+    | null;
+};
+
+const DAY_RANK = new Map(DAYS_OF_WEEK.map((day, index) => [day, index]));
+
+function mapRosterPackage(row: RosterPackageRow): StudentRosterPackage {
+  const product = asSingle(row.package_products);
+  const session = asSingle(row.sessions);
+  return {
+    remaining_credits: Number(row.remaining_credits),
+    total_credits: Number(row.total_credits),
+    used_credits: Number(row.used_credits),
+    bonus_credits: Number(row.bonus_credits ?? 0),
+    status: row.status,
+    expires_at: row.expires_at ?? null,
+    first_lesson_date: row.first_lesson_date ?? null,
+    package_products: product
+      ? {
+          product_type: product.product_type,
+          label: product.label,
+          total_credits: Number(product.total_credits),
+        }
+      : null,
+    sessions: session
+      ? { name: session.name, session_date: session.session_date }
+      : null,
+  };
+}
+
+function mapRosterClasses(
+  enrolments: RosterEnrolmentRow[] | null | undefined
+): StudentRosterClass[] {
+  const classes = (enrolments ?? [])
+    .map((enrolment) => {
+      const classGroup = asSingle(enrolment.classes);
+      if (!classGroup) return null;
+      const venue = mapVenueRef(classGroup.venues);
+      return {
+        id: classGroup.id,
+        name: classGroup.name,
+        venue_id: classGroup.venue_id ?? venue?.id ?? null,
+        venue,
+        day_of_week: classGroup.day_of_week,
+        start_time: classGroup.start_time,
+      } satisfies StudentRosterClass;
+    })
+    .filter((item): item is StudentRosterClass => item !== null);
+
+  return classes.sort((a, b) => {
+    const byDay =
+      (DAY_RANK.get(a.day_of_week) ?? 99) - (DAY_RANK.get(b.day_of_week) ?? 99);
+    if (byDay !== 0) return byDay;
+    return a.start_time.localeCompare(b.start_time);
+  });
 }
 
 export async function listStudents(
@@ -40,7 +143,25 @@ export async function listStudents(
       `
         ${STUDENT_COLUMNS},
         created_at,
-        enrolments (id, class_id)
+        payers (
+          id,
+          kind,
+          display_name,
+          phone
+        ),
+        enrolments (
+          class_id,
+          classes (
+            id,
+            name,
+            venue_id,
+            venues (id, name),
+            day_of_week,
+            start_time,
+            end_time,
+            is_active
+          )
+        )
       `
     )
     .order("full_name");
@@ -68,19 +189,33 @@ export async function listStudents(
           .in("student_id", studentIds),
     studentIds.length === 0
       ? Promise.resolve({
-          data: [] as {
-            student_id: string;
-            remaining_credits: number;
-            total_credits: number;
-            status: PackageStatus;
-            expires_at: string | null;
-          }[],
+          data: [] as RosterPackageRow[],
           error: null,
         })
       : supabase
           .from("packages")
           .select(
-            "student_id, remaining_credits, total_credits, status, expires_at, created_at, session_id"
+            `
+              student_id,
+              remaining_credits,
+              total_credits,
+              used_credits,
+              bonus_credits,
+              status,
+              expires_at,
+              first_lesson_date,
+              created_at,
+              session_id,
+              package_products (
+                product_type,
+                label,
+                total_credits
+              ),
+              sessions (
+                name,
+                session_date
+              )
+            `
           )
           .in("student_id", studentIds)
           .is("session_id", null)
@@ -99,28 +234,28 @@ export async function listStudents(
 
   const packagesByStudent = new Map<string, StudentRosterPackage[]>();
   for (const row of packagesResult.data ?? []) {
+    const pkg = mapRosterPackage(row as RosterPackageRow);
     const studentId = row.student_id as string;
-    const pkg: StudentRosterPackage = {
-      remaining_credits: Number(row.remaining_credits),
-      total_credits: Number(row.total_credits),
-      status: row.status as PackageStatus,
-      expires_at: (row.expires_at as string | null) ?? null,
-    };
     const list = packagesByStudent.get(studentId);
     if (list) list.push(pkg);
     else packagesByStudent.set(studentId, [pkg]);
   }
 
   return rows.map((row) => {
-    const { enrolments, ...student } = row;
-    const classIds = Array.isArray(enrolments)
-      ? enrolments.map((enrolment) => enrolment.class_id as string)
-      : [];
+    const { enrolments, payers, ...student } = row as typeof row & {
+      payers?: PayerRef | PayerRef[] | null;
+    };
+    const enrolmentRows = (enrolments ?? []) as RosterEnrolmentRow[];
+    const classIds = enrolmentRows.map((enrolment) => enrolment.class_id);
+    const payer = asSingle(payers);
     return {
       ...(student as Student & { created_at: string }),
+      payer_id: (student as Student).payer_id ?? payer?.id ?? null,
+      payer,
       last_attended_on: lastAttendedByStudent.get(student.id as string) ?? null,
       enrolment_count: classIds.length,
       class_ids: classIds,
+      classes: mapRosterClasses(enrolmentRows),
       roster_package: pickRosterPackage(
         packagesByStudent.get(student.id as string) ?? []
       ),
@@ -186,6 +321,12 @@ export async function getStudentById(
     .select(
       `
         ${STUDENT_COLUMNS},
+        payers (
+          id,
+          kind,
+          display_name,
+          phone
+        ),
         enrolments (
           id,
           student_id,
@@ -194,6 +335,8 @@ export async function getStudentById(
           classes (
             id,
             name,
+            venue_id,
+            venues (id, name),
             day_of_week,
             start_time,
             end_time,
@@ -209,7 +352,8 @@ export async function getStudentById(
   if (error) throw error;
   if (!data) return null;
 
-  const { enrolments, ...student } = data as Student & {
+  const { enrolments, payers, ...student } = data as Student & {
+    payers?: PayerRef | PayerRef[] | null;
     enrolments: Array<{
       id: string;
       student_id: string;
@@ -223,12 +367,20 @@ export async function getStudentById(
     .map((enrolment) => {
       const classGroup = asSingle(enrolment.classes);
       if (!classGroup) return null;
+      const venue = mapVenueRef(
+        (classGroup as ClassGroup & { venues?: VenueRef | VenueRef[] | null })
+          .venues
+      );
       return {
         id: enrolment.id,
         student_id: enrolment.student_id,
         class_id: enrolment.class_id,
         enrolled_at: enrolment.enrolled_at,
-        classes: classGroup,
+        classes: {
+          ...classGroup,
+          venue_id: classGroup.venue_id ?? venue?.id ?? null,
+          venue,
+        },
       };
     })
     .filter((item): item is EnrolmentWithClass => item !== null);
@@ -239,6 +391,8 @@ export async function getStudentById(
 
   return {
     ...student,
+    payer_id: student.payer_id ?? asSingle(payers)?.id ?? null,
+    payer: asSingle(payers),
     enrolments: typedEnrolments,
   };
 }

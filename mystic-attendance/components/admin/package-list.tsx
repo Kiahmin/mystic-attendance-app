@@ -27,6 +27,7 @@ import {
 } from "@/lib/package-utils";
 import type { PackageListFilter } from "@/lib/queries/packages";
 import type { PackageWithStudent } from "@/lib/types";
+import { payerLabel } from "@/lib/payer-utils";
 
 type FilterValue = PackageListFilter;
 
@@ -105,9 +106,14 @@ export function PackageList({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return packages;
-    return packages.filter((pkg) =>
-      pkg.students.full_name.toLowerCase().includes(q)
-    );
+    return packages.filter((pkg) => {
+      const haystacks = [
+        pkg.students.full_name,
+        pkg.payer?.display_name,
+        pkg.payer?.phone,
+      ];
+      return haystacks.some((value) => value?.toLowerCase().includes(q));
+    });
   }, [packages, search]);
 
   const isFinishingOnly =
@@ -247,6 +253,11 @@ export function PackageList({
                       <p className="truncate font-semibold">
                         {pkg.students.full_name}
                       </p>
+                      {pkg.payer ? (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {payerLabel(pkg.payer)}
+                        </p>
+                      ) : null}
                       <div className="mt-1.5 flex flex-wrap items-center gap-2">
                         <PackageStatusBadge status={pkg.status} />
                         {reason ? (

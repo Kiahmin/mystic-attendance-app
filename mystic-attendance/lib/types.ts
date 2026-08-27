@@ -34,9 +34,33 @@ export interface Profile {
   created_at: string;
 }
 
+export interface Venue {
+  id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export type VenueRef = Pick<Venue, "id" | "name">;
+
+export type PayerKind = "person" | "company";
+
+export interface Payer {
+  id: string;
+  kind: PayerKind;
+  display_name: string | null;
+  phone: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export type PayerRef = Pick<Payer, "id" | "kind" | "display_name" | "phone">;
+
 export interface ClassGroup {
   id: string;
   name: string;
+  venue_id: string | null;
+  venue: VenueRef | null;
   day_of_week: DayOfWeek;
   start_time: string;
   end_time: string;
@@ -53,6 +77,8 @@ export interface Session {
   name: string | null;
   requires_attendance: boolean;
   session_date: string;
+  venue_id: string | null;
+  venue: VenueRef | null;
   coach_id: string | null;
   start_time: string | null;
   end_time: string | null;
@@ -72,6 +98,8 @@ export interface Student {
   guardian_name: string | null;
   guardian_phone: string | null;
   contact_phone: string | null;
+  payer_id: string | null;
+  payer?: PayerRef | null;
   skill_level: SkillLevel | null;
   notes: string | null;
   is_trial: boolean;
@@ -98,11 +126,24 @@ export interface StudentWithEnrolments extends Student {
   enrolments: EnrolmentWithClass[];
 }
 
+export type StudentRosterClass = Pick<
+  ClassGroup,
+  "id" | "name" | "venue_id" | "venue" | "day_of_week" | "start_time"
+>;
+
 export type StudentRosterPackage = {
   remaining_credits: number;
   total_credits: number;
+  used_credits: number;
+  bonus_credits: number;
   status: PackageStatus;
   expires_at: string | null;
+  first_lesson_date: string | null;
+  package_products: Pick<
+    PackageProduct,
+    "product_type" | "label" | "total_credits"
+  > | null;
+  sessions: Pick<Session, "name" | "session_date"> | null;
 };
 
 export interface StudentListItem extends Student {
@@ -110,6 +151,7 @@ export interface StudentListItem extends Student {
   created_at: string;
   last_attended_on: string | null;
   class_ids: string[];
+  classes: StudentRosterClass[];
   roster_package: StudentRosterPackage | null;
 }
 
@@ -151,6 +193,8 @@ export type PackageSession = Pick<Session, "id" | "name" | "session_date">;
 export interface Package {
   id: string;
   student_id: string;
+  payer_id: string | null;
+  payer?: PayerRef | null;
   package_product_id: string | null;
   session_id: string | null;
   total_credits: number;
@@ -170,6 +214,7 @@ export interface Package {
   paused_reason: string | null;
   resumed_at: string | null;
   pause_used: boolean;
+  informed_at: string | null;
   status: PackageStatus;
   created_at: string;
   package_products?: PackageProduct | null;
@@ -177,7 +222,7 @@ export interface Package {
 }
 
 export interface PackageWithStudent extends Package {
-  students: Pick<Student, "id" | "full_name" | "contact_phone">;
+  students: Pick<Student, "id" | "full_name" | "contact_phone" | "payer_id">;
 }
 
 export interface Attendance {

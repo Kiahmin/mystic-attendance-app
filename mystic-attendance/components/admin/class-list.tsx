@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Clock, Plus, User } from "lucide-react";
+import { Clock, MapPin, Plus, User } from "lucide-react";
 import { ClassForm } from "@/components/admin/class-form";
 import { PageHeader } from "@/components/layout/page-header";
 import { DAYS_OF_WEEK, DAY_OF_WEEK_SHORT_LABELS } from "@/lib/admin-utils";
 import { formatSessionTime } from "@/lib/attendance-utils";
-import type { ClassWithCoach, DayOfWeek, Profile } from "@/lib/types";
+import type { ClassWithCoach, DayOfWeek, Profile, Venue } from "@/lib/types";
+import { venueName } from "@/lib/venue-utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 type ClassListProps = {
   classes: ClassWithCoach[];
   coaches: Pick<Profile, "id" | "full_name">[];
+  venues: Venue[];
 };
 
 function classesForDay(classes: ClassWithCoach[], day: DayOfWeek) {
@@ -84,6 +86,10 @@ function ClassWeekCard({
           </div>
         ) : null}
         <div className="flex items-center text-xs text-muted-foreground">
+          <MapPin className="mr-1 size-3.5 shrink-0" aria-hidden />
+          <span className="truncate">{venueName(cls.venue) ?? "No venue"}</span>
+        </div>
+        <div className="flex items-center text-xs text-muted-foreground">
           <User className="mr-1 size-3.5 shrink-0" aria-hidden />
           <span className="truncate">
             {cls.coach ? cls.coach.full_name : "No coach"}
@@ -99,7 +105,7 @@ function ClassWeekCard({
   );
 }
 
-export function ClassList({ classes, coaches }: ClassListProps) {
+export function ClassList({ classes, coaches, venues }: ClassListProps) {
   const [open, setOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const visibleClasses = showInactive
@@ -138,7 +144,11 @@ export function ClassList({ classes, coaches }: ClassListProps) {
                 for each day.
               </DialogDescription>
             </DialogHeader>
-            <ClassForm coaches={coaches} onSuccess={() => setOpen(false)} />
+            <ClassForm
+              coaches={coaches}
+              venues={venues}
+              onSuccess={() => setOpen(false)}
+            />
           </DialogContent>
         </Dialog>
       </PageHeader>
