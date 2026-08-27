@@ -92,7 +92,15 @@ export function DashboardMonthlyAttendance({
                     <span className="truncate">{item.venue}</span>
                     <strong className="tabular-nums">{item.total}</strong>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    role="meter"
+                    aria-label={`${item.venue} check-ins`}
+                    aria-valuemin={0}
+                    aria-valuemax={maxVenueTotal}
+                    aria-valuenow={item.total}
+                    aria-valuetext={`${item.total} of ${maxVenueTotal}`}
+                    className="h-2 overflow-hidden rounded-full bg-muted"
+                  >
                     <span
                       className="block h-full rounded-full bg-primary"
                       style={{

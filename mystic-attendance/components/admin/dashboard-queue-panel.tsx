@@ -39,9 +39,6 @@ export function DashboardQueuePanel({
     <Card className="h-full">
       <CardHeader>
         <div className="space-y-1">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Package queue
-          </p>
           <CardTitle>{title}</CardTitle>
           <CardDescription className="line-clamp-2 min-h-10">
             {description}
@@ -74,10 +71,18 @@ export function DashboardQueuePanel({
           <DashboardQueueList label={listLabel}>{children}</DashboardQueueList>
         )}
       </CardContent>
-      <CardFooter className="mt-auto justify-between gap-3">
-        <span className="min-w-0 truncate text-sm text-muted-foreground">
-          {count} shown
-        </span>
+      <CardFooter
+        className={
+          count === 0
+            ? "mt-auto justify-end gap-3"
+            : "mt-auto justify-between gap-3"
+        }
+      >
+        {count > 0 ? (
+          <span className="min-w-0 truncate text-sm text-muted-foreground">
+            {count} shown
+          </span>
+        ) : null}
         <Link
           href={footerHref}
           className="shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"

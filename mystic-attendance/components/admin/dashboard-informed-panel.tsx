@@ -24,9 +24,9 @@ export function DashboardInformedPanel({ items }: DashboardInformedPanelProps) {
       count={items.length}
       listLabel="Informed students"
       emptyTitle="No informed students"
-      emptyDescription="Use Inform on a due-soon student to place them here."
-      footerHref="/admin/packages?filter=finishing"
-      footerLabel="View finishing →"
+      emptyDescription="Students told about a finishing pack will appear here until a renewal is assigned."
+      footerHref="/admin/packages/assign"
+      footerLabel="Assign a package →"
     >
       {items.map((item) => (
         <DashboardQueueRow
