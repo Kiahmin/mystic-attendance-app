@@ -13,6 +13,7 @@ const VARIANT: Record<
   paused: "secondary",
   expired: "destructive",
   exhausted: "outline",
+  overshot: "destructive",
 };
 
 export function PackageStatusBadge({ status }: { status: PackageStatus }) {

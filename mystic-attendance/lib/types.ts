@@ -9,7 +9,8 @@ export type PackageStatus =
   | "active"
   | "paused"
   | "expired"
-  | "exhausted";
+  | "exhausted"
+  | "overshot";
 
 export type SkillLevel =
   | "beginner"
@@ -226,6 +227,19 @@ export interface Package {
 
 export interface PackageWithStudent extends Package {
   students: Pick<Student, "id" | "full_name" | "contact_phone" | "payer_id">;
+}
+
+export interface PackageCreditTransfer {
+  id: string;
+  from_package_id: string;
+  to_package_id: string;
+  from_student_id: string;
+  to_student_id: string;
+  credits: number;
+  note: string | null;
+  created_at: string;
+  from_student_name: string;
+  to_student_name: string;
 }
 
 export interface Attendance {

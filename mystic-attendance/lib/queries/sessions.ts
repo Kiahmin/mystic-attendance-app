@@ -253,9 +253,7 @@ async function enrichDashboardSessions(
             .from("packages")
             .select(DASHBOARD_PACKAGE_SELECT)
             .in("id", classPackageIds)
-            .is("session_id", null)
-            .eq("is_paid", true)
-            .gt("remaining_credits", 0),
+            .is("session_id", null),
       studentIds.length === 0 || eventSessionIds.length === 0
         ? Promise.resolve({ data: [] as DashboardPackageRow[], error: null })
         : supabase
@@ -555,9 +553,7 @@ export async function getSessionCheckInList(
             .from("packages")
             .select(CHECKIN_PACKAGE_SELECT)
             .in("id", classPackageIds)
-            .is("session_id", null)
-            .eq("is_paid", true)
-            .gt("remaining_credits", 0),
+            .is("session_id", null),
   ]);
 
   if (studentsResult.error) throw studentsResult.error;
@@ -593,8 +589,7 @@ export async function getSessionCheckInList(
         (attendanceByStudent.get(student.id) as CheckInStudent["attendance"]) ??
         null,
       package: pkg,
-      chargeablePackageId:
-        pkg && pkg.is_paid && pkg.remaining_credits > 0 ? pkg.id : null,
+      chargeablePackageId: pkg?.is_paid ? pkg.id : null,
       isWalkIn:
         isWalkIn ||
         (attendanceByStudent.get(student.id) as CheckInStudent["attendance"])

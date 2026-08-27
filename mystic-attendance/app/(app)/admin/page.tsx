@@ -20,12 +20,13 @@ import { countInactiveStudents } from "@/lib/queries/students";
 import { weekDatesContaining } from "@/lib/session-utils";
 import { DashboardDueSoonPanel } from "@/components/admin/dashboard-due-soon-panel";
 import { DashboardInformedPanel } from "@/components/admin/dashboard-informed-panel";
+import { DashboardOvershotPanel } from "@/components/admin/dashboard-overshot-panel";
 import { DashboardMonthlyAttendance } from "@/components/admin/dashboard-monthly-attendance";
 import { MetricCard } from "@/components/layout/metric-card";
 import { PageHeader } from "@/components/layout/page-header";
 
 const PACKAGE_ATTENTION_HREF =
-  "/admin/packages?filter=finishing,unpaid,expired,finished";
+  "/admin/packages?filter=finishing,unpaid,expired,finished,overshot";
 
 function parseReportMonth(value: string | undefined, today: string): string {
   if (value && isValidYearMonth(value)) return value;
@@ -119,7 +120,7 @@ export default async function AdminDashboardPage({
         </p>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Active packages"
           value={operations.activePackageCount}
@@ -132,6 +133,13 @@ export default async function AdminDashboardPage({
           value={operations.informedCount}
           detail="Waiting for renewal"
           icon={<Bell />}
+        />
+        <MetricCard
+          label="Overshot"
+          value={operations.overshotCount}
+          detail="Attended more than purchased"
+          icon={<Clock />}
+          href="/admin/packages?filter=overshot"
         />
         <MetricCard
           label="This month"
@@ -148,6 +156,8 @@ export default async function AdminDashboardPage({
         />
         <DashboardInformedPanel items={operations.informed} />
       </div>
+
+      <DashboardOvershotPanel items={operations.overshot} />
 
       <DashboardMonthlyAttendance
         reportMonth={reportMonth}

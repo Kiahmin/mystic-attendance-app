@@ -5,7 +5,7 @@ import { ageFromDob, SKILL_LEVEL_LABELS } from "@/lib/admin-utils";
 import { requireRole } from "@/lib/auth/profile";
 import { payerLabel } from "@/lib/payer-utils";
 import { listClasses } from "@/lib/queries/classes";
-import { listPackagesForStudent } from "@/lib/queries/packages";
+import { listPackagesForStudent, listPackageCreditTransfers } from "@/lib/queries/packages";
 import { getStudentById, listStudents } from "@/lib/queries/students";
 import { listPayers } from "@/lib/queries/payers";
 import { ArchiveStudentButton } from "@/components/admin/archive-student-button";
@@ -41,6 +41,10 @@ export default async function AdminStudentDetailPage({
   ]);
 
   if (!student) notFound();
+
+  const transfers = await listPackageCreditTransfers(
+    packages.map((pkg) => pkg.id)
+  );
 
   const age = ageFromDob(student.date_of_birth);
 
@@ -176,6 +180,7 @@ export default async function AdminStudentDetailPage({
           <CardContent>
             <StudentPackages
               packages={packages}
+              transfers={transfers}
               studentId={student.id}
               students={students.map((item) => ({
                 id: item.id,

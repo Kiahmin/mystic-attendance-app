@@ -46,9 +46,11 @@ export type DashboardOperations = {
   dueSoonCount: number;
   informedCount: number;
   exhaustedPackageCount: number;
+  overshotCount: number;
   monthCheckInCount: number;
   dueSoon: DashboardQueueItem[];
   informed: DashboardQueueItem[];
+  overshot: DashboardQueueItem[];
   monthlyByVenue: MonthlyVenueCheckIns[];
   monthlyByDay: MonthlyDayCheckIns[];
 };
@@ -85,7 +87,7 @@ export async function getDashboardOperations(
   const monthStart = startOfMonth(`${reportMonth}-01`);
   const monthEnd = endOfMonth(monthStart);
 
-  const [activeResult, exhaustedResult, queueResult, sessionsResult] =
+  const [activeResult, exhaustedResult, queueResult, overshotResult, sessionsResult] =
     await Promise.all([
       supabase
         .from("packages")
@@ -147,6 +149,46 @@ export async function getDashboardOperations(
         .gt("remaining_credits", 0)
         .is("students.archived_at", null),
       supabase
+        .from("packages")
+        .select(
+          `
+          id,
+          student_id,
+          remaining_credits,
+          total_credits,
+          used_credits,
+          bonus_credits,
+          status,
+          informed_at,
+          session_id,
+          package_products (
+            product_type,
+            label,
+            total_credits
+          ),
+          sessions (
+            id,
+            name,
+            session_date
+          ),
+          students!packages_student_id_fkey!inner (
+            id,
+            full_name,
+            archived_at
+          ),
+          package_students (
+            student_id,
+            students!package_students_student_id_fkey (
+              id,
+              full_name
+            )
+          )
+        `
+        )
+        .is("session_id", null)
+        .eq("status", "overshot")
+        .is("students.archived_at", null),
+      supabase
         .from("sessions")
         .select(
           `
@@ -192,6 +234,13 @@ export async function getDashboardOperations(
         .join(" — ") || "Failed to load package queue"
     );
   }
+  if (overshotResult.error) {
+    throw new Error(
+      [overshotResult.error.message, overshotResult.error.hint, overshotResult.error.details, overshotResult.error.code]
+        .filter(Boolean)
+        .join(" — ") || "Failed to load overshot packages"
+    );
+  }
   if (sessionsResult.error) {
     throw new Error(
       [sessionsResult.error.message, sessionsResult.error.hint, sessionsResult.error.details, sessionsResult.error.code]
@@ -235,6 +284,7 @@ export async function getDashboardOperations(
   };
 
   const queuePackages = (queueResult.data ?? []) as QueueRow[];
+  const overshotRows = (overshotResult.data ?? []) as QueueRow[];
 
   function queueMembers(pkg: QueueRow): PackageMember[] {
     const nested = Array.isArray(pkg.package_students)
@@ -282,7 +332,7 @@ export async function getDashboardOperations(
 
   const studentIds = [
     ...new Set(
-      [...dueSoonRows, ...informedRows].flatMap((pkg) =>
+      [...dueSoonRows, ...informedRows, ...overshotRows].flatMap((pkg) =>
         queueMembers(pkg).map((member) => member.id)
       )
     ),
@@ -383,6 +433,9 @@ export async function getDashboardOperations(
   const informed = informedRows
     .map(toQueueItem)
     .sort((a, b) => (b.informedAt ?? "").localeCompare(a.informedAt ?? ""));
+  const overshot = overshotRows
+    .map(toQueueItem)
+    .sort((a, b) => a.remainingCredits - b.remainingCredits);
 
   type MonthSession = {
     id: string;
@@ -456,9 +509,11 @@ export async function getDashboardOperations(
     dueSoonCount: dueSoon.length,
     informedCount: informed.length,
     exhaustedPackageCount: exhaustedResult.count ?? 0,
+    overshotCount: overshot.length,
     monthCheckInCount: presentCount,
     dueSoon,
     informed,
+    overshot,
     monthlyByVenue,
     monthlyByDay: DAYS_OF_WEEK.map((day) => ({
       day,
