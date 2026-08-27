@@ -1,5 +1,6 @@
 -- Shared class packages: one credit pool, many students.
 -- packages.student_id stays the primary (invoice / pay / pause). Event packs stay 1:1.
+-- Timestamp 20260827000001: 20260827000000 is drop_invoices on the remote.
 
 create table package_students (
   package_id uuid not null references packages(id) on delete cascade,
