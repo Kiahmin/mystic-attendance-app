@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 
 interface MetricCardProps {
@@ -23,6 +22,13 @@ const accentClasses = {
   destructive: "border-l-4 border-l-destructive",
 } as const;
 
+function metricValueText(value: React.ReactNode): string | null {
+  if (typeof value === "number" || typeof value === "string") {
+    return String(value);
+  }
+  return null;
+}
+
 export function MetricCard({
   label,
   value,
@@ -32,6 +38,7 @@ export function MetricCard({
   className,
   href,
 }: MetricCardProps) {
+  const valueText = metricValueText(value);
   const card = (
     <Card
       className={cn(
@@ -43,11 +50,16 @@ export function MetricCard({
       )}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <p className="font-heading text-sm leading-snug font-medium text-muted-foreground">
           {label}
-        </CardTitle>
+        </p>
         {icon ? (
-          <div className="text-muted-foreground [&_svg]:size-4">{icon}</div>
+          <div
+            aria-hidden="true"
+            className="text-muted-foreground [&_svg]:size-4"
+          >
+            {icon}
+          </div>
         ) : null}
       </CardHeader>
       <CardContent>
@@ -67,6 +79,7 @@ export function MetricCard({
     return (
       <Link
         href={href}
+        aria-label={valueText ? `${label}, ${valueText}` : label}
         className="block h-full rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         {card}

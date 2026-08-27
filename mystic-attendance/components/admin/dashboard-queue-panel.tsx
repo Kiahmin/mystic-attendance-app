@@ -20,6 +20,7 @@ type DashboardQueuePanelProps = {
   footerHref: string;
   footerLabel: string;
   filter?: React.ReactNode;
+  as?: "list" | "table";
   children?: React.ReactNode;
 };
 
@@ -33,6 +34,7 @@ export function DashboardQueuePanel({
   footerHref,
   footerLabel,
   filter,
+  as = "list",
   children,
 }: DashboardQueuePanelProps) {
   return (
@@ -68,7 +70,9 @@ export function DashboardQueuePanel({
             </div>
           </div>
         ) : (
-          <DashboardQueueList label={listLabel}>{children}</DashboardQueueList>
+          <DashboardQueueList as={as} label={listLabel}>
+            {children}
+          </DashboardQueueList>
         )}
       </CardContent>
       <CardFooter
