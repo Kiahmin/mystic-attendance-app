@@ -131,8 +131,9 @@ export function ClassForm({
           setError(result.error);
           return;
         }
-        router.refresh();
         onSuccess?.(classGroup.id);
+        router.push("/admin/classes");
+        router.refresh();
         return;
       }
 
