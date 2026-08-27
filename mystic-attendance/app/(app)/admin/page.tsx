@@ -1,13 +1,9 @@
 import {
-  Bell,
-  CalendarDays,
   CheckCircle2,
-  Clock,
   Package,
   UserMinus,
   Users,
 } from "lucide-react";
-import Link from "next/link";
 import { requireRole } from "@/lib/auth/profile";
 import { isValidYearMonth, todayInSingapore } from "@/lib/datetime";
 import { listClasses } from "@/lib/queries/classes";
@@ -24,9 +20,6 @@ import { DashboardOvershotPanel } from "@/components/admin/dashboard-overshot-pa
 import { DashboardMonthlyAttendance } from "@/components/admin/dashboard-monthly-attendance";
 import { MetricCard } from "@/components/layout/metric-card";
 import { PageHeader } from "@/components/layout/page-header";
-
-const PACKAGE_ATTENTION_HREF =
-  "/admin/packages?filter=finishing,unpaid,expired,finished,overshot";
 
 function parseReportMonth(value: string | undefined, today: string): string {
   if (value && isValidYearMonth(value)) return value;
@@ -101,55 +94,15 @@ export default async function AdminDashboardPage({
           href="/admin/students?inactive=1"
         />
         <MetricCard
-          label="Student due soon"
-          value={operations.dueSoonCount}
-          detail="Two or fewer lessons remaining"
-          icon={<Clock />}
-          href={PACKAGE_ATTENTION_HREF}
-        />
-      </div>
-
-      {operations.dueSoonCount > 0 ? (
-        <p className="-mt-4 text-sm">
-          <Link
-            href={PACKAGE_ATTENTION_HREF}
-            className="font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Review packages that need attention
-          </Link>
-        </p>
-      ) : null}
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
           label="Active packages"
           value={operations.activePackageCount}
           detail="Students still taking lessons"
           icon={<Package />}
           href="/admin/packages?filter=active"
         />
-        <MetricCard
-          label="Informed"
-          value={operations.informedCount}
-          detail="Waiting for renewal"
-          icon={<Bell />}
-        />
-        <MetricCard
-          label="Overshot"
-          value={operations.overshotCount}
-          detail="Attended more than purchased"
-          icon={<Clock />}
-          href="/admin/packages?filter=overshot"
-        />
-        <MetricCard
-          label="This month"
-          value={operations.monthCheckInCount}
-          detail={`${operations.exhaustedPackageCount} packages finished overall`}
-          icon={<CalendarDays />}
-        />
       </div>
 
-      <div className="grid items-start gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <DashboardDueSoonPanel
           items={operations.dueSoon}
           classes={classes.map((cls) => ({ id: cls.id, name: cls.name }))}
