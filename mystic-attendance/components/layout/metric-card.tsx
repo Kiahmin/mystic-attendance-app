@@ -9,6 +9,8 @@ import {
 interface MetricCardProps {
   label: string;
   value: React.ReactNode;
+  /** Spoken value when `value` is not a string or number. */
+  valueText?: string;
   detail?: string;
   icon?: React.ReactNode;
   accent?: "default" | "warning" | "destructive";
@@ -32,13 +34,14 @@ function metricValueText(value: React.ReactNode): string | null {
 export function MetricCard({
   label,
   value,
+  valueText,
   detail,
   icon,
   accent = "default",
   className,
   href,
 }: MetricCardProps) {
-  const valueText = metricValueText(value);
+  const announced = valueText ?? metricValueText(value);
   const card = (
     <Card
       className={cn(
@@ -79,7 +82,7 @@ export function MetricCard({
     return (
       <Link
         href={href}
-        aria-label={valueText ? `${label}, ${valueText}` : label}
+        aria-label={announced ? `${label}, ${announced}` : label}
         className="block h-full rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         {card}

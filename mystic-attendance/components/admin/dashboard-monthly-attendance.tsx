@@ -8,11 +8,9 @@ import type {
 } from "@/lib/queries/dashboard";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,20 +46,22 @@ export function DashboardMonthlyAttendance({
   return (
     <Card>
       <CardHeader>
-        <div className="space-y-1">
-          <h2
-            id="dashboard-reporting"
-            className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
-          >
-            Reporting
-          </h2>
-          <CardTitle>Monthly attendance</CardTitle>
-          <CardDescription>
-            Present check-ins by venue and weekday in Singapore time.
-          </CardDescription>
-        </div>
-        <CardAction>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Reporting
+            </p>
+            <h2
+              id="dashboard-reporting"
+              className="font-heading text-base leading-snug font-medium"
+            >
+              Monthly attendance
+            </h2>
+            <CardDescription>
+              Present check-ins by venue and weekday in Singapore time.
+            </CardDescription>
+          </div>
+          <div className="w-full space-y-1 sm:w-44">
             <Label htmlFor="report-month" className="text-xs">
               Month
             </Label>
@@ -70,10 +70,10 @@ export function DashboardMonthlyAttendance({
               type="month"
               value={reportMonth}
               onChange={(event) => onMonthChange(event.target.value)}
-              className="w-44"
+              className="w-full"
             />
           </div>
-        </CardAction>
+        </div>
       </CardHeader>
       <CardContent className="grid gap-8 lg:grid-cols-2">
         <div className="space-y-3">
@@ -130,7 +130,7 @@ export function DashboardMonthlyAttendance({
                 <p className="font-heading text-xl font-semibold tabular-nums">
                   {item.total}
                 </p>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   check-ins
                 </span>
               </div>
