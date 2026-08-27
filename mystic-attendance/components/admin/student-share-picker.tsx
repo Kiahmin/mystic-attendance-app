@@ -102,8 +102,8 @@ export function StudentSharePicker({
               {placeholder
                 ? placeholder
                 : selected.length > 0
-                  ? "Add another sibling…"
-                  : "Share credits with siblings…"}
+                  ? "Add another person"
+                  : "Share credits with…"}
             </span>
             <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
           </Button>
