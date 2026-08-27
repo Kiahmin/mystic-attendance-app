@@ -35,7 +35,7 @@ export function MetricCard({
   const card = (
     <Card
       className={cn(
-        "rounded-xl",
+        "h-full rounded-xl",
         accentClasses[accent],
         href &&
           "cursor-pointer transition-colors hover:bg-muted/40",
@@ -67,7 +67,7 @@ export function MetricCard({
     return (
       <Link
         href={href}
-        className="rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="block h-full rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         {card}
       </Link>
