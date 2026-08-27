@@ -60,6 +60,7 @@ export default async function AdminDashboardPage({
     (sum, item) => sum + item.checkedInCount,
     0
   );
+  const noSessionsToday = todaySessions.length === 0;
 
   return (
     <div className="space-y-8">
@@ -77,14 +78,19 @@ export default async function AdminDashboardPage({
         <MetricCard
           label="Checked-in Count"
           value={
-            <span>
-              {totalCheckedIn}
-              <span className="text-lg font-medium text-muted-foreground">
-                {" "}
-                / {totalExpectedToday}
+            noSessionsToday ? (
+              totalCheckedIn
+            ) : (
+              <span>
+                {totalCheckedIn}
+                <span className="text-lg font-medium text-muted-foreground">
+                  {" "}
+                  / {totalExpectedToday}
+                </span>
               </span>
-            </span>
+            )
           }
+          detail={noSessionsToday ? "No sessions today" : undefined}
           icon={<CheckCircle2 />}
         />
         <MetricCard

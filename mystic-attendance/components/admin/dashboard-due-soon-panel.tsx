@@ -13,7 +13,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DashboardQueuePanel } from "@/components/admin/dashboard-queue-panel";
-import { DashboardQueueRow } from "@/components/admin/dashboard-queue-row";
+import {
+  AssignPackageLink,
+  DashboardQueueRow,
+} from "@/components/admin/dashboard-queue-row";
 
 type DashboardDueSoonPanelProps = {
   items: DashboardQueueItem[];
@@ -41,6 +44,7 @@ function InformButton({ packageId }: { packageId: string }) {
       <Button
         type="button"
         size="sm"
+        variant="outline"
         disabled={pending}
         aria-busy={pending}
         aria-describedby={error ? errorId : undefined}
@@ -121,7 +125,15 @@ export function DashboardDueSoonPanel({
           studentName={item.studentName}
           studentHref={`/admin/students/${item.studentId}`}
           why={dueSoonWhy(item)}
-          actions={<InformButton packageId={item.packageId} />}
+          actions={
+            <div className="flex items-center justify-end gap-1.5">
+              <InformButton packageId={item.packageId} />
+              <AssignPackageLink
+                studentId={item.studentId}
+                studentName={item.studentName}
+              />
+            </div>
+          }
         />
       ))}
     </DashboardQueuePanel>

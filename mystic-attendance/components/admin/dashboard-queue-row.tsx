@@ -87,6 +87,7 @@ function QueueStudentCell({
     <div className="min-w-0">
       <Link
         href={studentHref}
+        aria-label={`Edit ${studentName}`}
         className="block truncate font-medium underline-offset-4 hover:underline"
       >
         {studentName}

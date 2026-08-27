@@ -63,7 +63,7 @@ export function MetricCard({
         ) : null}
       </CardHeader>
       <CardContent>
-        <p className="font-heading text-3xl font-semibold tracking-tight">
+        <p className="font-heading text-3xl font-semibold tracking-tight tabular-nums">
           {value}
         </p>
         {detail ? (
