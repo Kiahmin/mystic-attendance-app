@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 
 type DashboardQueueRowProps = {
@@ -25,6 +26,24 @@ export function DashboardQueueList({
     >
       {children}
     </ul>
+  );
+}
+
+export function AssignPackageLink({
+  studentId,
+  studentName,
+}: {
+  studentId: string;
+  studentName: string;
+}) {
+  return (
+    <Link
+      href={`/admin/packages/assign?studentId=${studentId}`}
+      className={buttonVariants({ size: "sm" })}
+      aria-label={`Assign package for ${studentName}`}
+    >
+      Assign package
+    </Link>
   );
 }
 
