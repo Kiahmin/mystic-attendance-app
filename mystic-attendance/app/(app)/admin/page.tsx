@@ -71,12 +71,14 @@ export default async function AdminDashboardPage({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Expected Students This Week"
+          label="Expected this week"
           value={totalExpectedWeek}
+          detail="This week"
           icon={<Users />}
+          href="/admin/schedule"
         />
         <MetricCard
-          label="Checked-in Count"
+          label="Checked in today"
           value={
             noSessionsToday ? (
               totalCheckedIn
@@ -90,19 +92,26 @@ export default async function AdminDashboardPage({
               </span>
             )
           }
-          detail={noSessionsToday ? "No sessions today" : undefined}
+          valueText={
+            noSessionsToday
+              ? String(totalCheckedIn)
+              : `${totalCheckedIn} of ${totalExpectedToday}`
+          }
+          detail={noSessionsToday ? "No sessions today" : "Today"}
           icon={<CheckCircle2 />}
+          href={`/admin/schedule?view=day&date=${today}`}
         />
         <MetricCard
-          label="Inactive Students"
+          label="Inactive students"
           value={inactiveCount}
+          detail="No class in 6 months"
           icon={<UserMinus />}
           href="/admin/students?inactive=1"
         />
         <MetricCard
           label="Active packages"
           value={operations.activePackageCount}
-          detail="Students still taking lessons"
+          detail="Still taking lessons"
           icon={<Package />}
           href="/admin/packages?filter=active"
         />

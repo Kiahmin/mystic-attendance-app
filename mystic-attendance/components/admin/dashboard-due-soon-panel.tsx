@@ -86,7 +86,6 @@ export function DashboardDueSoonPanel({
       title="Due soon"
       description="Two or fewer lessons left. Inform the student."
       count={filtered.length}
-      as="table"
       listLabel="Students due soon"
       emptyTitle={
         classFiltered ? "No students due at this class" : "No students due soon"
@@ -96,8 +95,8 @@ export function DashboardDueSoonPanel({
           ? "Try another class, or choose All classes."
           : "Packages with two or fewer lessons remaining will appear here."
       }
-      footerHref="/admin/students"
-      footerLabel="View students →"
+      footerHref="/admin/packages?filter=finishing"
+      footerLabel="View finishing packages →"
       filter={
         <Select value={classId} onValueChange={setClassId}>
           <SelectTrigger
@@ -121,7 +120,6 @@ export function DashboardDueSoonPanel({
       {filtered.map((item) => (
         <DashboardQueueRow
           key={item.packageId}
-          as="table"
           studentName={item.studentName}
           studentHref={`/admin/students/${item.studentId}`}
           why={dueSoonWhy(item)}

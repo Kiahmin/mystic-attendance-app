@@ -6,7 +6,6 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { DashboardQueueList } from "@/components/admin/dashboard-queue-row";
 
@@ -20,7 +19,6 @@ type DashboardQueuePanelProps = {
   footerHref: string;
   footerLabel: string;
   filter?: React.ReactNode;
-  as?: "list" | "table";
   children?: React.ReactNode;
 };
 
@@ -34,14 +32,15 @@ export function DashboardQueuePanel({
   footerHref,
   footerLabel,
   filter,
-  as = "list",
   children,
 }: DashboardQueuePanelProps) {
   return (
     <Card className="h-full">
       <CardHeader>
         <div className="space-y-1">
-          <CardTitle>{title}</CardTitle>
+          <h3 className="font-heading text-base leading-snug font-medium">
+            {title}
+          </h3>
           <CardDescription className="line-clamp-2 min-h-10">
             {description}
           </CardDescription>
@@ -70,7 +69,7 @@ export function DashboardQueuePanel({
             </div>
           </div>
         ) : (
-          <DashboardQueueList as={as} label={listLabel}>
+          <DashboardQueueList label={listLabel}>
             {children}
           </DashboardQueueList>
         )}
