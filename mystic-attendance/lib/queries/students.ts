@@ -329,7 +329,9 @@ function pickRosterPackage(
   return (
     packages.find(
       (pkg) => pkg.status === "active" && pkg.remaining_credits > 0
-    ) ?? packages[0]
+    ) ??
+    packages.find((pkg) => pkg.status === "overshot") ??
+    packages[0]
   );
 }
 

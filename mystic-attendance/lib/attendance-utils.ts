@@ -65,13 +65,13 @@ export function packageWarning(pkg: {
   remaining_credits: number;
   expires_at: string | null;
   session_id?: string | null;
-} | null): "none" | "low" | "expired" | "unpaid" {
+} | null): "none" | "low" | "expired" | "unpaid" | "overshot" {
   if (!pkg) return "none";
   if (pkg.status === "unpaid") return "unpaid";
   // 1-credit event packs finishing after this session is expected.
   if (pkg.session_id) return "none";
   if (pkg.status === "expired") return "expired";
-  if (pkg.remaining_credits <= 0) return "none";
+  if (pkg.status === "overshot" || pkg.remaining_credits <= 0) return "overshot";
   if (pkg.remaining_credits <= 2) return "low";
   if (pkg.expires_at && isOnOrBeforeDaysFromToday(pkg.expires_at, 14)) {
     return "low";

@@ -74,6 +74,7 @@ function revalidatePackagePaths(studentIds: string[], packageId?: string) {
   if (packageId) {
     revalidatePath(`/admin/packages/${packageId}/pause`);
     revalidatePath(`/admin/packages/${packageId}/pay`);
+    revalidatePath(`/admin/packages/${packageId}/transfer`);
   }
 }
 
@@ -635,4 +636,56 @@ export async function removePackageStudent(
     packageId
   );
   return { success: true as const };
+}
+
+export async function transferPackageCredits(input: {
+  packageId: string;
+  toStudentId: string;
+  credits: number;
+  note?: string | null;
+}) {
+  await requireRole(["admin"]);
+
+  if (!input.packageId) return { error: "Package id is required." };
+  if (!input.toStudentId) return { error: "Choose a student to receive the credits." };
+  if (!Number.isInteger(input.credits) || input.credits < 1) {
+    return { error: "Transfer at least 1 credit." };
+  }
+
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from("packages")
+    .select("id, student_id, session_id, is_paid, remaining_credits")
+    .eq("id", input.packageId)
+    .maybeSingle();
+
+  if (fetchError) return { error: fetchError.message };
+  if (!existing) return { error: "Package not found." };
+  if (existing.session_id) {
+    return { error: "Event packages cannot transfer credits." };
+  }
+  if (!existing.is_paid) {
+    return { error: "Only paid packages can transfer credits." };
+  }
+  if (Number(existing.remaining_credits) < input.credits) {
+    return { error: "Not enough remaining credits to transfer." };
+  }
+
+  const { data: destId, error } = await supabase.rpc("transfer_package_credits", {
+    p_from_package_id: input.packageId,
+    p_to_student_id: input.toStudentId,
+    p_credits: input.credits,
+    p_note: emptyToNull(input.note),
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePackagePaths(
+    [existing.student_id as string, input.toStudentId],
+    input.packageId
+  );
+  if (typeof destId === "string") {
+    revalidatePath(`/admin/packages/${destId}/pay`);
+  }
+  return { success: true as const, id: destId as string };
 }
