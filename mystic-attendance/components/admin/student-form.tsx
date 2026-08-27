@@ -162,8 +162,9 @@ export function StudentForm({
           setError(result.error);
           return;
         }
-        router.refresh();
         onSuccess?.(student.id);
+        router.push("/admin/students");
+        router.refresh();
         return;
       }
 
