@@ -102,21 +102,31 @@ export default async function AdminDashboardPage({
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <DashboardDueSoonPanel
-          items={operations.dueSoon}
-          classes={classes.map((cls) => ({ id: cls.id, name: cls.name }))}
-        />
-        <DashboardInformedPanel items={operations.informed} />
-        <DashboardOvershotPanel items={operations.overshot} />
-      </div>
+      <section className="space-y-4" aria-labelledby="dashboard-queues">
+        <h2
+          id="dashboard-queues"
+          className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
+        >
+          Queues
+        </h2>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <DashboardDueSoonPanel
+            items={operations.dueSoon}
+            classes={classes.map((cls) => ({ id: cls.id, name: cls.name }))}
+          />
+          <DashboardInformedPanel items={operations.informed} />
+          <DashboardOvershotPanel items={operations.overshot} />
+        </div>
+      </section>
 
-      <DashboardMonthlyAttendance
-        reportMonth={reportMonth}
-        monthCheckInCount={operations.monthCheckInCount}
-        byVenue={operations.monthlyByVenue}
-        byDay={operations.monthlyByDay}
-      />
+      <section aria-labelledby="dashboard-reporting">
+        <DashboardMonthlyAttendance
+          reportMonth={reportMonth}
+          monthCheckInCount={operations.monthCheckInCount}
+          byVenue={operations.monthlyByVenue}
+          byDay={operations.monthlyByDay}
+        />
+      </section>
     </div>
   );
 }

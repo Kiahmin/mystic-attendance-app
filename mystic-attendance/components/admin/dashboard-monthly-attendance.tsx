@@ -49,9 +49,12 @@ export function DashboardMonthlyAttendance({
     <Card>
       <CardHeader>
         <div className="space-y-1">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <h2
+            id="dashboard-reporting"
+            className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
+          >
             Reporting
-          </p>
+          </h2>
           <CardTitle>Monthly attendance</CardTitle>
           <CardDescription>
             Present check-ins by venue and weekday in Singapore time.

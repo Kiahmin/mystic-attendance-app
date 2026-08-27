@@ -34,12 +34,16 @@ function InformButton({ packageId }: { packageId: string }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  const errorId = `inform-error-${packageId}`;
+
   return (
-    <span className="inline-flex flex-col items-end gap-1">
+    <span className="inline-flex flex-col items-end">
       <Button
         type="button"
         size="sm"
         disabled={pending}
+        aria-busy={pending}
+        aria-describedby={error ? errorId : undefined}
         onClick={() => {
           setError(null);
           startTransition(async () => {
@@ -50,11 +54,14 @@ function InformButton({ packageId }: { packageId: string }) {
       >
         {pending ? "Saving…" : "Inform"}
       </Button>
-      {error ? (
-        <span className="max-w-40 text-right text-xs text-destructive">
-          {error}
-        </span>
-      ) : null}
+      <span
+        id={errorId}
+        role="alert"
+        aria-live="assertive"
+        className="mt-1 max-w-40 text-right text-xs text-destructive empty:hidden"
+      >
+        {error}
+      </span>
     </span>
   );
 }
@@ -75,6 +82,7 @@ export function DashboardDueSoonPanel({
       title="Due soon"
       description="Two or fewer lessons left. Inform the student."
       count={filtered.length}
+      as="table"
       listLabel="Students due soon"
       emptyTitle={
         classFiltered ? "No students due at this class" : "No students due soon"
@@ -109,6 +117,7 @@ export function DashboardDueSoonPanel({
       {filtered.map((item) => (
         <DashboardQueueRow
           key={item.packageId}
+          as="table"
           studentName={item.studentName}
           studentHref={`/admin/students/${item.studentId}`}
           why={dueSoonWhy(item)}
