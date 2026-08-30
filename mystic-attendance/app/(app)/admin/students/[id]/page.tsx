@@ -146,9 +146,6 @@ export default async function AdminStudentDetailPage({
         <Card className="xl:col-span-1">
           <CardHeader>
             <CardTitle>Current Enrolments</CardTitle>
-            <CardDescription>
-              A student can be enrolled in multiple classes.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <EnrolmentManager
@@ -162,20 +159,6 @@ export default async function AdminStudentDetailPage({
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Packages</CardTitle>
-            <div className="flex items-center justify-between gap-3">
-              <CardDescription>
-                Lesson credits, payment status, expiry, and pauses.
-              </CardDescription>
-              <Link
-                href={`/admin/packages/assign?studentId=${student.id}`}
-                className={cn(
-                  buttonVariants({ variant: "outline", size: "sm" })
-                )}
-              >
-                <Plus className="size-4" />
-                Assign New Package
-              </Link>
-            </div>
           </CardHeader>
           <CardContent>
             <StudentPackages
@@ -186,6 +169,17 @@ export default async function AdminStudentDetailPage({
                 id: item.id,
                 full_name: item.full_name,
               }))}
+              action={
+                <Link
+                  href={`/admin/packages/assign?studentId=${student.id}`}
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" })
+                  )}
+                >
+                  <Plus className="size-4" />
+                  Assign New Package
+                </Link>
+              }
             />
           </CardContent>
         </Card>
@@ -193,9 +187,6 @@ export default async function AdminStudentDetailPage({
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Personal Details</CardTitle>
-            <CardDescription>
-              Name, contact, skill, and guardian details for this student.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <StudentForm student={student} payers={payers} />

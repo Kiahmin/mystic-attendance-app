@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeftRight,
@@ -44,6 +44,7 @@ type StudentPackagesProps = {
   transfers?: PackageCreditTransfer[];
   students: Pick<Student, "id" | "full_name">[];
   studentId: string;
+  action?: ReactNode;
 };
 
 const STATUS_CLASS: Record<PackageStatus, string> = {
@@ -62,18 +63,8 @@ export function StudentPackages({
   transfers = [],
   students,
   studentId,
+  action,
 }: StudentPackagesProps) {
-  if (packages.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed bg-card p-6 text-center">
-        <p className="font-medium">No packages yet</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Assign a lesson package after payment to track credits.
-        </p>
-      </div>
-    );
-  }
-
   const today = todayInSingapore();
   const current: Package[] = [];
   const past: Package[] = [];
@@ -84,6 +75,7 @@ export function StudentPackages({
 
   return (
     <PackageTabs
+      action={action}
       currentCount={current.length}
       pastCount={past.length}
       pastUnpaidCount={past.filter((pkg) => !pkg.is_paid).length}
