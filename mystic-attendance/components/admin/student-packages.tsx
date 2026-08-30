@@ -1,5 +1,16 @@
+"use client";
+
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, Pause, Play, Wallet } from "lucide-react";
+import {
+  ArrowLeftRight,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Pause,
+  Play,
+  Wallet,
+} from "lucide-react";
 import { resumePackageFormAction } from "@/lib/actions/packages";
 import { formatCalendarDate, todayInSingapore } from "@/lib/datetime";
 import { payerLabel } from "@/lib/payer-utils";
@@ -24,6 +35,7 @@ import type {
 } from "@/lib/types";
 import { PackageMembersEditor } from "@/components/admin/package-members-editor";
 import { PackageTabs } from "@/components/admin/package-tabs";
+import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +44,7 @@ type StudentPackagesProps = {
   transfers?: PackageCreditTransfer[];
   students: Pick<Student, "id" | "full_name">[];
   studentId: string;
+  action?: ReactNode;
 };
 
 const STATUS_CLASS: Record<PackageStatus, string> = {
@@ -43,23 +56,15 @@ const STATUS_CLASS: Record<PackageStatus, string> = {
   overshot: "bg-destructive/10 text-destructive",
 };
 
+const PAGE_SIZE = 5;
+
 export function StudentPackages({
   packages,
   transfers = [],
   students,
   studentId,
+  action,
 }: StudentPackagesProps) {
-  if (packages.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed bg-card p-6 text-center">
-        <p className="font-medium">No packages yet</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Assign a lesson package after payment to track credits.
-        </p>
-      </div>
-    );
-  }
-
   const today = todayInSingapore();
   const current: Package[] = [];
   const past: Package[] = [];
@@ -70,6 +75,7 @@ export function StudentPackages({
 
   return (
     <PackageTabs
+      action={action}
       currentCount={current.length}
       pastCount={past.length}
       pastUnpaidCount={past.filter((pkg) => !pkg.is_paid).length}
@@ -112,6 +118,11 @@ function PackageCardList({
   emptyMessage: string;
   emptyHint: string;
 }) {
+  const [page, setPage] = useState(1);
+  const [expandedId, setExpandedId] = useState<string | null>(
+    packages.length === 1 ? packages[0].id : null
+  );
+
   if (packages.length === 0) {
     return (
       <div className="rounded-xl border border-dashed bg-card p-6 text-center">
@@ -121,23 +132,93 @@ function PackageCardList({
     );
   }
 
+  const pageCount = Math.ceil(packages.length / PAGE_SIZE);
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageItems = packages.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageEnd = pageStart + pageItems.length;
+
+  function goToPage(next: number) {
+    setPage(next);
+    setExpandedId(null);
+  }
+
   return (
-    <ul className="space-y-3">
-      {packages.map((pkg) => (
-        <li key={pkg.id}>
-          <PackageCard
-            pkg={pkg}
-            transfers={transfers.filter(
-              (transfer) =>
-                transfer.from_package_id === pkg.id ||
-                transfer.to_package_id === pkg.id
-            )}
-            students={students}
-            studentId={studentId}
-          />
-        </li>
-      ))}
-    </ul>
+    <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
+      <ul>
+        {pageItems.map((pkg) => {
+          const expanded = expandedId === pkg.id;
+          return (
+            <li
+              key={pkg.id}
+              className="border-b border-border/60 last:border-b-0"
+            >
+              <button
+                type="button"
+                aria-expanded={expanded}
+                onClick={() =>
+                  setExpandedId((current) =>
+                    current === pkg.id ? null : pkg.id
+                  )
+                }
+                className="flex w-full items-start gap-3 px-4 py-3 text-left outline-none hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+              >
+                <PackageSummary pkg={pkg} />
+                <ChevronDown
+                  className={cn(
+                    "mt-1 size-4 shrink-0 text-muted-foreground transition-transform",
+                    expanded && "rotate-180"
+                  )}
+                />
+              </button>
+              {expanded ? (
+                <div className="border-t border-border/60 px-4 pt-4 pb-5">
+                  <PackageCard
+                    pkg={pkg}
+                    transfers={transfers.filter(
+                      (transfer) =>
+                        transfer.from_package_id === pkg.id ||
+                        transfer.to_package_id === pkg.id
+                    )}
+                    students={students}
+                    studentId={studentId}
+                  />
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+      {pageCount > 1 ? (
+        <div className="flex items-center justify-between border-t border-border/60 px-4 py-3 text-xs text-muted-foreground">
+          <span>
+            {`Showing ${pageStart + 1}–${pageEnd} of ${packages.length} packages`}
+          </span>
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={currentPage <= 1}
+              aria-label="Previous page"
+              onClick={() => goToPage(Math.max(1, currentPage - 1))}
+            >
+              <ChevronLeft className="size-5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={currentPage >= pageCount}
+              aria-label="Next page"
+              onClick={() => goToPage(Math.min(pageCount, currentPage + 1))}
+            >
+              <ChevronRight className="size-5" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -151,6 +232,58 @@ function StatusPill({ status }: { status: PackageStatus }) {
     >
       {PACKAGE_STATUS_LABELS[status]}
     </span>
+  );
+}
+
+function PackageSummary({ pkg }: { pkg: Package }) {
+  const expiry = pkg.expires_at
+    ? formatCalendarDate(pkg.expires_at).replace(/^[A-Za-z]+,\s*/, "")
+    : "—";
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-primary">
+            {packageLabel(pkg, pkg.package_products)}
+          </span>
+          <StatusPill status={pkg.status} />
+          {isCustomisedPackage(pkg, pkg.package_products) ? (
+            <span className="inline-flex h-5 items-center rounded-full bg-muted px-2 text-xs font-medium text-muted-foreground">
+              Custom
+            </span>
+          ) : null}
+          {!pkg.is_paid ? (
+            <span className="inline-flex h-5 items-center rounded-full bg-warning/15 px-2 text-xs font-medium text-warning">
+              Unpaid
+            </span>
+          ) : null}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {pkg.first_lesson_date
+            ? `First lesson ${formatCalendarDate(pkg.first_lesson_date)}`
+            : "Not started"}
+        </p>
+      </div>
+      <div className="flex shrink-0 gap-6 sm:text-right">
+        <div>
+          <p className="text-lg font-semibold">
+            {pkg.status === "overshot"
+              ? `+${pkg.used_credits - pkg.total_credits}`
+              : pkg.remaining_credits}
+          </p>
+          <p className="text-xs tracking-wider text-muted-foreground uppercase">
+            {pkg.status === "overshot" ? "Extra" : "Credits"}
+          </p>
+        </div>
+        <div>
+          <p className="text-lg font-semibold">{expiry}</p>
+          <p className="text-xs tracking-wider text-muted-foreground uppercase">
+            Expiry
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -176,65 +309,26 @@ function PackageCard({
   const creditBreakdown = packageCreditBreakdown(pkg, pkg.package_products);
 
   return (
-    <div className="rounded-xl border border-border/70 bg-card p-5 shadow-sm">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h4 className="font-semibold text-primary">
-              {packageLabel(pkg, pkg.package_products)}
-            </h4>
-            <StatusPill status={pkg.status} />
-            {isCustomisedPackage(pkg, pkg.package_products) ? (
-              <span className="inline-flex h-5 items-center rounded-full bg-muted px-2 text-xs font-medium text-muted-foreground">
-                Custom
-              </span>
-            ) : null}
-          </div>
-          {creditBreakdown ? (
-            <p className="text-xs text-muted-foreground">{creditBreakdown}</p>
-          ) : null}
-          {pkg.payer ? (
-            <p className="text-xs text-muted-foreground">
-              Payer: {payerLabel(pkg.payer)}
-            </p>
-          ) : null}
-          {sharedWith.length > 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Shared with {sharedWith.map((member) => member.full_name).join(", ")}
-            </p>
-          ) : null}
+    <div>
+      <div className="space-y-1.5">
+        {creditBreakdown ? (
+          <p className="text-xs text-muted-foreground">{creditBreakdown}</p>
+        ) : null}
+        {pkg.payer ? (
           <p className="text-xs text-muted-foreground">
-            {assignedDate
-              ? `Assigned ${formatCalendarDate(assignedDate)}`
-              : "Assigned"}
-            {pkg.first_lesson_date
-              ? ` · First lesson ${formatCalendarDate(pkg.first_lesson_date)}`
-              : " · Not started"}
+            Payer: {payerLabel(pkg.payer)}
           </p>
-        </div>
-
-        <div className="flex gap-8">
-          <div className="text-center">
-            <p className="text-3xl font-semibold">
-              {pkg.status === "overshot"
-                ? `+${pkg.used_credits - pkg.total_credits}`
-                : pkg.remaining_credits}
-            </p>
-            <p className="text-xs tracking-wider text-muted-foreground uppercase">
-              {pkg.status === "overshot" ? "Extra" : "Credits Left"}
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="mt-2 text-lg font-semibold">
-              {pkg.expires_at
-                ? formatCalendarDate(pkg.expires_at).replace(/^[A-Za-z]+,\s*/, "")
-                : "—"}
-            </p>
-            <p className="text-xs tracking-wider text-muted-foreground uppercase">
-              Expiry
-            </p>
-          </div>
-        </div>
+        ) : null}
+        {sharedWith.length > 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Shared with {sharedWith.map((member) => member.full_name).join(", ")}
+          </p>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          {assignedDate
+            ? `Assigned ${formatCalendarDate(assignedDate)}`
+            : "Assigned"}
+        </p>
       </div>
 
       <div className="mt-4 flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
