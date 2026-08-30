@@ -43,7 +43,6 @@ as $$
 declare
   src record;
   dest_student record;
-  src_name text;
   new_total int;
   new_remaining int;
   new_forfeited int;
@@ -114,10 +113,6 @@ begin
     raise exception 'Cannot transfer credits to an archived student';
   end if;
 
-  select full_name into src_name
-  from students
-  where id = src.student_id;
-
   new_total := src.total_credits - p_credits;
   if new_total < src.used_credits then
     raise exception 'Cannot transfer credits already used';
@@ -162,7 +157,7 @@ begin
     src.package_product_id,
     p_credits,
     0,
-    concat('Transferred from ', coalesce(src_name, 'another student')),
+    null,
     true,
     src.payment_method,
     0,
