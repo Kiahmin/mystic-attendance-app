@@ -5,7 +5,11 @@ import Link from "next/link";
 import { Clock, MapPin, Plus, User } from "lucide-react";
 import { ClassForm } from "@/components/admin/class-form";
 import { PageHeader } from "@/components/layout/page-header";
-import { DAYS_OF_WEEK, DAY_OF_WEEK_SHORT_LABELS } from "@/lib/admin-utils";
+import {
+  DAYS_OF_WEEK,
+  DAY_OF_WEEK_LABELS,
+  DAY_OF_WEEK_SHORT_LABELS,
+} from "@/lib/admin-utils";
 import { formatSessionTime } from "@/lib/attendance-utils";
 import type { ClassWithCoach, DayOfWeek, Profile, Venue } from "@/lib/types";
 import { venueName } from "@/lib/venue-utils";
@@ -71,7 +75,7 @@ function ClassWeekCard({
       )}
     >
       <div className="mb-2 flex items-start justify-between gap-1.5">
-        <h3 className="min-w-0 truncate text-xs font-semibold tracking-wide text-foreground">
+        <h3 className="min-w-0 truncate text-sm font-semibold tracking-wide text-foreground lg:text-xs">
           {cls.name}
         </h3>
         <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
@@ -80,16 +84,16 @@ function ClassWeekCard({
       </div>
       <div className="space-y-1">
         {showTime ? (
-          <div className="flex items-start text-xs leading-snug text-muted-foreground">
+          <div className="flex items-start text-sm leading-snug text-muted-foreground lg:text-xs">
             <Clock className="mt-0.5 mr-1 size-3.5 shrink-0" aria-hidden />
-            <span>{formatClassTime(cls)}</span>
+            <span className="min-w-0">{formatClassTime(cls)}</span>
           </div>
         ) : null}
-        <div className="flex items-center text-xs text-muted-foreground">
+        <div className="flex items-center text-sm text-muted-foreground lg:text-xs">
           <MapPin className="mr-1 size-3.5 shrink-0" aria-hidden />
           <span className="truncate">{venueName(cls.venue) ?? "No venue"}</span>
         </div>
-        <div className="flex items-center text-xs text-muted-foreground">
+        <div className="flex items-center text-sm text-muted-foreground lg:text-xs">
           <User className="mr-1 size-3.5 shrink-0" aria-hidden />
           <span className="truncate">
             {cls.coach ? cls.coach.full_name : "No coach"}
@@ -102,6 +106,45 @@ function ClassWeekCard({
         ) : null}
       </div>
     </Link>
+  );
+}
+
+function DayClassSlots({
+  dayClasses,
+  emptyClassName,
+}: {
+  dayClasses: ClassWithCoach[];
+  emptyClassName: string;
+}) {
+  if (dayClasses.length === 0) {
+    return <div className={emptyClassName}>No classes</div>;
+  }
+
+  return (
+    <>
+      {groupByTimeSlot(dayClasses).map((group) => {
+        const first = group[0];
+
+        if (group.length === 1) {
+          return <ClassWeekCard key={first.id} cls={first} />;
+        }
+
+        return (
+          <div
+            key={slotKey(first)}
+            className="space-y-1.5 rounded-lg border border-primary/20 bg-primary/5 p-1.5"
+          >
+            <div className="flex items-center px-1 pt-0.5 text-sm text-muted-foreground lg:text-xs">
+              <Clock className="mr-1 size-3.5 shrink-0" aria-hidden />
+              <span>{formatClassTime(first)}</span>
+            </div>
+            {group.map((cls) => (
+              <ClassWeekCard key={cls.id} cls={cls} showTime={false} />
+            ))}
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -120,7 +163,7 @@ export function ClassList({ classes, coaches, venues }: ClassListProps) {
       >
         <Label
           htmlFor="show-inactive"
-          className="mr-2 cursor-pointer text-muted-foreground"
+          className="cursor-pointer text-muted-foreground"
         >
           <Switch
             id="show-inactive"
@@ -131,7 +174,7 @@ export function ClassList({ classes, coaches, venues }: ClassListProps) {
         </Label>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="h-11">
+            <Button className="h-11 w-full sm:w-auto">
               <Plus className="size-4" />
               Add class
             </Button>
@@ -153,7 +196,25 @@ export function ClassList({ classes, coaches, venues }: ClassListProps) {
         </Dialog>
       </PageHeader>
 
-      <div>
+      <div className="space-y-6 lg:hidden">
+        {DAYS_OF_WEEK.map((day) => {
+          const dayClasses = classesForDay(visibleClasses, day);
+
+          return (
+            <section key={day} className="space-y-2">
+              <h2 className="border-b border-border pb-2 text-sm font-semibold tracking-wide text-foreground">
+                {DAY_OF_WEEK_LABELS[day]}
+              </h2>
+              <DayClassSlots
+                dayClasses={dayClasses}
+                emptyClassName="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground"
+              />
+            </section>
+          );
+        })}
+      </div>
+
+      <div className="hidden lg:block">
         <div className="mb-3 grid grid-cols-7 gap-2">
           {DAYS_OF_WEEK.map((day) => (
             <div
@@ -166,49 +227,14 @@ export function ClassList({ classes, coaches, venues }: ClassListProps) {
         </div>
 
         <div className="grid grid-cols-7 gap-2">
-          {DAYS_OF_WEEK.map((day) => {
-            const dayClasses = classesForDay(visibleClasses, day);
-
-            return (
-              <div key={day} className="min-w-0 space-y-2">
-                {dayClasses.length === 0 ? (
-                  <div className="flex min-h-[100px] items-center justify-center rounded-lg border-2 border-dashed border-border px-1 text-center text-[11px] font-medium tracking-wide text-muted-foreground uppercase opacity-50">
-                    No classes
-                  </div>
-                ) : (
-                  groupByTimeSlot(dayClasses).map((group) => {
-                    const first = group[0];
-
-                    if (group.length === 1) {
-                      return <ClassWeekCard key={first.id} cls={first} />;
-                    }
-
-                    return (
-                      <div
-                        key={slotKey(first)}
-                        className="space-y-1.5 rounded-lg border border-primary/20 bg-primary/5 p-1.5"
-                      >
-                        <div className="flex items-center px-1 pt-0.5 text-xs text-muted-foreground">
-                          <Clock
-                            className="mr-1 size-3.5 shrink-0"
-                            aria-hidden
-                          />
-                          <span>{formatClassTime(first)}</span>
-                        </div>
-                        {group.map((cls) => (
-                          <ClassWeekCard
-                            key={cls.id}
-                            cls={cls}
-                            showTime={false}
-                          />
-                        ))}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            );
-          })}
+          {DAYS_OF_WEEK.map((day) => (
+            <div key={day} className="min-w-0 space-y-2">
+              <DayClassSlots
+                dayClasses={classesForDay(visibleClasses, day)}
+                emptyClassName="flex min-h-[100px] items-center justify-center rounded-lg border-2 border-dashed border-border px-1 text-center text-[11px] font-medium tracking-wide text-muted-foreground uppercase opacity-50"
+              />
+            </div>
+          ))}
         </div>
       </div>
     </div>

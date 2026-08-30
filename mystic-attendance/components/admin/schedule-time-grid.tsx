@@ -189,7 +189,11 @@ export function ScheduleTimeGrid({
   const gridStartMin = startHour * 60;
   const gridEndMin = endHour * 60;
   const spanMin = Math.max(gridEndMin - gridStartMin, 60);
-  const gridTemplateColumns = `minmax(2.5rem, 3.5rem) repeat(${dates.length}, minmax(0, 1fr))`;
+  const dayColumn =
+    view === "day" ? "minmax(0, 1fr)" : "minmax(9.5rem, 1fr)";
+  const gridTemplateColumns = `minmax(2.75rem, 3.5rem) repeat(${dates.length}, ${dayColumn})`;
+  const gridMinWidth =
+    view === "day" ? undefined : `calc(2.75rem + ${dates.length} * 9.5rem)`;
   const sessionsByDate = useMemo(() => {
     const map = new Map<string, DashboardSession[]>();
     for (const item of sessions) {
@@ -273,10 +277,10 @@ export function ScheduleTimeGrid({
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card">
       <div className="min-h-0 flex-1 overflow-auto">
-        <div className="flex min-h-full min-w-0 flex-col">
+        <div className="flex min-h-full w-max min-w-full flex-col">
           <div
             className="sticky top-0 z-20 grid shrink-0 border-b border-border/60 bg-card"
-            style={{ gridTemplateColumns }}
+            style={{ gridTemplateColumns, minWidth: gridMinWidth }}
           >
             <div />
             {dates.map((day) => {
@@ -321,6 +325,7 @@ export function ScheduleTimeGrid({
             className="relative grid min-h-0 min-w-0 flex-1"
             style={{
               gridTemplateColumns,
+              minWidth: gridMinWidth,
               minHeight: hours.length * MIN_HOUR_HEIGHT_PX,
             }}
           >

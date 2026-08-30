@@ -152,7 +152,7 @@ export function ScheduleEvent({
               </>
             ) : (
               <>
-                <p className="truncate font-semibold">{displayName}</p>
+                <p className="break-words font-semibold">{displayName}</p>
                 <p
                   className={cn(
                     "truncate opacity-80",
