@@ -74,10 +74,12 @@ export function FilterCheckbox({
   checked,
   label,
   onToggle,
+  className,
 }: {
   checked: boolean | "indeterminate";
   label: string;
   onToggle: () => void;
+  className?: string;
 }) {
   const isOn = checked === true;
   const isIndeterminate = checked === "indeterminate";
@@ -87,7 +89,10 @@ export function FilterCheckbox({
       checked={checked}
       onCheckedChange={onToggle}
       onSelect={(event) => event.preventDefault()}
-      className="pr-2 pl-2 [&_[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden"
+      className={cn(
+        "pr-2 pl-2 [&_[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden",
+        className
+      )}
     >
       <span
         aria-hidden
