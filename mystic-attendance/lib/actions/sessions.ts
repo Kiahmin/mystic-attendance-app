@@ -38,12 +38,48 @@ function revalidateSessionPaths(sessionId?: string) {
   revalidatePath("/coach");
 }
 
+type ClassSnapshot = {
+  id: string;
+  coach_id: string | null;
+  start_time: string;
+  end_time: string;
+  venue_id: string;
+};
+
+function classSessionFields(cls: ClassSnapshot) {
+  return {
+    coach_id: cls.coach_id,
+    start_time: cls.start_time,
+    end_time: cls.end_time,
+    venue_id: cls.venue_id,
+  };
+}
+
+function sessionMatchesClass(
+  session: {
+    coach_id: string | null;
+    start_time: string | null;
+    end_time: string | null;
+    venue_id: string | null;
+  },
+  cls: ClassSnapshot
+) {
+  return (
+    session.coach_id === cls.coach_id &&
+    session.start_time === cls.start_time &&
+    session.end_time === cls.end_time &&
+    session.venue_id === cls.venue_id
+  );
+}
+
 async function generateSessionsForDate(
   sessionDate: string
-): Promise<{ created: number; skipped: number } | { error: string }> {
+): Promise<
+  { created: number; updated: number; skipped: number } | { error: string }
+> {
   const dayOfWeek = dayOfWeekForDate(sessionDate);
   if (!dayOfWeek) {
-    return { created: 0, skipped: 0 };
+    return { created: 0, updated: 0, skipped: 0 };
   }
 
   const supabase = await createClient();
@@ -58,51 +94,64 @@ async function generateSessionsForDate(
     return { error: classesError.message };
   }
 
-  if (!classes?.length) {
-    return { created: 0, skipped: 0 };
-  }
-
-  const classIds = classes.map((cls) => cls.id as string);
+  const classById = new Map(
+    (classes ?? []).map((cls) => [cls.id as string, cls as ClassSnapshot])
+  );
+  const classIds = [...classById.keys()];
 
   const { data: existing, error: existingError } = await supabase
     .from("sessions")
-    .select("class_id")
+    .select("id, class_id, coach_id, start_time, end_time, venue_id")
     .eq("session_date", sessionDate)
-    .in("class_id", classIds);
+    .not("class_id", "is", null);
 
   if (existingError) {
     return { error: existingError.message };
   }
 
-  const existingClassIds = new Set(
-    (existing ?? []).map((row) => row.class_id as string)
+  const existingByClassId = new Map(
+    (existing ?? []).map((row) => [row.class_id as string, row])
   );
-  const toCreate = classes.filter(
-    (cls) => !existingClassIds.has(cls.id as string)
-  );
+  const toCreate = classIds
+    .filter((id) => !existingByClassId.has(id))
+    .map((id) => classById.get(id)!)
+    .filter(Boolean);
+  const toUpdate = (existing ?? []).filter((row) => {
+    const cls = classById.get(row.class_id as string);
+    return cls ? !sessionMatchesClass(row, cls) : false;
+  });
 
-  if (toCreate.length === 0) {
-    return { created: 0, skipped: classIds.length };
+  if (toCreate.length > 0) {
+    const { error: insertError } = await supabase.from("sessions").insert(
+      toCreate.map((cls) => ({
+        class_id: cls.id,
+        session_date: sessionDate,
+        ...classSessionFields(cls),
+      }))
+    );
+
+    if (insertError) {
+      return { error: insertError.message };
+    }
   }
 
-  const { error: insertError } = await supabase.from("sessions").insert(
-    toCreate.map((cls) => ({
-      class_id: cls.id,
-      session_date: sessionDate,
-      coach_id: cls.coach_id,
-      start_time: cls.start_time,
-      end_time: cls.end_time,
-      venue_id: cls.venue_id,
-    }))
-  );
+  for (const row of toUpdate) {
+    const cls = classById.get(row.class_id as string);
+    if (!cls) continue;
+    const { error: updateError } = await supabase
+      .from("sessions")
+      .update(classSessionFields(cls))
+      .eq("id", row.id);
 
-  if (insertError) {
-    return { error: insertError.message };
+    if (updateError) {
+      return { error: updateError.message };
+    }
   }
 
   return {
     created: toCreate.length,
-    skipped: classIds.length - toCreate.length,
+    updated: toUpdate.length,
+    skipped: classIds.length - toCreate.length - toUpdate.length,
   };
 }
 
@@ -114,6 +163,7 @@ export async function generateSessionsForDates(dates: string[]) {
   ].sort();
 
   let created = 0;
+  let updated = 0;
   let skipped = 0;
 
   for (const date of uniqueDates) {
@@ -122,12 +172,14 @@ export async function generateSessionsForDates(dates: string[]) {
       return { error: result.error };
     }
     created += result.created;
+    updated += result.updated;
     skipped += result.skipped;
   }
 
   revalidateSessionPaths();
   return {
     created,
+    updated,
     skipped,
     start: uniqueDates[0] ?? null,
     end: uniqueDates.at(-1) ?? null,
