@@ -21,6 +21,7 @@ import { StudentForm } from "@/components/admin/student-form";
 import {
   ageFromDob,
   DAY_OF_WEEK_SHORT_LABELS,
+  DAYS_OF_WEEK,
   isInactiveForSixMonths,
   SKILL_LEVEL_LABELS,
   SKILL_LEVELS,
@@ -34,6 +35,7 @@ import {
   packageLabel,
 } from "@/lib/package-utils";
 import type {
+  DayOfWeek,
   PackageProduct,
   PackageProductType,
   PackageStatus,
@@ -42,6 +44,7 @@ import type {
   StudentListItem,
   StudentRosterClass,
   StudentRosterPackage,
+  VenueRef,
 } from "@/lib/types";
 import { payerShortLabel } from "@/lib/payer-utils";
 import { venueName } from "@/lib/venue-utils";
@@ -68,10 +71,16 @@ import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 
+type StudentListClass = {
+  id: string;
+  venue: VenueRef | null;
+  day_of_week: DayOfWeek;
+  start_time: string;
+};
+
 type StudentListProps = {
   students: StudentListItem[];
-  classes: { id: string; name: string; venue_id: string | null }[];
-  venues: { id: string; name: string }[];
+  classes: StudentListClass[];
   initialSearch?: string;
   initialInactive?: boolean;
 };
@@ -165,6 +174,31 @@ function contactSubline(student: StudentListItem) {
   return null;
 }
 
+function classVenueLabel(cls: {
+  venue: VenueRef | null;
+}) {
+  return venueName(cls.venue) ?? "No venue";
+}
+
+function classScheduleLabel(cls: {
+  venue: VenueRef | null;
+  day_of_week: DayOfWeek;
+  start_time: string;
+}) {
+  return `${classVenueLabel(cls)} · ${DAY_OF_WEEK_SHORT_LABELS[cls.day_of_week]} · ${formatSessionTime(cls.start_time)}`;
+}
+
+function compareClassSchedule(a: StudentListClass, b: StudentListClass) {
+  const venue = classVenueLabel(a).localeCompare(classVenueLabel(b), undefined, {
+    sensitivity: "base",
+  });
+  if (venue !== 0) return venue;
+  const day =
+    DAYS_OF_WEEK.indexOf(a.day_of_week) - DAYS_OF_WEEK.indexOf(b.day_of_week);
+  if (day !== 0) return day;
+  return a.start_time.localeCompare(b.start_time);
+}
+
 function RosterVenueCell({ classes }: { classes: StudentRosterClass[] }) {
   if (classes.length === 0) {
     return <span className="text-sm text-muted-foreground">No class</span>;
@@ -174,9 +208,7 @@ function RosterVenueCell({ classes }: { classes: StudentRosterClass[] }) {
     <div className="space-y-1.5">
       {classes.map((cls) => (
         <div key={cls.id} className="min-w-0">
-          <p className="truncate text-sm">
-            {venueName(cls.venue) || cls.name}
-          </p>
+          <p className="truncate text-sm">{classVenueLabel(cls)}</p>
           <p className="text-xs text-muted-foreground">
             {DAY_OF_WEEK_SHORT_LABELS[cls.day_of_week]} ·{" "}
             {formatSessionTime(cls.start_time)}
@@ -284,8 +316,11 @@ export function StudentList({
   const classFilterOptions = useMemo(
     () => [
       ...[...classes]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((cls) => ({ value: cls.id as ClassFilter, label: cls.name })),
+        .sort(compareClassSchedule)
+        .map((cls) => ({
+          value: cls.id as ClassFilter,
+          label: classScheduleLabel(cls),
+        })),
       { value: "none" as const, label: "No class" },
     ],
     [classes]
