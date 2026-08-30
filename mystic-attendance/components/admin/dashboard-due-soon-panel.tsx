@@ -84,7 +84,7 @@ export function DashboardDueSoonPanel({
   return (
     <DashboardQueuePanel
       title="Due soon"
-      description="Two or fewer lessons left. Inform the student."
+      description="Two or fewer lessons left."
       count={filtered.length}
       listLabel="Students due soon"
       emptyTitle={
