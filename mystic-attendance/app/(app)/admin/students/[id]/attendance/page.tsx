@@ -84,7 +84,6 @@ export default async function AdminStudentAttendancePage({
     <div className="space-y-6">
       <BackButton
         fallbackHref={`/admin/students/${student.id}${studentQuery}`}
-        preferFallback
       />
 
       <div className="space-y-2">

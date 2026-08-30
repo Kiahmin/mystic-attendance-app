@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { startNavigationProgress } from "@/components/layout/navigation-progress";
@@ -10,8 +11,6 @@ interface BackButtonProps {
   fallbackHref: string;
   label?: string;
   className?: string;
-  /** Use fallbackHref instead of history.back(), e.g. a filtered list URL. */
-  preferFallback?: boolean;
 }
 
 function canUseHistoryBack() {
@@ -36,11 +35,10 @@ function canUseHistoryBack() {
 
 export function navigateBack(
   router: ReturnType<typeof useRouter>,
-  fallbackHref: string,
-  preferFallback = false
+  fallbackHref: string
 ) {
   startNavigationProgress();
-  if (!preferFallback && canUseHistoryBack()) {
+  if (canUseHistoryBack()) {
     router.back();
     return;
   }
@@ -51,9 +49,12 @@ export function BackButton({
   fallbackHref,
   label = "Back",
   className,
-  preferFallback = false,
 }: BackButtonProps) {
   const router = useRouter();
+
+  useEffect(() => {
+    router.prefetch(fallbackHref);
+  }, [fallbackHref, router]);
 
   return (
     <Button
@@ -61,7 +62,7 @@ export function BackButton({
       variant="ghost"
       size="sm"
       className={cn("-ml-2 w-fit", className)}
-      onClick={() => navigateBack(router, fallbackHref, preferFallback)}
+      onClick={() => navigateBack(router, fallbackHref)}
     >
       <ArrowLeft className="size-4" />
       {label}

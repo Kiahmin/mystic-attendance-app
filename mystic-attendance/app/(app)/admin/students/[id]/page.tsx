@@ -62,7 +62,7 @@ export default async function AdminStudentDetailPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <BackButton fallbackHref={studentsHref} preferFallback />
+        <BackButton fallbackHref={studentsHref} />
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/admin/students/${student.id}/attendance${studentQuery}`}
