@@ -9,7 +9,10 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
-  outputFileTracingRoot: path.join(__dirname),
+  // Repo root, not this package. Vercel Git deploys look up
+  // routes-manifest-deterministic.json from the tracing root; pointing
+  // that at mystic-attendance/ makes it search /vercel/path0/.next.
+  outputFileTracingRoot: path.join(__dirname, ".."),
 };
 
 export default withSerwist(nextConfig);
