@@ -1,13 +1,11 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { BackButton } from "@/components/layout/back-button";
 import { requireRole } from "@/lib/auth/profile";
 import { getClassById } from "@/lib/queries/classes";
 import { listCoaches } from "@/lib/queries/profiles";
 import { listVenues } from "@/lib/queries/venues";
 import { ClassForm } from "@/components/admin/class-form";
 import { ClassRoster } from "@/components/admin/class-roster";
-import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
   CardContent,
@@ -15,7 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 
 export default async function AdminClassDetailPage({
   params,
@@ -35,16 +32,7 @@ export default async function AdminClassDetailPage({
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/admin/classes"
-        className={cn(
-          buttonVariants({ variant: "ghost", size: "sm" }),
-          "-ml-2 w-fit"
-        )}
-      >
-        <ArrowLeft className="size-4" />
-        Back to Classes
-      </Link>
+      <BackButton fallbackHref="/admin/classes" />
 
       <div>
         <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">

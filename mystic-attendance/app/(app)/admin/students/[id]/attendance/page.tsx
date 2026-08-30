@@ -1,13 +1,11 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { BackButton } from "@/components/layout/back-button";
 import { requireRole } from "@/lib/auth/profile";
 import { attendanceCreditState } from "@/lib/attendance-utils";
 import { listAttendanceForStudent } from "@/lib/queries/attendance";
 import { getStudentById } from "@/lib/queries/students";
 import { StudentAttendanceHistory } from "@/components/admin/student-attendance-history";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
   CardContent,
@@ -16,7 +14,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { StudentAttendanceEntry } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 function summarise(entries: StudentAttendanceEntry[]) {
   let attended = 0;
@@ -81,16 +78,7 @@ export default async function AdminStudentAttendancePage({
 
   return (
     <div className="space-y-6">
-      <Link
-        href={`/admin/students/${student.id}`}
-        className={cn(
-          buttonVariants({ variant: "ghost", size: "sm" }),
-          "-ml-2 w-fit"
-        )}
-      >
-        <ArrowLeft className="size-4" />
-        Back to {student.full_name}
-      </Link>
+      <BackButton fallbackHref={`/admin/students/${student.id}`} />
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">

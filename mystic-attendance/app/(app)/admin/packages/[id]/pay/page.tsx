@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { BackButton } from "@/components/layout/back-button";
 import { requireRole } from "@/lib/auth/profile";
 import {
   getPackageWithStudent,
@@ -67,16 +67,7 @@ export default async function MarkPackagePaidPage({
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
-        <Link
-          href={backHref}
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "-ml-2 mb-2 w-fit"
-          )}
-        >
-          <ArrowLeft className="size-4" />
-          Back to Profile
-        </Link>
+        <BackButton fallbackHref={backHref} className="mb-2" />
         <PageHeader
           title="Mark Package as Paid"
           description={`Log payment for ${packageStudentNames(pkg, pkg.students.full_name)}'s ${label}.`}

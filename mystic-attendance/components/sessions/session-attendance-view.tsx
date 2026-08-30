@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { BackButton } from "@/components/layout/back-button";
 import {
   formatDate,
   formatSessionTime,
@@ -14,14 +13,12 @@ import {
 import { AttendancePanel } from "@/components/coach/attendance-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 
 interface SessionAttendanceViewProps {
   session: SessionWithClass;
@@ -46,16 +43,7 @@ export function SessionAttendanceView({
 
   return (
     <div className="space-y-5">
-      <Link
-        href={backHref}
-        className={cn(
-          buttonVariants({ variant: "ghost", size: "sm" }),
-          "-ml-2 w-fit"
-        )}
-      >
-        <ArrowLeft className="size-4" />
-        {backLabel}
-      </Link>
+      <BackButton fallbackHref={backHref} label={backLabel} />
 
       <Card className="rounded-xl">
         <CardHeader className="space-y-3">
