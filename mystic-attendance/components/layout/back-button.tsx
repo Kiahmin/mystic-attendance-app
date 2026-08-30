@@ -9,6 +9,8 @@ interface BackButtonProps {
   fallbackHref: string;
   label?: string;
   className?: string;
+  /** Use fallbackHref instead of history.back(), e.g. a filtered list URL. */
+  preferFallback?: boolean;
 }
 
 function canUseHistoryBack() {
@@ -33,9 +35,10 @@ function canUseHistoryBack() {
 
 export function navigateBack(
   router: ReturnType<typeof useRouter>,
-  fallbackHref: string
+  fallbackHref: string,
+  preferFallback = false
 ) {
-  if (canUseHistoryBack()) {
+  if (!preferFallback && canUseHistoryBack()) {
     router.back();
     return;
   }
@@ -46,6 +49,7 @@ export function BackButton({
   fallbackHref,
   label = "Back",
   className,
+  preferFallback = false,
 }: BackButtonProps) {
   const router = useRouter();
 
@@ -55,7 +59,7 @@ export function BackButton({
       variant="ghost"
       size="sm"
       className={cn("-ml-2 w-fit", className)}
-      onClick={() => navigateBack(router, fallbackHref)}
+      onClick={() => navigateBack(router, fallbackHref, preferFallback)}
     >
       <ArrowLeft className="size-4" />
       {label}

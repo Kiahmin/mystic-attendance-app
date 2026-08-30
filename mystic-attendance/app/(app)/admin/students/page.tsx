@@ -38,7 +38,6 @@ export default async function AdminStudentsPage({
           start_time: cls.start_time,
         }))}
         initialSearch={params.q ?? ""}
-        initialInactive={params.inactive === "1"}
       />
     </div>
   );

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarCheck, Plus, UserRound } from "lucide-react";
 import { BackButton } from "@/components/layout/back-button";
+import { safeStudentListHref } from "@/lib/navigation";
 import { ageFromDob, SKILL_LEVEL_LABELS } from "@/lib/admin-utils";
 import { requireRole } from "@/lib/auth/profile";
 import { payerLabel } from "@/lib/payer-utils";
@@ -27,11 +28,15 @@ import { cn } from "@/lib/utils";
 
 export default async function AdminStudentDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
 }) {
   await requireRole(["admin"]);
   const { id } = await params;
+  const { returnTo } = await searchParams;
+  const studentsHref = safeStudentListHref(returnTo);
 
   const [student, classes, packages, payers, students] = await Promise.all([
     getStudentById(id),
@@ -52,7 +57,10 @@ export default async function AdminStudentDetailPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <BackButton fallbackHref="/admin/students" />
+        <BackButton
+          fallbackHref={studentsHref}
+          preferFallback={Boolean(returnTo)}
+        />
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/admin/students/${student.id}/attendance`}
