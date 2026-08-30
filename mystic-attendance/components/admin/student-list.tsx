@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { studentListHref } from "@/lib/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -85,6 +86,7 @@ type StudentListProps = {
   students: StudentListItem[];
   classes: StudentListClass[];
   initialSearch?: string;
+  initialInactive?: boolean;
 };
 
 type RosterTab = "active" | "archived";
@@ -298,29 +300,30 @@ export function StudentList({
   students,
   classes,
   initialSearch = "",
+  initialInactive = false,
 }: StudentListProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(initialSearch);
   const [tab, setTab] = useState<RosterTab>("active");
   const [trialsOnly, setTrialsOnly] = useState(false);
-  const inactiveOnly = searchParams.get("inactive") === "1";
+  const urlInactive = searchParams.get("inactive") === "1";
+  const [inactiveOnly, setInactiveOnlyState] = useState(
+    urlInactive || initialInactive
+  );
 
-  function listHref() {
-    const params = new URLSearchParams(searchParams.toString());
-    if (inactiveOnly) params.set("inactive", "1");
-    else params.delete("inactive");
-    const qs = params.toString();
-    return qs ? `${pathname}?${qs}` : pathname;
-  }
+  useEffect(() => {
+    const fromLocation =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("inactive") === "1";
+    setInactiveOnlyState(fromLocation || urlInactive);
+  }, [urlInactive, searchParams]);
 
   function setInactiveOnly(next: boolean) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (next) params.set("inactive", "1");
-    else params.delete("inactive");
-    const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    setInactiveOnlyState(next);
+    router.replace(studentListHref({ inactive: next, q: search }), {
+      scroll: false,
+    });
     resetPage();
   }
   const [skillFilters, setSkillFilters] = useState<SkillFilter[]>([]);
@@ -655,7 +658,11 @@ export function StudentList({
                     return (
                       <li key={student.id}>
                         <Link
-                          href={`/admin/students/${student.id}?returnTo=${encodeURIComponent(listHref())}`}
+                          href={
+                            inactiveOnly
+                              ? `/admin/students/${student.id}?inactive=1`
+                              : `/admin/students/${student.id}`
+                          }
                           className={cn(
                             "grid gap-3 px-5 py-4 transition-colors hover:bg-muted/40 lg:items-start",
                             ROSTER_GRID,

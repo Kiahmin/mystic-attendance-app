@@ -30,6 +30,7 @@ export default async function AdminStudentsPage({
         <AddStudentButton trialProducts={trialProducts} payers={payers} />
       </PageHeader>
       <StudentList
+        key={params.inactive === "1" ? "inactive" : "all"}
         students={students}
         classes={classes.map((cls) => ({
           id: cls.id,
@@ -38,6 +39,7 @@ export default async function AdminStudentsPage({
           start_time: cls.start_time,
         }))}
         initialSearch={params.q ?? ""}
+        initialInactive={params.inactive === "1"}
       />
     </div>
   );

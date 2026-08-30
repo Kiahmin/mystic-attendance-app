@@ -9,20 +9,14 @@ export function isNavActive(
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Same-app list URL only — used as a Back target from student detail. */
-export function safeStudentListHref(value: string | undefined): string {
-  const fallback = "/admin/students";
-  if (!value) return fallback;
-
-  let decoded = value;
-  try {
-    decoded = decodeURIComponent(value);
-  } catch {
-    return fallback;
-  }
-
-  if (!decoded.startsWith(fallback)) return fallback;
-  if (decoded.startsWith("//") || decoded.includes("://")) return fallback;
-  if (decoded.includes("\\")) return fallback;
-  return decoded;
+export function studentListHref(options?: {
+  inactive?: boolean;
+  q?: string;
+}): string {
+  const params = new URLSearchParams();
+  if (options?.inactive) params.set("inactive", "1");
+  const q = options?.q?.trim();
+  if (q) params.set("q", q);
+  const qs = params.toString();
+  return qs ? `/admin/students?${qs}` : "/admin/students";
 }
