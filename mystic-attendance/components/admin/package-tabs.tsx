@@ -10,6 +10,7 @@ type PackageTabsProps = {
   pastUnpaidCount: number;
   current: ReactNode;
   past: ReactNode;
+  action?: ReactNode;
 };
 
 const TRIGGER_CLASS =
@@ -21,25 +22,29 @@ export function PackageTabs({
   pastUnpaidCount,
   current,
   past,
+  action,
 }: PackageTabsProps) {
   const defaultTab = currentCount === 0 && pastCount > 0 ? "past" : "current";
 
   return (
     <Tabs defaultValue={defaultTab}>
-      <TabsList
-        variant="line"
-        className="w-full justify-start gap-6 border-b border-border p-0 group-data-horizontal/tabs:h-auto"
-      >
-        <TabsTrigger value="current" className={TRIGGER_CLASS}>
-          Current ({currentCount})
-        </TabsTrigger>
-        <TabsTrigger value="past" className={TRIGGER_CLASS}>
-          Past ({pastCount})
-          {pastUnpaidCount > 0 ? (
-            <Badge variant="warning">{pastUnpaidCount} unpaid</Badge>
-          ) : null}
-        </TabsTrigger>
-      </TabsList>
+      <div className="flex items-end justify-between gap-3 border-b border-border">
+        <TabsList
+          variant="line"
+          className="min-w-0 justify-start gap-6 p-0 group-data-horizontal/tabs:h-auto"
+        >
+          <TabsTrigger value="current" className={TRIGGER_CLASS}>
+            Current ({currentCount})
+          </TabsTrigger>
+          <TabsTrigger value="past" className={TRIGGER_CLASS}>
+            Past ({pastCount})
+            {pastUnpaidCount > 0 ? (
+              <Badge variant="warning">{pastUnpaidCount} unpaid</Badge>
+            ) : null}
+          </TabsTrigger>
+        </TabsList>
+        {action ? <div className="shrink-0 pb-3">{action}</div> : null}
+      </div>
       <TabsContent value="current" className="mt-4">
         {current}
       </TabsContent>
