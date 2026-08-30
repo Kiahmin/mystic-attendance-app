@@ -3,3 +3,8 @@ design/
 
 # Documentation - local reference only
 docs/
+
+# Generated live-workbook seeds (customer PII). Keep local; regenerate with
+# scripts/import_customer_attendance.py. Includes coach seed for the same reason.
+scripts/prod_seed_*.sql
+scripts/prod_seed_attendance_history/
