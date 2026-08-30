@@ -1,6 +1,6 @@
 -- Development seed data
 -- Loaded automatically on `supabase db reset` (see supabase/config.toml).
--- Password for both auth users below: password123 (local dev only).
+-- Password for all auth users below: password123 (local dev only).
 
 -- ---------------------------------------------------------------------------
 -- Auth users & profiles
@@ -56,6 +56,23 @@ insert into auth.users (
     '{"full_name":"Coach Kim"}',
     now(),
     now()
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    '33333333-3333-3333-3333-333333333333',
+    'authenticated',
+    'authenticated',
+    'lloyd@mystic.local',
+    crypt('password123', gen_salt('bf')),
+    now(),
+    '',
+    '',
+    '',
+    '',
+    '{"provider":"email","providers":["email"]}',
+    '{"full_name":"Coach Lloyd"}',
+    now(),
+    now()
   );
 
 insert into auth.identities (
@@ -87,11 +104,22 @@ insert into auth.identities (
     now(),
     now(),
     now()
+  ),
+  (
+    gen_random_uuid(),
+    '33333333-3333-3333-3333-333333333333',
+    format('{"sub":"%s","email":"lloyd@mystic.local"}', '33333333-3333-3333-3333-333333333333')::jsonb,
+    'email',
+    '33333333-3333-3333-3333-333333333333',
+    now(),
+    now(),
+    now()
   );
 
 insert into profiles (id, full_name, role, phone) values
   ('11111111-1111-1111-1111-111111111111', 'Admin User', 'admin', null),
-  ('22222222-2222-2222-2222-222222222222', 'Coach Kim', 'coach', '+65 9000 0001');
+  ('22222222-2222-2222-2222-222222222222', 'Coach Kim', 'coach', '+65 9000 0001'),
+  ('33333333-3333-3333-3333-333333333333', 'Coach Lloyd', 'coach', '+65 9000 0002');
 
 -- ---------------------------------------------------------------------------
 -- Classes
