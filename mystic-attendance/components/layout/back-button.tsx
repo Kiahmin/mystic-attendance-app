@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { startNavigationProgress } from "@/components/layout/navigation-progress";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ export function navigateBack(
   fallbackHref: string,
   preferFallback = false
 ) {
+  startNavigationProgress();
   if (!preferFallback && canUseHistoryBack()) {
     router.back();
     return;

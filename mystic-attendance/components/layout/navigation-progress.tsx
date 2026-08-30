@@ -3,6 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
+const NAVIGATION_START_EVENT = "mystic:navigation-start";
+
+export function startNavigationProgress() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(NAVIGATION_START_EVENT));
+}
+
 function isInAppNavigationClick(event: MouseEvent): boolean {
   if (event.defaultPrevented) return false;
   if (event.button !== 0) return false;
@@ -60,14 +67,20 @@ export function NavigationProgress() {
   }, [pathname, searchParams]);
 
   useEffect(() => {
-    function onClick(event: MouseEvent) {
-      if (!isInAppNavigationClick(event)) return;
+    function showSoon() {
       if (showTimer.current != null) window.clearTimeout(showTimer.current);
       showTimer.current = window.setTimeout(() => setVisible(true), 50);
     }
 
+    function onClick(event: MouseEvent) {
+      if (!isInAppNavigationClick(event)) return;
+      showSoon();
+    }
+
+    window.addEventListener(NAVIGATION_START_EVENT, showSoon);
     document.addEventListener("click", onClick, true);
     return () => {
+      window.removeEventListener(NAVIGATION_START_EVENT, showSoon);
       document.removeEventListener("click", onClick, true);
       if (showTimer.current != null) window.clearTimeout(showTimer.current);
     };
