@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { startNavigationProgress } from "@/components/layout/navigation-progress";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +37,7 @@ export function navigateBack(
   router: ReturnType<typeof useRouter>,
   fallbackHref: string
 ) {
+  startNavigationProgress();
   if (canUseHistoryBack()) {
     router.back();
     return;
@@ -48,6 +51,10 @@ export function BackButton({
   className,
 }: BackButtonProps) {
   const router = useRouter();
+
+  useEffect(() => {
+    router.prefetch(fallbackHref);
+  }, [fallbackHref, router]);
 
   return (
     <Button

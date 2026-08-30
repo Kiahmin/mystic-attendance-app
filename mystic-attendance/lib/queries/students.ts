@@ -308,11 +308,7 @@ export async function countInactiveStudents(): Promise<number> {
 
   const { data: attendance, error: attendanceError } = await supabase
     .from("student_last_attendance")
-    .select("student_id, last_attended_on")
-    .in(
-      "student_id",
-      rows.map((row) => row.id as string)
-    );
+    .select("student_id, last_attended_on");
 
   if (attendanceError) throw attendanceError;
 

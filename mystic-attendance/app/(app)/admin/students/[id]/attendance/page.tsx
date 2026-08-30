@@ -61,11 +61,15 @@ function SummaryStat({ label, value }: { label: string; value: number }) {
 
 export default async function AdminStudentAttendancePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ inactive?: string }>;
 }) {
   await requireRole(["admin"]);
   const { id } = await params;
+  const { inactive } = await searchParams;
+  const studentQuery = inactive === "1" ? "?inactive=1" : "";
 
   const [student, entries] = await Promise.all([
     getStudentById(id),
@@ -78,7 +82,9 @@ export default async function AdminStudentAttendancePage({
 
   return (
     <div className="space-y-6">
-      <BackButton fallbackHref={`/admin/students/${student.id}`} />
+      <BackButton
+        fallbackHref={`/admin/students/${student.id}${studentQuery}`}
+      />
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">

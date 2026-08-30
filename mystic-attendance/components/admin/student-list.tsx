@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { studentListHref } from "@/lib/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -300,10 +302,30 @@ export function StudentList({
   initialSearch = "",
   initialInactive = false,
 }: StudentListProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState(initialSearch);
   const [tab, setTab] = useState<RosterTab>("active");
   const [trialsOnly, setTrialsOnly] = useState(false);
-  const [inactiveOnly, setInactiveOnly] = useState(initialInactive);
+  const urlInactive = searchParams.get("inactive") === "1";
+  const [inactiveOnly, setInactiveOnlyState] = useState(
+    urlInactive || initialInactive
+  );
+
+  useEffect(() => {
+    const fromLocation =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("inactive") === "1";
+    setInactiveOnlyState(fromLocation || urlInactive);
+  }, [urlInactive, searchParams]);
+
+  function setInactiveOnly(next: boolean) {
+    setInactiveOnlyState(next);
+    router.replace(studentListHref({ inactive: next, q: search }), {
+      scroll: false,
+    });
+    resetPage();
+  }
   const [skillFilters, setSkillFilters] = useState<SkillFilter[]>([]);
   const [statusFilters, setStatusFilters] = useState<PackageFilter[]>([]);
   const [classFilters, setClassFilters] = useState<ClassFilter[]>([]);
@@ -402,7 +424,6 @@ export function StudentList({
     setInactiveOnly(false);
     setTrialsOnly(false);
     setSkillFilters([]);
-    resetPage();
   }
 
   return (
@@ -455,8 +476,7 @@ export function StudentList({
                   checked={inactiveOnly}
                   label="Inactive"
                   onToggle={() => {
-                    setInactiveOnly((current) => !current);
-                    resetPage();
+                    setInactiveOnly(!inactiveOnly);
                   }}
                 />
                 <FilterCheckbox
@@ -638,7 +658,11 @@ export function StudentList({
                     return (
                       <li key={student.id}>
                         <Link
-                          href={`/admin/students/${student.id}`}
+                          href={
+                            inactiveOnly
+                              ? `/admin/students/${student.id}?inactive=1`
+                              : `/admin/students/${student.id}`
+                          }
                           className={cn(
                             "grid gap-3 px-5 py-4 transition-colors hover:bg-muted/40 lg:items-start",
                             ROSTER_GRID,

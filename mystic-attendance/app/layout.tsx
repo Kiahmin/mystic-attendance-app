@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Montserrat } from "next/font/google";
+import { ClearCachesOnNewSession } from "@/components/layout/clear-caches-on-new-session";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -55,6 +56,7 @@ export default function RootLayout({
       className={`${montserrat.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
+        <ClearCachesOnNewSession />
         {children}
       </body>
     </html>

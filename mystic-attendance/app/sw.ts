@@ -28,4 +28,17 @@ const serwist = new Serwist({
   },
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "CLEAR_SESSION_CACHES") return;
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => !key.toLowerCase().includes("precache"))
+          .map((key) => caches.delete(key))
+      )
+    )
+  );
+});
+
 serwist.addEventListeners();

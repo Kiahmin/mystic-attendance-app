@@ -81,6 +81,7 @@ export function AdminSidebar({
             <Link
               key={href}
               href={href}
+              prefetch={false}
               onClick={onNavigate}
               className={cn(
                 "inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",

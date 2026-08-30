@@ -1,10 +1,6 @@
 import { todayInSingapore } from "@/lib/datetime";
 import { createClient } from "@/lib/supabase/server";
-import { packageWarning } from "@/lib/attendance-utils";
-import {
-  pickChargeablePackage,
-  type ChargeablePackageFields,
-} from "@/lib/package-utils";
+import { pickChargeablePackage } from "@/lib/package-utils";
 import {
   loadEffectiveSessionRoster,
   loadEffectiveSessionRosters,
@@ -87,22 +83,6 @@ function mapSessionWithClass(
   };
 }
 
-const DASHBOARD_PACKAGE_SELECT = `
-  id,
-  student_id,
-  session_id,
-  is_paid,
-  paused_at,
-  resumed_at,
-  expires_at,
-  used_credits,
-  total_credits,
-  remaining_credits,
-  first_lesson_date,
-  created_at,
-  status
-`;
-
 const CHECKIN_PACKAGE_SELECT = `
   id,
   student_id,
@@ -127,10 +107,6 @@ const CHECKIN_PACKAGE_SELECT = `
   status,
   created_at
 `;
-
-type DashboardPackageRow = ChargeablePackageFields & {
-  status: Package["status"];
-};
 
 function groupByStudentId<T extends { student_id: string }>(
   rows: T[]
@@ -211,61 +187,24 @@ async function enrichDashboardSessions(
   );
 
   const sessionIds = mapped.map(({ session }) => session.id);
-  const studentIds = [
-    ...new Set(
-      [...rosters.values()].flatMap((roster) =>
-        roster.map((entry) => entry.studentId)
-      )
-    ),
-  ];
 
-  const eventSessionIds = mapped
-    .filter(({ session }) => session.kind === "event")
-    .map(({ session }) => session.id);
-
-  const classMemberships = await loadClassPackageMemberships(
-    supabase,
-    studentIds
-  );
-  const classPackageIds = [
-    ...new Set(classMemberships.map((row) => row.package_id)),
-  ];
-
-  const [attendanceResult, classPackagesResult, eventPackagesResult] =
-    await Promise.all([
-      sessionIds.length === 0
-        ? Promise.resolve({
-            data: [] as {
-              session_id: string;
-              student_id: string;
-              status: string | null;
-              attendee_source: string | null;
-            }[],
-            error: null,
-          })
-        : supabase
-            .from("attendance")
-            .select("session_id, student_id, status, attendee_source")
-            .in("session_id", sessionIds),
-      classPackageIds.length === 0
-        ? Promise.resolve({ data: [] as DashboardPackageRow[], error: null })
-        : supabase
-            .from("packages")
-            .select(DASHBOARD_PACKAGE_SELECT)
-            .in("id", classPackageIds)
-            .is("session_id", null),
-      studentIds.length === 0 || eventSessionIds.length === 0
-        ? Promise.resolve({ data: [] as DashboardPackageRow[], error: null })
-        : supabase
-            .from("packages")
-            .select(DASHBOARD_PACKAGE_SELECT)
-            .in("student_id", studentIds)
-            .in("session_id", eventSessionIds),
-    ]);
+  const attendanceResult =
+    sessionIds.length === 0
+      ? {
+          data: [] as {
+            session_id: string;
+            student_id: string;
+            status: string | null;
+            attendee_source: string | null;
+          }[],
+          error: null,
+        }
+      : await supabase
+          .from("attendance")
+          .select("session_id, student_id, status, attendee_source")
+          .in("session_id", sessionIds);
 
   if (attendanceResult.error) throw attendanceResult.error;
-  if (classPackagesResult.error) throw classPackagesResult.error;
-  if (eventPackagesResult.error) throw eventPackagesResult.error;
 
   const checkedInBySession = new Map<string, number>();
   const recordedExpectedBySession = new Map<string, Set<string>>();
@@ -287,36 +226,8 @@ async function enrichDashboardSessions(
     }
   }
 
-  const packagesByStudent = groupPackagesByMembership(
-    (classPackagesResult.data ?? []) as DashboardPackageRow[],
-    classMemberships
-  );
-  const eventPackageByStudentSession = new Map<string, DashboardPackageRow>();
-  for (const row of (eventPackagesResult.data ?? []) as DashboardPackageRow[]) {
-    if (!row.session_id) continue;
-    eventPackageByStudentSession.set(`${row.student_id}:${row.session_id}`, row);
-  }
-  const today = todayInSingapore();
-
   return mapped.map(({ session, coachName }) => {
     const roster = rosters.get(session.id) ?? [];
-    let packageAlerts = 0;
-    for (const entry of roster) {
-      const pkg =
-        session.kind === "event"
-          ? (eventPackageByStudentSession.get(
-              `${entry.studentId}:${session.id}`
-            ) ?? null)
-          : pickChargeablePackage(
-              packagesByStudent.get(entry.studentId) ?? [],
-              session.session_date,
-              today
-            );
-      if (!pkg || packageWarning(pkg) !== "none") {
-        packageAlerts += 1;
-      }
-    }
-
     return {
       session,
       expectedCount: new Set([
@@ -324,7 +235,7 @@ async function enrichDashboardSessions(
         ...(recordedExpectedBySession.get(session.id) ?? []),
       ]).size,
       checkedInCount: checkedInBySession.get(session.id) ?? 0,
-      packageAlerts,
+      packageAlerts: 0,
       coachName,
     };
   });

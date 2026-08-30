@@ -13,6 +13,14 @@ const nextConfig: NextConfig = {
   // routes-manifest-deterministic.json from the tracing root; pointing
   // that at mystic-attendance/ makes it search /vercel/path0/.next.
   outputFileTracingRoot: path.join(__dirname, ".."),
+  experimental: {
+    // Keep visited pages warm for the open PWA/tab. Closing the app
+    // drops this in-memory cache; a new session also clears SW caches.
+    staleTimes: {
+      dynamic: 60 * 60 * 24,
+      static: 60 * 60 * 24,
+    },
+  },
 };
 
 export default withSerwist(nextConfig);

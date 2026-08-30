@@ -97,15 +97,6 @@ export function DashboardCalendar({
     return () => window.clearTimeout(timer);
   }, [isPending]);
 
-  useEffect(() => {
-    router.prefetch(adminCalendarHref({ view, date: today }));
-    router.prefetch(adminCalendarHref({ view, date: prevDate }));
-    router.prefetch(adminCalendarHref({ view, date: nextDate }));
-    for (const nextView of CALENDAR_VIEWS) {
-      router.prefetch(adminCalendarHref({ view: nextView, date }));
-    }
-  }, [date, nextDate, prevDate, router, today, view]);
-
   function navigateTo(nextView: CalendarView, nextDate: string) {
     if (nextView === view && nextDate === date) return;
     requested.current = { view: nextView, date: nextDate };

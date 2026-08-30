@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Payer } from "@/lib/types";
 
@@ -14,7 +15,7 @@ export function mapPayer(row: Payer): Payer {
   };
 }
 
-export async function listPayers(): Promise<Payer[]> {
+export const listPayers = cache(async function listPayers(): Promise<Payer[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("payers")
@@ -24,7 +25,7 @@ export async function listPayers(): Promise<Payer[]> {
 
   if (error) throw error;
   return (data ?? []).map((row) => mapPayer(row as Payer));
-}
+});
 
 export async function getPayerById(id: string): Promise<Payer | null> {
   if (!id) return null;
