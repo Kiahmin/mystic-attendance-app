@@ -3,16 +3,16 @@
 
 update auth.users
 set raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb) || jsonb_build_object(
-  'full_name', 'Coach Lloyd',
-  'name', 'Coach Lloyd',
-  'display_name', 'Coach Lloyd'
+  'full_name', 'Lloyd',
+  'name', 'Lloyd',
+  'display_name', 'Lloyd'
 )
 where email = 'lloyd@mystic.local';
 
 insert into public.profiles (id, full_name, role, phone)
 select
   id,
-  'Coach Lloyd',
+  'Lloyd',
   'coach',
   null
 from auth.users
