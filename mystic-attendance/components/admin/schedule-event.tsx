@@ -32,6 +32,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { coachEventTone } from "@/lib/schedule-coach-colors";
 import { cn } from "@/lib/utils";
 
 type ScheduleEventProps = {
@@ -60,27 +61,19 @@ function statusBadgeVariant(
   }
 }
 
-function eventTone(status: SessionScheduleStatus, isEvent: boolean) {
-  if (isEvent && status !== "cancelled") {
-    if (status === "in_progress") {
-      return "border-l-warning bg-warning/15 text-warning hover:bg-warning/20";
-    }
-    if (status === "completed") {
-      return "border-l-chart-3/70 bg-chart-3/10 text-muted-foreground hover:bg-chart-3/15";
-    }
-    return "border-l-chart-3 bg-chart-3/20 text-foreground hover:bg-chart-3/25";
+function eventTone(
+  status: SessionScheduleStatus,
+  coachId: string | null,
+  coaches: Pick<Profile, "id" | "full_name">[]
+) {
+  if (status === "cancelled") {
+    return "border-l-destructive bg-destructive/10 text-destructive hover:bg-destructive/15";
   }
 
-  switch (status) {
-    case "cancelled":
-      return "border-l-destructive bg-destructive/10 text-destructive hover:bg-destructive/15";
-    case "in_progress":
-      return "border-l-warning bg-warning/15 text-warning hover:bg-warning/20";
-    case "upcoming":
-      return "border-l-primary bg-primary/15 text-primary hover:bg-primary/20";
-    case "completed":
-      return "border-l-muted-foreground/50 bg-muted text-muted-foreground hover:bg-muted/80";
-  }
+  return cn(
+    coachEventTone(coachId, coaches),
+    status === "completed" && "opacity-70"
+  );
 }
 
 export function ScheduleEvent({
@@ -127,7 +120,7 @@ export function ScheduleEvent({
             title={`${displayName}${venueLabel ? ` · ${venueLabel}` : ""} · ${timeLabel}`}
             className={cn(
               "overflow-hidden border-l-4 text-left shadow-sm transition-colors",
-              eventTone(status, isEvent),
+              eventTone(status, session.coach_id, coaches),
               session.cancelled && "line-through",
               variant === "block" &&
                 "absolute rounded-md px-1.5 py-0.5 text-[11px] leading-tight",
