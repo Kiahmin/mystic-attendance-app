@@ -8,10 +8,7 @@ import { requireRole } from "@/lib/auth/profile";
 import { isValidYearMonth, todayInSingapore } from "@/lib/datetime";
 import { listClasses } from "@/lib/queries/classes";
 import { getDashboardOperations } from "@/lib/queries/dashboard";
-import {
-  getSessionsForDashboardRange,
-  getTodaySessionsForDashboard,
-} from "@/lib/queries/sessions";
+import { getSessionsForDashboardRange } from "@/lib/queries/sessions";
 import { countInactiveStudents } from "@/lib/queries/students";
 import { weekDatesContaining } from "@/lib/session-utils";
 import { DashboardDueSoonPanel } from "@/components/admin/dashboard-due-soon-panel";
@@ -39,15 +36,16 @@ export default async function AdminDashboardPage({
   const reportMonth = parseReportMonth(params.reportMonth, today);
   const thisWeek = weekDatesContaining(today);
 
-  const [todaySessions, weekSessions, inactiveCount, operations, classes] =
-    await Promise.all([
-      getTodaySessionsForDashboard(),
-      getSessionsForDashboardRange(thisWeek.monday, thisWeek.sunday),
-      countInactiveStudents(),
-      getDashboardOperations(reportMonth),
-      listClasses({ activeOnly: true }),
-    ]);
+  const [weekSessions, inactiveCount, operations, classes] = await Promise.all([
+    getSessionsForDashboardRange(thisWeek.monday, thisWeek.sunday),
+    countInactiveStudents(),
+    getDashboardOperations(reportMonth),
+    listClasses({ activeOnly: true }),
+  ]);
 
+  const todaySessions = weekSessions.filter(
+    (item) => item.session.session_date === today
+  );
   const totalExpectedToday = todaySessions.reduce(
     (sum, item) => sum + item.expectedCount,
     0
