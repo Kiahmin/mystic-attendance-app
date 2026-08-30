@@ -58,25 +58,18 @@ export function DashboardQueueRow({
   actions,
 }: DashboardQueueRowProps) {
   return (
-    <li className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
-      <div className="min-w-0">
+    <li className="flex flex-col gap-1.5 py-3 first:pt-0 last:pb-0">
+      <div className="flex items-start justify-between gap-3">
         <Link
           href={studentHref}
           aria-label={`Edit ${studentName}`}
-          className="block truncate font-medium underline-offset-4 hover:underline"
+          className="min-w-0 truncate font-medium underline-offset-4 hover:underline"
         >
           {studentName}
         </Link>
-        <p
-          className={cn(
-            "mt-0.5 truncate text-sm text-muted-foreground",
-            whyClassName
-          )}
-        >
-          {why}
-        </p>
+        <div className="flex shrink-0 flex-col items-end gap-1">{actions}</div>
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-1">{actions}</div>
+      <p className={cn("text-sm text-muted-foreground", whyClassName)}>{why}</p>
     </li>
   );
 }
