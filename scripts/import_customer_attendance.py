@@ -170,6 +170,77 @@ def upsert_student(students: dict, full_name: str, skill: str | None, notes: str
     return sid
 
 
+SLOT_TIMES = [
+    ("10:00", "11:00"),
+    ("11:00", "12:00"),
+    ("12:00", "13:00"),
+    ("14:00", "15:00"),
+    ("15:00", "16:00"),
+    ("16:00", "17:00"),
+]
+
+
+def assign_lessons(student_ids: list[str], dates: list[date]) -> list[tuple[str, date, int]]:
+    """Map date cells to (student, date, same-day slot)."""
+    by_date: dict[date, int] = {}
+    for d in dates:
+        by_date[d] = by_date.get(d, 0) + 1
+    out: list[tuple[str, date, int]] = []
+    day_slot: dict[tuple[str, date], int] = {}
+    n = len(student_ids)
+    for d, count in by_date.items():
+        if n > 1 and count == n:
+            assigned = student_ids
+        elif count == 1:
+            assigned = [student_ids[0]]
+        else:
+            assigned = [student_ids[i % n] for i in range(count)]
+        for sid in assigned:
+            key = (sid, d)
+            slot = day_slot.get(key, 0)
+            day_slot[key] = slot + 1
+            out.append((sid, d, slot))
+    return out
+
+
+def record_lessons(
+    sessions: dict[str, dict],
+    attendance: list[dict],
+    venue_label: str,
+    student_ids: list[str],
+    dates: list[date],
+    package_id: str,
+) -> None:
+    for sid, lesson_date, slot in assign_lessons(student_ids, dates):
+        start, end = SLOT_TIMES[min(slot, len(SLOT_TIMES) - 1)]
+        session_id = str(
+            uuid.uuid5(NS, f"session:{venue_label}:{lesson_date.isoformat()}:{slot}")
+        )
+        name = venue_label if slot == 0 else f"{venue_label} ({slot + 1})"
+        sessions[session_id] = {
+            "id": session_id,
+            "name": name,
+            "session_date": lesson_date,
+            "venue": venue_label if venue_label in VENUE_CLASS else None,
+            "start_time": start,
+            "end_time": end,
+        }
+        attendance.append(
+            {
+                "id": str(
+                    uuid.uuid5(
+                        NS,
+                        f"attendance:{package_id}:{sid}:{lesson_date.isoformat()}:{slot}",
+                    )
+                ),
+                "session_id": session_id,
+                "student_id": sid,
+                "package_id": package_id,
+                "marked_at": f"{lesson_date.isoformat()} {start}:00+08",
+            }
+        )
+
+
 def add_months(d: date, months: int) -> date:
     month = d.month - 1 + months
     year = d.year + month // 12
@@ -187,6 +258,8 @@ def parse_workbook(path: Path):
     packages: list[dict] = []
     memberships: list[tuple[str, str]] = []
     enrolments: set[tuple[str, str]] = set()
+    sessions: dict[str, dict] = {}
+    attendance: list[dict] = []
 
     for venue in VENUES:
         ws = values[venue]
@@ -278,8 +351,13 @@ def parse_workbook(path: Path):
             )
             for sid in student_ids:
                 memberships.append((package_id, sid))
+            record_lessons(
+                sessions, attendance, venue, student_ids, dates, package_id
+            )
 
-    completed_ids = parse_completed_sheet(values["Completed"], students, packages, memberships)
+    completed_ids = parse_completed_sheet(
+        values["Completed"], students, packages, memberships, sessions, attendance
+    )
 
     classes = []
     for venue, (day, start, end, class_name) in VENUE_CLASS.items():
@@ -302,10 +380,14 @@ def parse_workbook(path: Path):
         "enrolments": enrolments,
         "classes": classes,
         "completed_ids": completed_ids,
+        "sessions": sessions,
+        "attendance": attendance,
     }
 
 
-def parse_completed_sheet(ws, students, packages, memberships) -> set[str]:
+def parse_completed_sheet(
+    ws, students, packages, memberships, sessions, attendance
+) -> set[str]:
     completed_ids: set[str] = set()
     for row in range(2, (ws.max_row or 1) + 1):
         name_raw = ws.cell(row, 2).value
@@ -364,6 +446,9 @@ def parse_completed_sheet(ws, students, packages, memberships) -> set[str]:
         completed_ids.add(package_id)
         for sid in student_ids:
             memberships.append((package_id, sid))
+        record_lessons(
+            sessions, attendance, "Imported", student_ids, dates, package_id
+        )
     return completed_ids
 
 
@@ -519,6 +604,85 @@ def emit_sql(data, completed_only: bool = False) -> str:
     return "\n".join(lines) + "\n"
 
 
+def emit_attendance_sql(data) -> str:
+    lines = [
+        "-- Past attendance from workbook date cells. Idempotent.",
+        "-- Inserts event sessions + present rows, then restores package used_credits",
+        "-- so credit triggers do not double-count against the earlier seed.",
+        "begin;",
+        "",
+        "-- Sessions (one event per venue/date/same-day slot)",
+    ]
+    for s in data["sessions"].values():
+        venue = sql_str(s["venue"]) if s["venue"] else "null"
+        venue_join = (
+            f"from (select {venue}::text as venue_name) x\n"
+            "left join venues v on v.name = x.venue_name"
+            if s["venue"]
+            else "from (select null::text as venue_name) x\nleft join venues v on false"
+        )
+        lines.append(
+            "insert into sessions (\n"
+            "  id, class_id, kind, name, requires_attendance,\n"
+            "  session_date, venue_id, start_time, end_time, cancelled\n"
+            ")\n"
+            "select\n"
+            f"  {sql_str(s['id'])},\n"
+            "  null,\n"
+            "  'event',\n"
+            f"  {sql_str(s['name'])},\n"
+            "  true,\n"
+            f"  {sql_date(s['session_date'])},\n"
+            "  v.id,\n"
+            f"  {sql_str(s['start_time'])}::time,\n"
+            f"  {sql_str(s['end_time'])}::time,\n"
+            "  false\n"
+            f"{venue_join}\n"
+            "on conflict (id) do update set\n"
+            "  name = excluded.name,\n"
+            "  session_date = excluded.session_date,\n"
+            "  venue_id = excluded.venue_id,\n"
+            "  start_time = excluded.start_time,\n"
+            "  end_time = excluded.end_time;"
+        )
+    lines.append("")
+    lines.append("-- Attendance")
+    for a in data["attendance"]:
+        lines.append(
+            "insert into attendance (\n"
+            "  id, session_id, student_id, status, attendee_source,\n"
+            "  deduct_credit, package_id, marked_at\n"
+            ")\n"
+            f"values (\n"
+            f"  {sql_str(a['id'])},\n"
+            f"  {sql_str(a['session_id'])},\n"
+            f"  {sql_str(a['student_id'])},\n"
+            "  'present',\n"
+            "  'enrolled',\n"
+            "  true,\n"
+            f"  {sql_str(a['package_id'])},\n"
+            f"  {sql_str(a['marked_at'])}::timestamptz\n"
+            ")\n"
+            "on conflict (session_id, student_id) do update set\n"
+            "  status = 'present',\n"
+            "  deduct_credit = true,\n"
+            "  package_id = excluded.package_id,\n"
+            "  marked_at = excluded.marked_at;"
+        )
+    lines.append("")
+    lines.append("-- Restore credit counts from the workbook (undo trigger increments)")
+    for p in data["packages"]:
+        lines.append(
+            "update packages\n"
+            f"set used_credits = {p['used_credits']},\n"
+            f"    first_lesson_date = {sql_date(p['first_lesson_date'])},\n"
+            f"    expires_at = {sql_date(p['expires_at'])}\n"
+            f"where id = {sql_str(p['id'])};"
+        )
+    lines += ["", "commit;"]
+    return "\n".join(lines) + "\n"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("xlsx")
@@ -528,8 +692,21 @@ def main():
         action="store_true",
         help="Only emit Completed-sheet packs (for a follow-up seed).",
     )
+    parser.add_argument(
+        "--attendance-only",
+        action="store_true",
+        help="Only emit sessions + attendance history.",
+    )
     args = parser.parse_args()
     data = parse_workbook(Path(args.xlsx))
+    if args.attendance_only:
+        sql = emit_attendance_sql(data)
+        Path(args.output).write_text(sql)
+        print(
+            f"Wrote {args.output}: "
+            f"{len(data['sessions'])} sessions, {len(data['attendance'])} attendance rows"
+        )
+        return
     sql = emit_sql(data, completed_only=args.completed_only)
     Path(args.output).write_text(sql)
     completed = len(data["completed_ids"])
