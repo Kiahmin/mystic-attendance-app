@@ -87,7 +87,14 @@ export async function getDashboardOperations(
   const monthStart = startOfMonth(`${reportMonth}-01`);
   const monthEnd = endOfMonth(monthStart);
 
-  const [activeResult, exhaustedResult, queueResult, overshotResult, sessionsResult] =
+  const [
+    activeResult,
+    exhaustedResult,
+    queueResult,
+    overshotResult,
+    sessionsResult,
+    renewalResult,
+  ] =
     await Promise.all([
       supabase
         .from("packages")
@@ -147,6 +154,9 @@ export async function getDashboardOperations(
         .is("session_id", null)
         .eq("status", "active")
         .gt("remaining_credits", 0)
+        .or(
+          `remaining_credits.lte.${LOW_CREDIT_THRESHOLD},informed_at.not.is.null`
+        )
         .is("students.archived_at", null),
       supabase
         .from("packages")
@@ -211,6 +221,26 @@ export async function getDashboardOperations(
         .gte("session_date", monthStart)
         .lte("session_date", monthEnd)
         .eq("cancelled", false),
+      supabase
+        .from("packages")
+        .select(
+          `
+          id,
+          remaining_credits,
+          status,
+          students!packages_student_id_fkey!inner (
+            id,
+            archived_at
+          ),
+          package_students (
+            student_id
+          )
+        `
+        )
+        .is("session_id", null)
+        .eq("status", "active")
+        .gt("remaining_credits", LOW_CREDIT_THRESHOLD)
+        .is("students.archived_at", null),
     ]);
 
   if (activeResult.error) {
@@ -246,6 +276,13 @@ export async function getDashboardOperations(
       [sessionsResult.error.message, sessionsResult.error.hint, sessionsResult.error.details, sessionsResult.error.code]
         .filter(Boolean)
         .join(" — ") || "Failed to load month sessions"
+    );
+  }
+  if (renewalResult.error) {
+    throw new Error(
+      [renewalResult.error.message, renewalResult.error.hint, renewalResult.error.details, renewalResult.error.code]
+        .filter(Boolean)
+        .join(" — ") || "Failed to load renewal packages"
     );
   }
 
@@ -302,12 +339,37 @@ export async function getDashboardOperations(
     return members;
   }
 
-  const renewalSource = queuePackages.map((pkg) => ({
-    id: pkg.id,
-    memberIds: queueMembers(pkg).map((member) => member.id),
-    status: pkg.status,
-    remaining_credits: Number(pkg.remaining_credits),
-  }));
+  type RenewalRow = {
+    id: string;
+    remaining_credits: number;
+    status: PackageStatus;
+    students: Pick<Student, "id"> | Pick<Student, "id">[] | null;
+    package_students?:
+      | { student_id: string }
+      | { student_id: string }[]
+      | null;
+  };
+
+  const renewalSource = ((renewalResult.data ?? []) as RenewalRow[]).map(
+    (pkg) => {
+      const nested = Array.isArray(pkg.package_students)
+        ? pkg.package_students
+        : pkg.package_students
+          ? [pkg.package_students]
+          : [];
+      const memberIds = nested.map((row) => row.student_id);
+      const primary = asSingle(pkg.students);
+      if (primary && !memberIds.includes(primary.id)) {
+        memberIds.unshift(primary.id);
+      }
+      return {
+        id: pkg.id,
+        memberIds,
+        status: pkg.status,
+        remaining_credits: Number(pkg.remaining_credits),
+      };
+    }
+  );
 
   const dueSoonRows = queuePackages.filter(
     (pkg) =>
@@ -465,7 +527,7 @@ export async function getDashboardOperations(
   if (sessionIds.length > 0) {
     const { data: attendanceRows, error: attendanceError } = await supabase
       .from("attendance")
-      .select("id, session_id")
+      .select("session_id")
       .eq("status", "present")
       .in("session_id", sessionIds);
     if (attendanceError) throw attendanceError;

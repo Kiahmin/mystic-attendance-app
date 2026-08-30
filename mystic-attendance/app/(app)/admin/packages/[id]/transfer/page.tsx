@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireRole } from "@/lib/auth/profile";
 import { getPackageWithStudent } from "@/lib/queries/packages";
-import { listStudents } from "@/lib/queries/students";
+import { listStudentDirectory } from "@/lib/queries/students";
 import {
   canTransferPackageCredits,
   packageLabel,
@@ -31,7 +31,7 @@ export default async function TransferPackageCreditsPage({
   const { id } = await params;
   const [pkg, students] = await Promise.all([
     getPackageWithStudent(id),
-    listStudents(),
+    listStudentDirectory(),
   ]);
 
   if (!pkg) notFound();

@@ -39,6 +39,10 @@ function asSingle<T>(value: T | T[] | null | undefined): T | null {
 type RosterPackageRow = {
   id?: string;
   student_id: string;
+  package_students?:
+    | { student_id: string }
+    | { student_id: string }[]
+    | null;
   remaining_credits: number;
   total_credits: number;
   used_credits: number;
@@ -133,6 +137,21 @@ function mapRosterClasses(
   });
 }
 
+export type StudentDirectoryItem = Pick<
+  Student,
+  "id" | "full_name" | "contact_phone" | "payer_id" | "archived_at"
+>;
+
+export async function listStudentDirectory(): Promise<StudentDirectoryItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("students")
+    .select("id, full_name, contact_phone, payer_id, archived_at")
+    .order("full_name");
+  if (error) throw error;
+  return (data ?? []) as StudentDirectoryItem[];
+}
+
 export async function listStudents(
   search?: string
 ): Promise<StudentListItem[]> {
@@ -178,7 +197,7 @@ export async function listStudents(
   const rows = data ?? [];
   const studentIds = rows.map((row) => row.id as string);
 
-  const [lastAttendanceResult, membershipsResult] = await Promise.all([
+  const [lastAttendanceResult, packagesResult] = await Promise.all([
     studentIds.length === 0
       ? Promise.resolve({
           data: [] as { student_id: string; last_attended_on: string }[],
@@ -189,18 +208,43 @@ export async function listStudents(
           .select("student_id, last_attended_on")
           .in("student_id", studentIds),
     studentIds.length === 0
-      ? Promise.resolve({
-          data: [] as { package_id: string; student_id: string }[],
-          error: null,
-        })
+      ? Promise.resolve({ data: [] as RosterPackageRow[], error: null })
       : supabase
-          .from("package_students")
-          .select("package_id, student_id")
-          .in("student_id", studentIds),
+          .from("packages")
+          .select(
+            `
+              id,
+              student_id,
+              remaining_credits,
+              total_credits,
+              used_credits,
+              bonus_credits,
+              status,
+              expires_at,
+              first_lesson_date,
+              created_at,
+              session_id,
+              package_products (
+                product_type,
+                label,
+                total_credits
+              ),
+              sessions (
+                name,
+                session_date
+              ),
+              package_students (
+                student_id
+              )
+            `
+          )
+          .is("session_id", null)
+          .in("status", ["active", "overshot", "unpaid", "paused", "expired"])
+          .order("created_at", { ascending: false }),
   ]);
 
   if (lastAttendanceResult.error) throw lastAttendanceResult.error;
-  if (membershipsResult.error) throw membershipsResult.error;
+  if (packagesResult.error) throw packagesResult.error;
 
   const lastAttendedByStudent = new Map(
     (lastAttendanceResult.data ?? []).map((row) => [
@@ -209,58 +253,23 @@ export async function listStudents(
     ])
   );
 
-  const memberships = membershipsResult.data ?? [];
-  const packageIds = [
-    ...new Set(memberships.map((row) => row.package_id as string)),
-  ];
-
-  let packageRows: RosterPackageRow[] = [];
-  if (packageIds.length > 0) {
-    const packagesResult = await supabase
-      .from("packages")
-      .select(
-        `
-          id,
-          student_id,
-          remaining_credits,
-          total_credits,
-          used_credits,
-          bonus_credits,
-          status,
-          expires_at,
-          first_lesson_date,
-          created_at,
-          session_id,
-          package_products (
-            product_type,
-            label,
-            total_credits
-          ),
-          sessions (
-            name,
-            session_date
-          )
-        `
-      )
-      .in("id", packageIds)
-      .is("session_id", null)
-      .order("created_at", { ascending: false });
-    if (packagesResult.error) throw packagesResult.error;
-    packageRows = (packagesResult.data ?? []) as RosterPackageRow[];
-  }
-
-  const packageById = new Map(
-    packageRows.map((row) => [row.id as string, mapRosterPackage(row)])
-  );
-
+  const studentIdSet = new Set(studentIds);
   const packagesByStudent = new Map<string, StudentRosterPackage[]>();
-  for (const row of memberships) {
-    const pkg = packageById.get(row.package_id as string);
-    if (!pkg) continue;
-    const studentId = row.student_id as string;
-    const list = packagesByStudent.get(studentId);
-    if (list) list.push(pkg);
-    else packagesByStudent.set(studentId, [pkg]);
+  for (const row of (packagesResult.data ?? []) as RosterPackageRow[]) {
+    const pkg = mapRosterPackage(row);
+    const nested = Array.isArray(row.package_students)
+      ? row.package_students
+      : row.package_students
+        ? [row.package_students]
+        : [];
+    const memberIds = new Set(nested.map((item) => item.student_id));
+    memberIds.add(row.student_id);
+    for (const studentId of memberIds) {
+      if (!studentIdSet.has(studentId)) continue;
+      const list = packagesByStudent.get(studentId);
+      if (list) list.push(pkg);
+      else packagesByStudent.set(studentId, [pkg]);
+    }
   }
 
   return rows.map((row) => {

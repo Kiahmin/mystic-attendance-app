@@ -7,7 +7,7 @@ import {
 } from "@/lib/queries/packages";
 import { isEventProductType } from "@/lib/package-utils";
 import { listPayers } from "@/lib/queries/payers";
-import { listStudents } from "@/lib/queries/students";
+import { listStudentDirectory } from "@/lib/queries/students";
 import { AssignPackageForm } from "@/components/admin/assign-package-form";
 import { PageHeader } from "@/components/layout/page-header";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -21,7 +21,7 @@ export default async function AssignPackagePage({
   await requireRole(["admin"]);
   const params = await searchParams;
   const [students, products, unchargedByStudent, payers] = await Promise.all([
-    listStudents(),
+    listStudentDirectory(),
     listPackageProducts({ activeOnly: true }),
     countUnchargedAttendanceByStudent(),
     listPayers(),
