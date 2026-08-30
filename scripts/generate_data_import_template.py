@@ -279,7 +279,7 @@ def build():
         "saturday",
         "09:00",
         "10:00",
-        "Coach Kim",
+        "Kim",
         "YES",
         "Example row — delete before sending",
     ]
