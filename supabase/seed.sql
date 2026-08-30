@@ -53,7 +53,7 @@ insert into auth.users (
     '',
     '',
     '{"provider":"email","providers":["email"]}',
-    '{"full_name":"Coach Kim"}',
+    '{"full_name":"Kim"}',
     now(),
     now()
   ),
@@ -70,7 +70,7 @@ insert into auth.users (
     '',
     '',
     '{"provider":"email","providers":["email"]}',
-    '{"full_name":"Coach Lloyd"}',
+    '{"full_name":"Lloyd"}',
     now(),
     now()
   );
@@ -118,8 +118,8 @@ insert into auth.identities (
 
 insert into profiles (id, full_name, role, phone) values
   ('11111111-1111-1111-1111-111111111111', 'Admin User', 'admin', null),
-  ('22222222-2222-2222-2222-222222222222', 'Coach Kim', 'coach', '+65 9000 0001'),
-  ('33333333-3333-3333-3333-333333333333', 'Coach Lloyd', 'coach', '+65 9000 0002');
+  ('22222222-2222-2222-2222-222222222222', 'Kim', 'coach', '+65 9000 0001'),
+  ('33333333-3333-3333-3333-333333333333', 'Lloyd', 'coach', '+65 9000 0002');
 
 -- ---------------------------------------------------------------------------
 -- Classes
