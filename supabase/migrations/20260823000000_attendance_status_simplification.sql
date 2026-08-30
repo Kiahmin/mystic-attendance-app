@@ -111,17 +111,16 @@ alter table public.attendance
     check (decline_reason is null or attendee_source = 'walk_in');
 
 -- ---------------------------------------------------------------------------
--- 7. Drop walk_in_status
+-- 7. Recreate student_last_attendance, then drop walk_in_status
+--    (the previous view referenced walk_in_status, so it must be dropped first)
 -- ---------------------------------------------------------------------------
+
+drop view if exists public.student_last_attendance;
 
 alter table public.attendance
   drop column walk_in_status;
 
--- ---------------------------------------------------------------------------
--- 8. Simplify student_last_attendance
--- ---------------------------------------------------------------------------
-
-create or replace view public.student_last_attendance
+create view public.student_last_attendance
 with (security_invoker = true) as
 select
   a.student_id,
