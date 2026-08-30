@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { addCalendarDays, todayInSingapore } from "@/lib/datetime";
 import {
+  EXPIRING_WITHIN_DAYS,
   isFinishingPackage,
   isTrialProductType,
+  LOW_CREDIT_THRESHOLD,
   packageIsTrialProduct,
 } from "@/lib/package-utils";
 import type {
@@ -413,8 +416,22 @@ export async function listPackages(options?: {
     )
     .order("created_at", { ascending: false });
 
-  if (statuses.length > 0 && !hasFinishing) {
-    query = query.in("status", statuses);
+  if (hasFinishing && statuses.length === 0) {
+    const expiryCutoff = addCalendarDays(
+      todayInSingapore(),
+      EXPIRING_WITHIN_DAYS
+    );
+    query = query
+      .is("session_id", null)
+      .eq("status", "active")
+      .or(
+        `remaining_credits.lte.${LOW_CREDIT_THRESHOLD},expires_at.lte.${expiryCutoff}`
+      );
+  } else if (statuses.length > 0) {
+    const statusFilter = hasFinishing
+      ? [...new Set([...statuses, "active" as PackageStatus])]
+      : statuses;
+    query = query.in("status", statusFilter);
   }
 
   const { data, error } = await query;
