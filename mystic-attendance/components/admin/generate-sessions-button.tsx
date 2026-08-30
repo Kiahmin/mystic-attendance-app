@@ -47,6 +47,7 @@ export function GenerateSessionsButton({
       }
 
       const created = result.created ?? 0;
+      const updated = result.updated ?? 0;
       const skipped = result.skipped ?? 0;
       const range =
         result.start && result.end
@@ -55,16 +56,24 @@ export function GenerateSessionsButton({
             : ` (${formatCalendarDate(result.start)} – ${formatCalendarDate(result.end)})`
           : "";
 
-      if (created === 0 && skipped === 0) {
+      if (created === 0 && updated === 0 && skipped === 0) {
         setMessage(`No active classes to schedule${range}.`);
-      } else if (created === 0) {
+      } else if (created === 0 && updated === 0) {
         setMessage(
-          `All ${skipped} session${skipped === 1 ? "" : "s"} already exist${range}.`
+          `All ${skipped} session${skipped === 1 ? "" : "s"} already match the current classes${range}.`
         );
       } else {
+        const parts = [
+          created > 0
+            ? `Created ${created} session${created === 1 ? "" : "s"}`
+            : null,
+          updated > 0
+            ? `updated ${updated} to match class changes`
+            : null,
+        ].filter(Boolean);
         setMessage(
-          `Created ${created} session${created === 1 ? "" : "s"}${
-            skipped > 0 ? ` (${skipped} already existed)` : ""
+          `${parts.join(", ")}${
+            skipped > 0 ? ` (${skipped} already matched)` : ""
           }${range}.`
         );
       }
