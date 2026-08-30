@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Parse the live Customer Attendance workbook into production SQL.
 
-Reads venue sheets (Stadium, Khatib, Bukit Batok, Boon Keng).
-Skips Stadium Backup, Total Attendance, and Completed history.
+Reads venue sheets (Stadium, Khatib, Bukit Batok, Boon Keng) and
+the Completed sheet (past finished packs).
 """
 
 from __future__ import annotations
@@ -149,6 +149,27 @@ def map_product(
     return ptype, total, amount, catalog_credits, "; ".join(n for n in notes if n) or None
 
 
+def upsert_student(students: dict, full_name: str, skill: str | None, notes: str | None, is_trial: bool) -> str:
+    sid = str(uuid.uuid5(NS, f"student:{full_name.casefold()}"))
+    existing = students.get(sid)
+    if existing:
+        if notes and (not existing["notes"] or notes not in existing["notes"]):
+            existing["notes"] = "; ".join(x for x in (existing["notes"], notes) if x)
+        if skill and not existing["skill_level"]:
+            existing["skill_level"] = skill
+        existing["is_trial"] = existing["is_trial"] or is_trial
+    else:
+        students[sid] = {
+            "id": sid,
+            "full_name": full_name,
+            "skill_level": skill,
+            "is_trial": is_trial,
+            "notes": notes,
+            "payer_id": None,
+        }
+    return sid
+
+
 def add_months(d: date, months: int) -> date:
     month = d.month - 1 + months
     year = d.year + month // 12
@@ -210,27 +231,12 @@ def parse_workbook(path: Path):
 
             names = split_student_names(name_text)
             student_ids = []
+            skill = "freestyle" if ptype == "freestyle" else None
             for full_name in names:
-                sid = str(uuid.uuid5(NS, f"student:{full_name.casefold()}"))
+                sid = upsert_student(
+                    students, full_name, skill, remarks, ptype.startswith("trial")
+                )
                 student_ids.append(sid)
-                skill = "freestyle" if ptype == "freestyle" else None
-                existing = students.get(sid)
-                if existing:
-                    if remarks and (not existing["notes"] or remarks not in existing["notes"]):
-                        existing["notes"] = "; ".join(
-                            x for x in (existing["notes"], remarks) if x
-                        )
-                    if skill and not existing["skill_level"]:
-                        existing["skill_level"] = skill
-                else:
-                    students[sid] = {
-                        "id": sid,
-                        "full_name": full_name,
-                        "skill_level": skill,
-                        "is_trial": ptype.startswith("trial"),
-                        "notes": remarks,
-                        "payer_id": None,
-                    }
                 enrolments.add((sid, class_id))
 
             payer_id = None
@@ -267,10 +273,13 @@ def parse_workbook(path: Path):
                     "customisation_notes": custom_notes,
                     "is_trial_product": ptype.startswith("trial"),
                     "catalog_credits": catalog_credits,
+                    "source": "current",
                 }
             )
             for sid in student_ids:
                 memberships.append((package_id, sid))
+
+    completed_ids = parse_completed_sheet(values["Completed"], students, packages, memberships)
 
     classes = []
     for venue, (day, start, end, class_name) in VENUE_CLASS.items():
@@ -292,13 +301,118 @@ def parse_workbook(path: Path):
         "memberships": memberships,
         "enrolments": enrolments,
         "classes": classes,
+        "completed_ids": completed_ids,
     }
 
 
-def emit_sql(data) -> str:
-    lines = [
+def parse_completed_sheet(ws, students, packages, memberships) -> set[str]:
+    completed_ids: set[str] = set()
+    for row in range(2, (ws.max_row or 1) + 1):
+        name_raw = ws.cell(row, 2).value
+        if name_raw is None:
+            continue
+        name_text = str(name_raw).strip()
+        if not name_text or name_text.lower() in SKIP_NAMES:
+            continue
+
+        pkg_raw = ws.cell(row, 3).value
+        if str(pkg_raw).strip().lower() == "no":
+            pkg_raw = "Group"
+
+        dates: list[date] = []
+        for col in range(4, (ws.max_column or 4) + 1):
+            cell = ws.cell(row, col).value
+            if isinstance(cell, datetime):
+                dates.append(cell.date())
+            elif isinstance(cell, date):
+                dates.append(cell)
+
+        used = len(dates)
+        if used == 0:
+            continue
+
+        ptype, total, amount, catalog_credits, custom_notes = map_product(
+            pkg_raw, used, used, "Imported from Completed sheet"
+        )
+        total = used
+        names = split_student_names(name_text)
+        skill = "freestyle" if ptype == "freestyle" else None
+        student_ids = [
+            upsert_student(students, full_name, skill, None, False) for full_name in names
+        ]
+        first = min(dates)
+        expires = add_months(first, 6)
+        package_id = str(uuid.uuid5(NS, f"package:completed:{row}:{name_text}"))
+        packages.append(
+            {
+                "id": package_id,
+                "student_id": student_ids[0],
+                "payer_id": None,
+                "product_type": ptype,
+                "total_credits": total,
+                "used_credits": used,
+                "amount_sgd": amount,
+                "first_lesson_date": first,
+                "expires_at": expires,
+                "informed_at": "null",
+                "customisation_notes": custom_notes,
+                "is_trial_product": ptype.startswith("trial"),
+                "catalog_credits": catalog_credits,
+                "source": "completed",
+            }
+        )
+        completed_ids.add(package_id)
+        for sid in student_ids:
+            memberships.append((package_id, sid))
+    return completed_ids
+
+
+def emit_sql(data, completed_only: bool = False) -> str:
+    packages = data["packages"]
+    memberships = data["memberships"]
+    if completed_only:
+        keep = data["completed_ids"]
+        packages = [p for p in packages if p["id"] in keep]
+        member_students = {sid for pid, sid in memberships if pid in keep}
+        memberships = [(pid, sid) for pid, sid in memberships if pid in keep]
+        students = {sid: data["students"][sid] for sid in member_students}
+        header = (
+            "-- Completed-sheet packs only. Idempotent. Safe to run after the current-roster seed."
+        )
+        lines = [header, "begin;", ""]
+        lines.append("-- Students referenced by completed packs")
+        for s in students.values():
+            skill = sql_str(s["skill_level"]) if s["skill_level"] else "null"
+            payer = sql_str(s["payer_id"]) if s["payer_id"] else "null"
+            trial = "true" if s["is_trial"] else "false"
+            lines.append(
+                "insert into students (id, full_name, skill_level, is_trial, notes, payer_id)\n"
+                f"values ({sql_str(s['id'])}, {sql_str(s['full_name'])}, {skill}, {trial}, {sql_str(s['notes'])}, {payer})\n"
+                "on conflict (id) do update set full_name = excluded.full_name, "
+                "skill_level = coalesce(students.skill_level, excluded.skill_level), "
+                "payer_id = coalesce(students.payer_id, excluded.payer_id);"
+            )
+        lines.append("")
+        data = {
+            **data,
+            "packages": packages,
+            "memberships": memberships,
+            "payers": {},
+            "classes": [],
+            "enrolments": set(),
+            "students": {},
+        }
+        # Continue from packages section below by falling through with emptied prefixes
+        prefix_done = True
+    else:
+        prefix_done = False
+
+    if prefix_done:
+        lines.append("-- Completed packages")
+    else:
+        lines = [
         "-- Generated from Customer Attendance workbook. Idempotent via fixed UUIDs.",
-        "-- Does not delete existing rows. Does not import Completed history.",
+        "-- Includes current venue sheets and Completed history.",
         "begin;",
         "",
         "insert into package_products (product_type, label, total_credits, amount_sgd, sort_order, is_active)",
@@ -409,15 +523,23 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("xlsx")
     parser.add_argument("-o", "--output", required=True)
+    parser.add_argument(
+        "--completed-only",
+        action="store_true",
+        help="Only emit Completed-sheet packs (for a follow-up seed).",
+    )
     args = parser.parse_args()
     data = parse_workbook(Path(args.xlsx))
-    sql = emit_sql(data)
+    sql = emit_sql(data, completed_only=args.completed_only)
     Path(args.output).write_text(sql)
+    completed = len(data["completed_ids"])
+    current = len(data["packages"]) - completed
     print(
         f"Wrote {args.output}: "
         f"{len(data['students'])} students, {len(data['payers'])} payers, "
-        f"{len(data['packages'])} packages, {len(data['classes'])} classes, "
-        f"{len(data['enrolments'])} enrolments"
+        f"{current} current + {completed} completed packages, "
+        f"{len(data['classes'])} classes, {len(data['enrolments'])} enrolments"
+        + (" (completed-only file)" if args.completed_only else "")
     )
 
 
