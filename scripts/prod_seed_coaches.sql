@@ -18,7 +18,8 @@ insert into seed_coaches (full_name, email) values
   ('Felix', 'felix@mystic.local'),
   ('Kiah Min', 'kiahmin@mystic.local'),
   ('Seana', 'seana@mystic.local'),
-  ('Charmaine', 'charmaine@mystic.local');
+  ('Charmaine', 'charmaine@mystic.local'),
+  ('Elle', 'elle@mystic.local');
 
 insert into auth.users (
   instance_id,
