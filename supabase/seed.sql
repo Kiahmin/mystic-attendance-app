@@ -247,6 +247,47 @@ insert into packages (
 insert into package_students (package_id, student_id) values
   ('ffffffff-ffff-ffff-ffff-ffffffffffff', 'c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1');
 
+-- 50 past packages on Alex Tan (student packages list pagination)
+insert into packages (
+  student_id,
+  package_product_id,
+  total_credits,
+  used_credits,
+  is_paid,
+  payment_method,
+  amount_sgd,
+  first_lesson_date,
+  expires_at,
+  created_at
+)
+select
+  'cccccccc-cccc-cccc-cccc-cccccccccccc',
+  p.id,
+  p.total_credits,
+  case when g % 3 = 0 then p.total_credits else greatest(p.total_credits - 2, 0) end,
+  true,
+  'paynow',
+  p.amount_sgd,
+  d.first_lesson,
+  d.expires_at,
+  d.created_at
+from generate_series(1, 50) as g
+join lateral (
+  select id, total_credits, amount_sgd
+  from package_products
+  where product_type in ('group', 'freestyle', 'private')
+    and is_active
+  order by sort_order
+  offset (g - 1) % 9
+  limit 1
+) p on true
+join lateral (
+  select
+    (date '2024-01-06' + ((g - 1) * 7))::date as first_lesson,
+    (date '2024-04-06' + ((g - 1) * 7))::date as expires_at,
+    (timestamptz '2024-01-01 00:00:00+08' + ((g - 1) * interval '7 days')) as created_at
+) d on true;
+
 -- ---------------------------------------------------------------------------
 -- Sessions (upcoming Saturday class — dates in Asia/Singapore)
 -- ---------------------------------------------------------------------------
