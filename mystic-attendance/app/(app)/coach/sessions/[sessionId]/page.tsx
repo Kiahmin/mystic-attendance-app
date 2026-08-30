@@ -37,7 +37,7 @@ export default async function CoachSessionPage({ params }: SessionPageProps) {
       students={students}
       walkIns={walkIns}
       backHref="/coach"
-      backLabel="Sessions"
+      backLabel="Back"
       badgeLabel="Coach session"
     />
   );

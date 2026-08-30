@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { navigateBack } from "@/components/layout/back-button";
 import {
   addCalendarDays,
   calendarDaysBetween,
@@ -251,8 +251,13 @@ export function PausePackageForm({ pkg }: PausePackageFormProps) {
               <PauseCircle className="size-4" />
               {pending ? "Saving…" : "Confirm Pause"}
             </Button>
-            <Button type="button" variant="outline" className="h-11 w-full" asChild>
-              <Link href="/admin/packages">Cancel & Go Back</Link>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full"
+              onClick={() => navigateBack(router, "/admin/packages")}
+            >
+              Cancel
             </Button>
           </div>
         </div>

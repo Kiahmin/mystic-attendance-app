@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { BackButton } from "@/components/layout/back-button";
 import { requireRole } from "@/lib/auth/profile";
 import {
   countUnchargedAttendanceByStudent,
@@ -10,8 +9,6 @@ import { listPayers } from "@/lib/queries/payers";
 import { listStudentDirectory } from "@/lib/queries/students";
 import { AssignPackageForm } from "@/components/admin/assign-package-form";
 import { PageHeader } from "@/components/layout/page-header";
-import { buttonVariants } from "@/components/ui/button-variants";
-import { cn } from "@/lib/utils";
 
 export default async function AssignPackagePage({
   searchParams,
@@ -34,16 +31,7 @@ export default async function AssignPackagePage({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={cancelHref}
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "-ml-2 mb-2 w-fit"
-          )}
-        >
-          <ArrowLeft className="size-4" />
-          {studentId ? "Back to Profile" : "Back to Packages"}
-        </Link>
+        <BackButton fallbackHref={cancelHref} className="mb-2" />
         <PageHeader
           title="Assign New Package"
           description="Create a lesson package and log payment details."

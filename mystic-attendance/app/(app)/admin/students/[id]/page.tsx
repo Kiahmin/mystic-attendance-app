@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarCheck, Plus, UserRound } from "lucide-react";
+import { CalendarCheck, Plus, UserRound } from "lucide-react";
+import { BackButton } from "@/components/layout/back-button";
 import { ageFromDob, SKILL_LEVEL_LABELS } from "@/lib/admin-utils";
 import { requireRole } from "@/lib/auth/profile";
 import { payerLabel } from "@/lib/payer-utils";
@@ -51,16 +52,7 @@ export default async function AdminStudentDetailPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Link
-          href="/admin/students"
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "-ml-2 w-fit"
-          )}
-        >
-          <ArrowLeft className="size-4" />
-          Back to Students
-        </Link>
+        <BackButton fallbackHref="/admin/students" />
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/admin/students/${student.id}/attendance`}

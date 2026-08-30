@@ -48,7 +48,7 @@ export default async function AdminSessionPage({
         view: parseCalendarView(view),
         date: backDate,
       })}
-      backLabel="Schedule"
+      backLabel="Back"
     />
   );
 }
