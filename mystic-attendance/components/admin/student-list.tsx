@@ -13,6 +13,7 @@ import { ArchiveStudentButton } from "@/components/admin/archive-student-button"
 import { PackageStatusBadge } from "@/components/admin/package-status-badge";
 import {
   ColumnFilter,
+  FilterCheckbox,
   SortHeader,
   cycleColumnSort,
   type TableSort,
@@ -60,8 +61,9 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -387,13 +389,19 @@ export function StudentList({
     (skillFilters.length > 0 ? 1 : 0);
   const moreActive = moreCount > 0;
 
-  function toggleSkillFilter(value: SkillFilter, checked: boolean) {
-    setSkillFilters((current) => {
-      if (checked) {
-        return current.includes(value) ? current : [...current, value];
-      }
-      return current.filter((item) => item !== value);
-    });
+  function toggleSkillFilter(value: SkillFilter) {
+    setSkillFilters((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
+    );
+    resetPage();
+  }
+
+  function clearMoreFilters() {
+    setInactiveOnly(false);
+    setTrialsOnly(false);
+    setSkillFilters([]);
     resetPage();
   }
 
@@ -420,8 +428,11 @@ export function StudentList({
               <Button
                 type="button"
                 variant="outline"
-                className="h-11 w-full justify-between gap-2 px-4 sm:w-auto"
-                aria-pressed={moreActive}
+                className={cn(
+                  "h-11 w-full justify-between gap-2 px-4 sm:w-auto sm:justify-center",
+                  moreActive && "border-primary/40 bg-primary/5"
+                )}
+                aria-label="More filters"
               >
                 <ListFilter className="size-4 shrink-0 text-muted-foreground" />
                 More
@@ -430,41 +441,61 @@ export function StudentList({
                 ) : null}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-44">
-              <DropdownMenuCheckboxItem
-                checked={inactiveOnly}
-                onCheckedChange={(checked) => {
-                  setInactiveOnly(Boolean(checked));
-                  resetPage();
-                }}
-                onSelect={(event) => event.preventDefault()}
-              >
-                Inactive
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={trialsOnly}
-                onCheckedChange={(checked) => {
-                  setTrialsOnly(Boolean(checked));
-                  resetPage();
-                }}
-                onSelect={(event) => event.preventDefault()}
-              >
-                Trials
-              </DropdownMenuCheckboxItem>
+            <DropdownMenuContent
+              align="end"
+              sideOffset={6}
+              className="w-56 min-w-56"
+            >
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="px-2 pt-1.5 pb-1 text-[11px] font-semibold tracking-wide uppercase">
+                  Status
+                </DropdownMenuLabel>
+                <FilterCheckbox
+                  className="py-1.5"
+                  checked={inactiveOnly}
+                  label="Inactive"
+                  onToggle={() => {
+                    setInactiveOnly((current) => !current);
+                    resetPage();
+                  }}
+                />
+                <FilterCheckbox
+                  className="py-1.5"
+                  checked={trialsOnly}
+                  label="Trials"
+                  onToggle={() => {
+                    setTrialsOnly((current) => !current);
+                    resetPage();
+                  }}
+                />
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>Skill level</DropdownMenuLabel>
-              {SKILL_FILTER_OPTIONS.map((option) => (
-                <DropdownMenuCheckboxItem
-                  key={option.value}
-                  checked={skillFilters.includes(option.value)}
-                  onCheckedChange={(checked) =>
-                    toggleSkillFilter(option.value, Boolean(checked))
-                  }
-                  onSelect={(event) => event.preventDefault()}
-                >
-                  {option.label}
-                </DropdownMenuCheckboxItem>
-              ))}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="px-2 pt-1.5 pb-1 text-[11px] font-semibold tracking-wide uppercase">
+                  Skill level
+                </DropdownMenuLabel>
+                {SKILL_FILTER_OPTIONS.map((option) => (
+                  <FilterCheckbox
+                    key={option.value}
+                    className="py-1.5"
+                    checked={skillFilters.includes(option.value)}
+                    label={option.label}
+                    onToggle={() => toggleSkillFilter(option.value)}
+                  />
+                ))}
+              </DropdownMenuGroup>
+              {moreActive ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      clearMoreFilters();
+                    }}
+                  >
+                    Clear filters
+                  </DropdownMenuItem>
+                </>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
