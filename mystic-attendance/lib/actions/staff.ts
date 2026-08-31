@@ -57,13 +57,9 @@ export async function inviteStaff(
   }
 
   const origin = await requestOrigin();
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "invite",
-    email,
-    options: {
-      data: { full_name: fullName },
-      redirectTo: inviteRedirectTo(origin),
-    },
+  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+    data: { full_name: fullName },
+    redirectTo: inviteRedirectTo(origin),
   });
 
   if (error || !data.user) {
@@ -85,14 +81,9 @@ export async function inviteStaff(
     return { error: profileError.message };
   }
 
-  const tokenHash = data.properties.hashed_token;
-  const inviteUrl = tokenHash
-    ? `${origin}/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=invite`
-    : null;
-
   revalidatePath("/admin/staff");
   return {
-    success: `Invite sent to ${email}. They can use the email or the setup link below.`,
-    inviteUrl,
+    success: `Invite email sent to ${email}. Check spam if it is missing.`,
+    inviteUrl: null,
   };
 }
