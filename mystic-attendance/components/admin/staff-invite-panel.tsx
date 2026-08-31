@@ -45,9 +45,8 @@ export function StaffInvitePanel({ staff }: { staff: StaffListItem[] }) {
         <CardHeader>
           <CardTitle>Invite staff</CardTitle>
           <CardDescription>
-            They will receive an email to set their own password. For localhost,
-            use the setup link shown after invite — the button in the email
-            often expires because of how Auth verifies links.
+            Auth emails go through Supabase. If the email button fails, use the
+            setup link shown after invite.
           </CardDescription>
         </CardHeader>
         <CardContent>

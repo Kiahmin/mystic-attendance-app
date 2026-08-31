@@ -92,7 +92,7 @@ export async function inviteStaff(
 
   revalidatePath("/admin/staff");
   return {
-    success: `Invite created for ${email}. Open the setup link below (the email button may fail on localhost).`,
+    success: `Invite sent to ${email}. They can use the email or the setup link below.`,
     inviteUrl,
   };
 }
