@@ -9,6 +9,7 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   // Repo root, not this package. Vercel Git deploys look up
   // routes-manifest-deterministic.json from the tracing root; pointing
   // that at mystic-attendance/ makes it search /vercel/path0/.next.

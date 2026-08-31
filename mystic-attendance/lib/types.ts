@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "coach";
+export type UserRole = "admin" | "coach" | "super_admin";
 
 export type AttendanceStatus = "present" | "absent" | "no_show";
 

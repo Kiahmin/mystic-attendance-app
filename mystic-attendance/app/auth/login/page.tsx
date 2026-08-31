@@ -16,7 +16,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           initialError={
             error === "staff_only"
               ? "Only staff accounts can sign in."
-              : null
+              : error === "invite"
+                ? "That invite link is invalid or expired. Ask a super-admin to invite you again."
+                : null
           }
         />
         <p className="mt-6 max-w-md text-center text-xs text-muted-foreground">

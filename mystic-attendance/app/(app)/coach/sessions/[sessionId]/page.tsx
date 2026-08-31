@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/profile";
+import { isAdminRole } from "@/lib/auth/roles";
 import { getSessionCheckInList } from "@/lib/queries/sessions";
+import { adminCalendarHref } from "@/lib/session-utils";
 import { SessionAttendanceView } from "@/components/sessions/session-attendance-view";
 
 interface SessionPageProps {
@@ -32,7 +34,14 @@ export default async function CoachSessionPage({ params }: SessionPageProps) {
       session={session}
       students={students}
       walkIns={walkIns}
-      backHref="/coach"
+      backHref={
+        isAdminRole(profile.role)
+          ? adminCalendarHref({
+              view: "day",
+              date: session.session_date,
+            })
+          : "/coach"
+      }
       backLabel="Back"
       badgeLabel="Coach session"
     />
