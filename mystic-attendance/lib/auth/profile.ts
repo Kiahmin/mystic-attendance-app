@@ -1,11 +1,22 @@
 import { cache } from "react";
 import { bypassProfile, isLoginEnabled } from "@/lib/auth/config";
-import { homePathForRole, isStaffRole } from "@/lib/auth/roles";
+import {
+  homePathForRole,
+  isAdminRole,
+  isStaffRole,
+  roleSatisfies,
+} from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/types";
 import { redirect } from "next/navigation";
 
-export { homePathForRole, isStaffRole, STAFF_ROLES } from "@/lib/auth/roles";
+export {
+  homePathForRole,
+  isAdminRole,
+  isStaffRole,
+  isSuperAdminRole,
+  STAFF_ROLES,
+} from "@/lib/auth/roles";
 
 export const getSessionUser = cache(async (): Promise<{ id: string } | null> => {
   if (!isLoginEnabled()) {
@@ -72,8 +83,8 @@ export async function requireProfile(): Promise<Profile> {
 
 export async function requireRole(roles: Profile["role"][]): Promise<Profile> {
   const profile = await requireProfile();
-  if (!roles.includes(profile.role)) {
-    redirect(profile.role === "admin" ? "/admin" : "/coach");
+  if (!roleSatisfies(roles, profile.role)) {
+    redirect(isAdminRole(profile.role) ? "/admin" : "/coach");
   }
   return profile;
 }

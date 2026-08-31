@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { isAdminRole } from "@/lib/auth/roles";
 import type { Profile } from "@/lib/types";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { CoachShell } from "@/components/layout/coach-shell";
@@ -19,7 +20,7 @@ export function AppShell({
     return <CoachShell profile={profile}>{children}</CoachShell>;
   }
 
-  if (profile.role === "admin") {
+  if (isAdminRole(profile.role)) {
     return <AdminShell profile={profile}>{children}</AdminShell>;
   }
 

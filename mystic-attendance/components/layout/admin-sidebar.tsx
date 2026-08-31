@@ -9,9 +9,11 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  UserCog,
   Users,
 } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
+import { isSuperAdminRole } from "@/lib/auth/roles";
 import { isNavActive } from "@/lib/navigation";
 import type { Profile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -22,7 +24,7 @@ interface AdminSidebarProps {
   onNavigate?: () => void;
 }
 
-const LINKS = [
+const ADMIN_LINKS = [
   {
     href: "/admin",
     label: "Dashboard",
@@ -48,13 +50,41 @@ const LINKS = [
     icon: Package,
     exact: false,
   },
-  {
-    href: "/coach",
-    label: "Today's sessions",
-    icon: ClipboardList,
-    exact: false,
-  },
 ] as const;
+
+function SidebarLink({
+  href,
+  label,
+  icon: Icon,
+  exact,
+  pathname,
+  onNavigate,
+}: {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  exact: boolean;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const active = isNavActive(pathname, href, exact);
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      onClick={onNavigate}
+      className={cn(
+        "inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+        active
+          ? "bg-sidebar-primary text-sidebar-primary-foreground"
+          : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      )}
+    >
+      <Icon className="size-4 shrink-0" />
+      {label}
+    </Link>
+  );
+}
 
 export function AdminSidebar({
   profile,
@@ -81,27 +111,35 @@ export function AdminSidebar({
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 p-3">
-        {LINKS.map((link) => {
-          const { href, label, icon: Icon, exact } = link;
-          const active = isNavActive(pathname, href, exact);
-          return (
-            <Link
-              key={href}
-              href={href}
-              prefetch={false}
-              onClick={onNavigate}
-              className={cn(
-                "inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              )}
-            >
-              <Icon className="size-4 shrink-0" />
-              {label}
-            </Link>
-          );
-        })}
+        {ADMIN_LINKS.map((link) => (
+          <SidebarLink
+            key={link.href}
+            href={link.href}
+            label={link.label}
+            icon={link.icon}
+            exact={link.exact}
+            pathname={pathname}
+            onNavigate={onNavigate}
+          />
+        ))}
+        {isSuperAdminRole(profile.role) ? (
+          <SidebarLink
+            href="/admin/staff"
+            label="Staff"
+            icon={UserCog}
+            exact={false}
+            pathname={pathname}
+            onNavigate={onNavigate}
+          />
+        ) : null}
+        <SidebarLink
+          href="/coach"
+          label="Today's sessions"
+          icon={ClipboardList}
+          exact={false}
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
       </nav>
 
       <div className="border-t border-sidebar-border p-3">

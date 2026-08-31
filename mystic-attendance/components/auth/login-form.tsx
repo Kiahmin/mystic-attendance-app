@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { inviteCallbackPath } from "@/lib/auth/invite-callback";
 import { isStaffRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,13 @@ export function LoginForm({ initialError = null }: LoginFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(initialError);
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    const invitePath = inviteCallbackPath();
+    if (invitePath) {
+      window.location.replace(invitePath);
+    }
+  }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

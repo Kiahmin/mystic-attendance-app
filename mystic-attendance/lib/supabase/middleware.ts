@@ -42,8 +42,11 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isAuthRoute =
     pathname.startsWith("/auth") || pathname.startsWith("/login");
+  const isInviteCompletion =
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/auth/set-password");
 
-  if (user && isAuthRoute) {
+  if (user && isAuthRoute && !isInviteCompletion) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
