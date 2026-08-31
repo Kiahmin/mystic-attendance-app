@@ -45,8 +45,9 @@ export function StaffInvitePanel({ staff }: { staff: StaffListItem[] }) {
         <CardHeader>
           <CardTitle>Invite staff</CardTitle>
           <CardDescription>
-            They will receive an email to set their own password. You can invite
-            them as a coach or an admin.
+            They will receive an email to set their own password. For localhost,
+            use the setup link shown after invite — the button in the email
+            often expires because of how Auth verifies links.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -64,7 +65,19 @@ export function StaffInvitePanel({ staff }: { staff: StaffListItem[] }) {
             ) : null}
             {state?.success ? (
               <Alert className="sm:col-span-2">
-                <AlertDescription>{state.success}</AlertDescription>
+                <AlertDescription className="space-y-3">
+                  <p>{state.success}</p>
+                  {state.inviteUrl ? (
+                    <p className="break-all">
+                      <a
+                        href={state.inviteUrl}
+                        className="font-medium text-foreground underline underline-offset-4"
+                      >
+                        Open setup link
+                      </a>
+                    </p>
+                  ) : null}
+                </AlertDescription>
               </Alert>
             ) : null}
 
@@ -109,8 +122,15 @@ export function StaffInvitePanel({ staff }: { staff: StaffListItem[] }) {
               </Select>
             </div>
 
-            <div className="flex items-end">
-              <Button type="submit" className="h-11 w-full sm:w-auto" disabled={pending}>
+            <div className="space-y-2">
+              <Label className="hidden sm:block sm:invisible sm:select-none" aria-hidden>
+                Role
+              </Label>
+              <Button
+                type="submit"
+                className="h-11 w-full sm:w-auto"
+                disabled={pending}
+              >
                 {pending ? "Sending…" : "Send invite"}
               </Button>
             </div>

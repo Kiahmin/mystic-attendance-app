@@ -302,36 +302,6 @@ export async function getCoachSessionsForToday(coachId: string) {
     );
 }
 
-export async function getTodaySessionsForDashboard(coachId?: string) {
-  const supabase = await createClient();
-  const today = todayInSingapore();
-
-  let query = supabase
-    .from("sessions")
-    .select(DASHBOARD_SESSION_SELECT)
-    .eq("session_date", today);
-
-  if (coachId) {
-    query = query.eq("coach_id", coachId);
-  }
-
-  const { data: sessions, error } = await query;
-  if (error) throw error;
-
-  const results = await enrichDashboardSessions(
-    supabase,
-    (sessions ?? []) as Array<
-      SessionWithClass & {
-      classes: SessionClassRow | SessionClassRow[] | null;
-    } & SessionCoachRow
-    >
-  );
-
-  return results.sort((a, b) =>
-    sessionDisplayStart(a.session).localeCompare(sessionDisplayStart(b.session))
-  );
-}
-
 export async function getSessionsForDashboardRange(
   start: string,
   end: string

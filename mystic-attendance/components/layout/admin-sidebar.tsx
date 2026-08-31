@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
-  ClipboardList,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -132,14 +131,6 @@ export function AdminSidebar({
             onNavigate={onNavigate}
           />
         ) : null}
-        <SidebarLink
-          href="/coach"
-          label="Today's sessions"
-          icon={ClipboardList}
-          exact={false}
-          pathname={pathname}
-          onNavigate={onNavigate}
-        />
       </nav>
 
       <div className="border-t border-sidebar-border p-3">

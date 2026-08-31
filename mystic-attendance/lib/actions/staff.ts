@@ -34,9 +34,9 @@ async function insertStaffProfile(
 }
 
 export async function inviteStaff(
-  _prev: { error?: string; success?: string } | null,
+  _prev: { error?: string; success?: string; inviteUrl?: string | null } | null,
   formData: FormData
-): Promise<{ error?: string; success?: string }> {
+): Promise<{ error?: string; success?: string; inviteUrl?: string | null }> {
   await requireRole(["super_admin"]);
 
   const fullName = String(formData.get("full_name") ?? "").trim();
@@ -57,9 +57,13 @@ export async function inviteStaff(
   }
 
   const origin = await requestOrigin();
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { full_name: fullName },
-    redirectTo: inviteRedirectTo(origin),
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "invite",
+    email,
+    options: {
+      data: { full_name: fullName },
+      redirectTo: inviteRedirectTo(origin),
+    },
   });
 
   if (error || !data.user) {
@@ -81,6 +85,14 @@ export async function inviteStaff(
     return { error: profileError.message };
   }
 
+  const tokenHash = data.properties.hashed_token;
+  const inviteUrl = tokenHash
+    ? `${origin}/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=invite`
+    : null;
+
   revalidatePath("/admin/staff");
-  return { success: `Invite sent to ${email}.` };
+  return {
+    success: `Invite created for ${email}. Open the setup link below (the email button may fail on localhost).`,
+    inviteUrl,
+  };
 }

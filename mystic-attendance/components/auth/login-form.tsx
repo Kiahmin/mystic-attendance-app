@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { inviteCallbackPath } from "@/lib/auth/invite-callback";
+import { inviteCallbackPath, inviteLinkErrorMessage } from "@/lib/auth/invite-callback";
 import { isStaffRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,12 @@ export function LoginForm({ initialError = null }: LoginFormProps) {
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
+    const hashError = inviteLinkErrorMessage();
+    if (hashError) {
+      setError(hashError);
+      return;
+    }
+
     const invitePath = inviteCallbackPath();
     if (invitePath) {
       window.location.replace(invitePath);

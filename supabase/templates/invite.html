@@ -1,0 +1,9 @@
+<h2>Set your Mystic Skates password</h2>
+<p>You have been invited as staff. Use the button below — do not use the default verify link.</p>
+<p>
+  <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=invite">
+    Accept invitation
+  </a>
+</p>
+<p>If the button does not work, copy this URL into your browser:</p>
+<p>{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=invite</p>

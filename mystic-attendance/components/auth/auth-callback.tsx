@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { EmailOtpType } from "@supabase/supabase-js";
+import { SetPasswordForm } from "@/components/auth/set-password-form";
 import { createClient } from "@/lib/supabase/client";
 
 const OTP_TYPES = new Set<EmailOtpType>([
@@ -24,6 +25,7 @@ function otpType(value: string | null): EmailOtpType {
 export function AuthCallback() {
   const router = useRouter();
   const [message, setMessage] = useState("Opening your invite…");
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,9 +90,8 @@ export function AuthCallback() {
         return;
       }
 
-      setMessage("Continuing…");
-      router.replace("/auth/set-password");
-      router.refresh();
+      window.history.replaceState(null, "", "/auth/callback");
+      setReady(true);
     }
 
     void completeInvite();
@@ -101,7 +102,11 @@ export function AuthCallback() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
-      <p className="text-sm text-muted-foreground">{message}</p>
+      {ready ? (
+        <SetPasswordForm />
+      ) : (
+        <p className="text-sm text-muted-foreground">{message}</p>
+      )}
     </main>
   );
 }
