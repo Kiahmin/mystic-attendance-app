@@ -9,7 +9,7 @@ export async function listCoaches(): Promise<
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name")
-    .eq("role", "coach")
+    .in("role", ["coach", "admin"])
     .order("full_name");
 
   if (error) throw error;

@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/profile";
 import { getCoachSessionsForToday } from "@/lib/queries/sessions";
 import { SessionCard } from "@/components/coach/session-card";
@@ -6,10 +5,6 @@ import { PageHeader } from "@/components/layout/page-header";
 
 export default async function CoachHomePage() {
   const profile = await requireRole(["coach", "admin"]);
-
-  if (profile.role === "admin") {
-    redirect("/admin");
-  }
 
   const sessions = await getCoachSessionsForToday(profile.id);
 

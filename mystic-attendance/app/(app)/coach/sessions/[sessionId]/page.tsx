@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/profile";
 import { getSessionCheckInList } from "@/lib/queries/sessions";
 import { SessionAttendanceView } from "@/components/sessions/session-attendance-view";
@@ -10,10 +10,6 @@ interface SessionPageProps {
 export default async function CoachSessionPage({ params }: SessionPageProps) {
   const { sessionId } = await params;
   const profile = await requireRole(["coach", "admin"]);
-
-  if (profile.role === "admin") {
-    redirect(`/admin/sessions/${sessionId}`);
-  }
 
   let data;
   try {

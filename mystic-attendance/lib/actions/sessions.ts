@@ -6,6 +6,7 @@ import {
   timeToMinutes,
 } from "@/lib/admin-utils";
 import { requireRole } from "@/lib/auth/profile";
+import { isCoachAssignable } from "@/lib/auth/roles";
 import { isValidCalendarDate } from "@/lib/datetime";
 import {
   CANCELLATION_REASONS,
@@ -287,13 +288,12 @@ async function assertValidCoach(
 
   const { data: coach, error: coachError } = await supabase
     .from("profiles")
-    .select("id")
+    .select("id, role")
     .eq("id", coachId)
-    .eq("role", "coach")
     .maybeSingle();
 
   if (coachError) return coachError.message;
-  if (!coach) return "Select a valid coach.";
+  if (!coach || !isCoachAssignable(coach.role)) return "Select a valid coach.";
   return null;
 }
 
