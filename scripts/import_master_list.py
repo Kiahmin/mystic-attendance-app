@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Parse weekly roster + UPCOMING TRIALS into production SQL.
+"""Parse weekly roster (and optionally UPCOMING TRIALS) into production SQL.
 
 Attendance Master.xlsx is the current weekly class list (Tue/Fri/Sat/Sun
-slots × class-type columns). UPCOMING TRIALS (from Attendance_Master_List.xlsx)
-are venue trial bookings; attended rows get an event session and present
-attendance against a 1-credit trial pack.
+slots × class-type columns). Class names are the class type
+(e.g. Competitive Slalom). Venue in the column header (e.g. Basics Bukit Batok)
+is stored on venue_id, not in the title.
+
+Pass --trials to also import UPCOMING TRIALS from Attendance_Master_List.xlsx.
 """
 
 from __future__ import annotations
@@ -184,13 +186,12 @@ def parse_attendance_master(
                 slot_counts[key] = slot_counts.get(key, 0) + 1
                 n = slot_counts[key]
                 suffix = f" ({n})" if n > 1 else ""
-                display = f"{label}{suffix}"
                 class_id = str(
                     uuid.uuid5(
-                        NS, f"class:{venue}:{day}:{start}:{display.casefold()}"
+                        NS, f"class:{venue}:{day}:{start}:{label.casefold()}{suffix}"
                     )
                 )
-                name = display
+                name = label
                 classes[class_id] = {
                     "id": class_id,
                     "name": name,
@@ -344,8 +345,9 @@ def parse_upcoming_trials(
 
 def emit_sql(data) -> str:
     lines = [
-        "-- Generated from Attendance Master.xlsx + UPCOMING TRIALS.",
-        "-- Replaces every class. Event sessions (including trials) are kept.",
+        "-- Generated from Attendance Master.xlsx (weekly roster only).",
+        "-- Class names are class types (e.g. Competitive Slalom).",
+        "-- Replaces every class. Event sessions are kept.",
         "begin;",
         "",
         "-- Drop existing classes (and their sessions / attendance / enrolments)",
@@ -397,7 +399,8 @@ def emit_sql(data) -> str:
         )
     lines.append("")
 
-    lines.append("-- Trial packages")
+    if data["packages"]:
+        lines.append("-- Trial packages")
     for p in data["packages"]:
         amount = "null" if p["amount_sgd"] is None else str(p["amount_sgd"])
         paid = "true" if p["is_paid"] else "false"
@@ -434,9 +437,11 @@ def emit_sql(data) -> str:
             "  expires_at = excluded.expires_at,\n"
             "  customisation_notes = excluded.customisation_notes;"
         )
-    lines.append("")
+    if data["packages"]:
+        lines.append("")
 
-    lines.append("-- Trial event sessions")
+    if data["sessions"]:
+        lines.append("-- Trial event sessions")
     for s in data["sessions"].values():
         venue = sql_str(s["venue"])
         lines.append(
@@ -463,9 +468,11 @@ def emit_sql(data) -> str:
             "  start_time = excluded.start_time,\n"
             "  end_time = excluded.end_time;"
         )
-    lines.append("")
+    if data["sessions"]:
+        lines.append("")
 
-    lines.append("-- Trial walk-in roster (include overrides)")
+    if data["includes"]:
+        lines.append("-- Trial walk-in roster (include overrides)")
     for session_id, sid in data["includes"]:
         oid = str(uuid.uuid5(NS, f"override:{session_id}:{sid}"))
         lines.append(
@@ -473,9 +480,11 @@ def emit_sql(data) -> str:
             f"values ({sql_str(oid)}, {sql_str(session_id)}, {sql_str(sid)}, 'include')\n"
             "on conflict (session_id, student_id) do update set kind = 'include';"
         )
-    lines.append("")
+    if data["includes"]:
+        lines.append("")
 
-    lines.append("-- Attended trials")
+    if data["attendance"]:
+        lines.append("-- Attended trials")
     for a in data["attendance"]:
         lines.append(
             "insert into attendance (\n"
@@ -498,9 +507,11 @@ def emit_sql(data) -> str:
             "  package_id = excluded.package_id,\n"
             "  marked_at = excluded.marked_at;"
         )
-    lines.append("")
+    if data["attendance"]:
+        lines.append("")
 
-    lines.append("-- Restore trial credit counts (undo attendance triggers)")
+    if data["packages"]:
+        lines.append("-- Restore trial credit counts (undo attendance triggers)")
     for p in data["packages"]:
         lines.append(
             "update packages\n"
@@ -509,23 +520,28 @@ def emit_sql(data) -> str:
             f"    expires_at = {sql_date(p['expires_at'])}\n"
             f"where id = {sql_str(p['id'])};"
         )
-    lines += ["", "commit;"]
+    lines += ["commit;"]
     return "\n".join(lines) + "\n"
 
 
-def parse_workbooks(roster_path: Path, trials_path: Path):
+def parse_workbooks(roster_path: Path, trials_path: Path | None):
     roster_wb = load_workbook(roster_path, data_only=True)
     roster_ws = roster_wb[roster_wb.sheetnames[0]]
     classes, students, enrolments = parse_attendance_master(roster_ws)
 
-    trials_wb = load_workbook(trials_path, data_only=True)
-    if TRIALS_SHEET not in trials_wb.sheetnames:
-        raise SystemExit(
-            f"Missing sheet {TRIALS_SHEET!r}. Found: {trials_wb.sheetnames}"
+    packages: list[dict] = []
+    sessions: dict[str, dict] = {}
+    attendance: list[dict] = []
+    includes: list[tuple[str, str]] = []
+    if trials_path is not None:
+        trials_wb = load_workbook(trials_path, data_only=True)
+        if TRIALS_SHEET not in trials_wb.sheetnames:
+            raise SystemExit(
+                f"Missing sheet {TRIALS_SHEET!r}. Found: {trials_wb.sheetnames}"
+            )
+        packages, sessions, attendance, includes = parse_upcoming_trials(
+            trials_wb[TRIALS_SHEET], students
         )
-    packages, sessions, attendance, includes = parse_upcoming_trials(
-        trials_wb[TRIALS_SHEET], students
-    )
     return {
         "classes": classes,
         "students": students,
@@ -546,12 +562,14 @@ def main():
     )
     parser.add_argument(
         "--trials",
-        default="docs/Attendance_Master_List.xlsx",
-        help="Workbook that contains the UPCOMING TRIALS sheet",
+        default=None,
+        help="Optional workbook with an UPCOMING TRIALS sheet",
     )
     parser.add_argument("-o", "--output", required=True)
     args = parser.parse_args()
-    data = parse_workbooks(Path(args.roster), Path(args.trials))
+    data = parse_workbooks(
+        Path(args.roster), Path(args.trials) if args.trials else None
+    )
     Path(args.output).write_text(emit_sql(data))
     print(
         f"Wrote {args.output}: "
