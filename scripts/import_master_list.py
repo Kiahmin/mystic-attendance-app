@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Parse Attendance_Master_List.xlsx (ML 1 roster + UPCOMING TRIALS) into SQL.
+"""Parse weekly roster (and optionally UPCOMING TRIALS) into production SQL.
 
-ML 1 is the Stadium weekly class list (Saturday/Sunday slots × coach columns).
-UPCOMING TRIALS are venue trial bookings; attended rows get an event session
-and present attendance against a 1-credit trial pack.
+Attendance Master.xlsx is the current weekly class list (Tue/Fri/Sat/Sun
+slots × class-type columns). Class names are the class type
+(e.g. Competitive Slalom). Day headers and mid-sheet cells like
+\"Location: Stadium\" set venue_id; a venue in the column header
+(e.g. Basics Bukit Batok) still overrides that slot.
+
+Pass --trials to also import UPCOMING TRIALS from Attendance_Master_List.xlsx.
 """
 
 from __future__ import annotations
@@ -87,9 +91,13 @@ SKIP_STUDENT_NAMES = {
 }
 TIME_RE = re.compile(r"^(\d{1,2})\s*(am|pm)$", re.I)
 NUMBERED_RE = re.compile(r"^\d+\.?$")
-ML_SHEET = "ML 1"
+DAY_RE = re.compile(
+    r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I
+)
+VENUE_NAMES = ("Bukit Batok", "Boon Keng", "Khatib", "Stadium")
+LOCATION_RE = re.compile(r"location\s*:\s*(.+)", re.I)
 TRIALS_SHEET = "UPCOMING TRIALS"
-ML_VENUE = "Stadium"
+DEFAULT_VENUE = "Stadium"
 
 
 def parse_clock(raw: str) -> tuple[str, str] | None:
@@ -125,29 +133,61 @@ def is_skip_name(name: str) -> bool:
     return not key or key in SKIP_STUDENT_NAMES
 
 
-def parse_ml1(ws) -> tuple[list[dict], dict[str, dict], set[tuple[str, str]]]:
+def match_venue_name(raw: str) -> str | None:
+    text = re.sub(r"\s+", " ", raw).strip()
+    for name in VENUE_NAMES:
+        if re.search(re.escape(name), text, re.I):
+            return name
+    return None
+
+
+def parse_venue_and_label(raw: str) -> tuple[str | None, str]:
+    text = re.sub(r"\s+", " ", raw).strip()
+    venue = match_venue_name(text)
+    if venue:
+        text = re.sub(re.escape(venue), "", text, flags=re.I)
+        text = re.sub(r"\s+", " ", text).strip(" -")
+    return venue, text or "Class"
+
+
+def extract_row_location(ws, row: int) -> str | None:
+    for col in range(1, (ws.max_column or 1) + 1):
+        raw = ws.cell(row, col).value
+        if raw in (None, ""):
+            continue
+        m = LOCATION_RE.search(str(raw))
+        if not m:
+            continue
+        return match_venue_name(m.group(1)) or match_venue_name(str(raw))
+    return None
+
+
+def parse_attendance_master(
+    ws,
+) -> tuple[list[dict], dict[str, dict], set[tuple[str, str]]]:
     classes: dict[str, dict] = {}
     students: dict[str, dict] = {}
     enrolments: set[tuple[str, str]] = set()
-    day = "saturday"
-    current_coaches: dict[int, tuple[str, str, str]] = {}
+    day: str | None = None
+    day_venue: str = DEFAULT_VENUE
+    current_slots: dict[int, str] = {}
 
     for row in range(1, (ws.max_row or 1) + 1):
         b = ws.cell(row, 2).value
-        a = ws.cell(row, 1).value
-        title_bits = " ".join(
-            str(ws.cell(row, c).value or "") for c in range(1, 8)
-        )
-        if re.search(r"sunday", title_bits, re.I) and "attendance" in title_bits.lower():
-            day = "sunday"
-            current_coaches = {}
-            continue
-        if re.search(r"saturday", title_bits, re.I) and "attendance" in title_bits.lower():
-            day = "saturday"
-            current_coaches = {}
-            continue
+        title_bits = " ".join(str(ws.cell(row, c).value or "") for c in range(1, 8))
         if re.search(r"legend", title_bits, re.I):
             break
+        row_venue = extract_row_location(ws, row)
+        if row_venue:
+            day_venue = row_venue
+        day_match = DAY_RE.search(title_bits)
+        if day_match and re.search(r"at+endance", title_bits, re.I):
+            day = day_match.group(1).lower()
+            current_slots = {}
+            continue
+
+        if not day:
+            continue
 
         b_text = str(b).strip() if b not in (None, "") else ""
         clock = parse_clock(b_text) if b_text else None
@@ -155,36 +195,42 @@ def parse_ml1(ws) -> tuple[list[dict], dict[str, dict], set[tuple[str, str]]]:
 
         if clock and not NUMBERED_RE.match(first_name_col):
             start, end = clock
-            current_coaches = {}
+            current_slots = {}
+            slot_counts: dict[tuple[str, str], int] = {}
             for col in range(3, (ws.max_column or 3) + 1):
-                coach_raw = ws.cell(row, col).value
-                if coach_raw in (None, ""):
+                type_raw = ws.cell(row, col).value
+                if type_raw in (None, ""):
                     continue
-                coach = re.sub(r"\s+", " ", str(coach_raw)).strip()
-                if not coach or NUMBERED_RE.match(coach):
+                label_raw = re.sub(r"\s+", " ", str(type_raw)).strip()
+                if not label_raw or NUMBERED_RE.match(label_raw):
                     continue
+                header_venue, label = parse_venue_and_label(label_raw)
+                venue = header_venue or day_venue
+                key = (venue.casefold(), label.casefold())
+                slot_counts[key] = slot_counts.get(key, 0) + 1
+                n = slot_counts[key]
+                suffix = f" ({n})" if n > 1 else ""
                 class_id = str(
-                    uuid.uuid5(NS, f"class:{ML_VENUE}:{day}:{start}:{coach.casefold()}")
+                    uuid.uuid5(
+                        NS, f"class:{venue}:{day}:{start}:{label.casefold()}{suffix}"
+                    )
                 )
-                hour_dt = datetime.strptime(start, "%H:%M")
-                hour_label = hour_dt.strftime("%I%p").lstrip("0").upper()
-                name = f"{ML_VENUE} {day.title()} {hour_label} — {coach}"
+                name = label
                 classes[class_id] = {
                     "id": class_id,
                     "name": name,
-                    "venue": ML_VENUE,
+                    "venue": venue,
                     "day_of_week": day,
                     "start_time": start,
                     "end_time": end,
-                    "coach_name": coach,
                 }
-                current_coaches[col] = (class_id, coach, start)
+                current_slots[col] = class_id
             continue
 
-        if not NUMBERED_RE.match(b_text) and a is None:
+        if not NUMBERED_RE.match(b_text):
             continue
 
-        for col, (class_id, _coach, _start) in current_coaches.items():
+        for col, class_id in current_slots.items():
             raw = ws.cell(row, col).value
             if raw in (None, ""):
                 continue
@@ -197,8 +243,8 @@ def parse_ml1(ws) -> tuple[list[dict], dict[str, dict], set[tuple[str, str]]]:
             enrolments.add((sid, class_id))
 
     enrolled_ids = {cid for _sid, cid in enrolments}
-    classes = [c for c in classes.values() if c["id"] in enrolled_ids]
-    return classes, students, enrolments
+    class_list = [c for c in classes.values() if c["id"] in enrolled_ids]
+    return class_list, students, enrolments
 
 
 def split_trial_names(raw: str) -> list[str]:
@@ -323,8 +369,9 @@ def parse_upcoming_trials(
 
 def emit_sql(data) -> str:
     lines = [
-        "-- Generated from Attendance_Master_List.xlsx (ML 1 + UPCOMING TRIALS).",
-        "-- Replaces every class. Event sessions (including trials) are kept.",
+        "-- Generated from Attendance Master.xlsx (weekly roster only).",
+        "-- Class names are class types (e.g. Competitive Slalom).",
+        "-- Replaces every class. Event sessions are kept.",
         "begin;",
         "",
         "-- Drop existing classes (and their sessions / attendance / enrolments)",
@@ -338,19 +385,16 @@ def emit_sql(data) -> str:
         "",
         "delete from classes;",
         "",
-        "-- Classes (Stadium weekly roster from ML 1)",
+        "-- Classes (weekly roster from Attendance Master.xlsx)",
     ]
     for c in data["classes"]:
         lines.append(
             "insert into classes (id, name, day_of_week, start_time, end_time, is_active, venue_id, coach_id)\n"
             f"select {sql_str(c['id'])}, {sql_str(c['name'])}, {sql_str(c['day_of_week'])}, "
-            f"{sql_str(c['start_time'])}::time, {sql_str(c['end_time'])}::time, true, v.id, p.id\n"
-            f"from venues v\n"
-            f"left join profiles p on p.role = 'coach' "
-            f"and lower(btrim(p.full_name)) = lower({sql_str(c['coach_name'])})\n"
-            f"where v.name = {sql_str(c['venue'])}\n"
+            f"{sql_str(c['start_time'])}::time, {sql_str(c['end_time'])}::time, true, v.id, null\n"
+            f"from venues v where v.name = {sql_str(c['venue'])}\n"
             "on conflict (id) do update set name = excluded.name, venue_id = excluded.venue_id, "
-            "coach_id = coalesce(excluded.coach_id, classes.coach_id);"
+            "coach_id = excluded.coach_id;"
         )
     lines.append("")
 
@@ -379,7 +423,8 @@ def emit_sql(data) -> str:
         )
     lines.append("")
 
-    lines.append("-- Trial packages")
+    if data["packages"]:
+        lines.append("-- Trial packages")
     for p in data["packages"]:
         amount = "null" if p["amount_sgd"] is None else str(p["amount_sgd"])
         paid = "true" if p["is_paid"] else "false"
@@ -416,9 +461,11 @@ def emit_sql(data) -> str:
             "  expires_at = excluded.expires_at,\n"
             "  customisation_notes = excluded.customisation_notes;"
         )
-    lines.append("")
+    if data["packages"]:
+        lines.append("")
 
-    lines.append("-- Trial event sessions")
+    if data["sessions"]:
+        lines.append("-- Trial event sessions")
     for s in data["sessions"].values():
         venue = sql_str(s["venue"])
         lines.append(
@@ -445,9 +492,11 @@ def emit_sql(data) -> str:
             "  start_time = excluded.start_time,\n"
             "  end_time = excluded.end_time;"
         )
-    lines.append("")
+    if data["sessions"]:
+        lines.append("")
 
-    lines.append("-- Trial walk-in roster (include overrides)")
+    if data["includes"]:
+        lines.append("-- Trial walk-in roster (include overrides)")
     for session_id, sid in data["includes"]:
         oid = str(uuid.uuid5(NS, f"override:{session_id}:{sid}"))
         lines.append(
@@ -455,9 +504,11 @@ def emit_sql(data) -> str:
             f"values ({sql_str(oid)}, {sql_str(session_id)}, {sql_str(sid)}, 'include')\n"
             "on conflict (session_id, student_id) do update set kind = 'include';"
         )
-    lines.append("")
+    if data["includes"]:
+        lines.append("")
 
-    lines.append("-- Attended trials")
+    if data["attendance"]:
+        lines.append("-- Attended trials")
     for a in data["attendance"]:
         lines.append(
             "insert into attendance (\n"
@@ -480,9 +531,11 @@ def emit_sql(data) -> str:
             "  package_id = excluded.package_id,\n"
             "  marked_at = excluded.marked_at;"
         )
-    lines.append("")
+    if data["attendance"]:
+        lines.append("")
 
-    lines.append("-- Restore trial credit counts (undo attendance triggers)")
+    if data["packages"]:
+        lines.append("-- Restore trial credit counts (undo attendance triggers)")
     for p in data["packages"]:
         lines.append(
             "update packages\n"
@@ -491,21 +544,28 @@ def emit_sql(data) -> str:
             f"    expires_at = {sql_date(p['expires_at'])}\n"
             f"where id = {sql_str(p['id'])};"
         )
-    lines += ["", "commit;"]
+    lines += ["commit;"]
     return "\n".join(lines) + "\n"
 
 
-def parse_workbook(path: Path):
-    values = load_workbook(path, data_only=True)
-    if ML_SHEET not in values.sheetnames:
-        raise SystemExit(f"Missing sheet {ML_SHEET!r}. Found: {values.sheetnames}")
-    if TRIALS_SHEET not in values.sheetnames:
-        raise SystemExit(f"Missing sheet {TRIALS_SHEET!r}. Found: {values.sheetnames}")
+def parse_workbooks(roster_path: Path, trials_path: Path | None):
+    roster_wb = load_workbook(roster_path, data_only=True)
+    roster_ws = roster_wb[roster_wb.sheetnames[0]]
+    classes, students, enrolments = parse_attendance_master(roster_ws)
 
-    classes, students, enrolments = parse_ml1(values[ML_SHEET])
-    packages, sessions, attendance, includes = parse_upcoming_trials(
-        values[TRIALS_SHEET], students
-    )
+    packages: list[dict] = []
+    sessions: dict[str, dict] = {}
+    attendance: list[dict] = []
+    includes: list[tuple[str, str]] = []
+    if trials_path is not None:
+        trials_wb = load_workbook(trials_path, data_only=True)
+        if TRIALS_SHEET not in trials_wb.sheetnames:
+            raise SystemExit(
+                f"Missing sheet {TRIALS_SHEET!r}. Found: {trials_wb.sheetnames}"
+            )
+        packages, sessions, attendance, includes = parse_upcoming_trials(
+            trials_wb[TRIALS_SHEET], students
+        )
     return {
         "classes": classes,
         "students": students,
@@ -519,10 +579,21 @@ def parse_workbook(path: Path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("xlsx")
+    parser.add_argument(
+        "--roster",
+        default="docs/Attendance Master.xlsx",
+        help="Weekly class workbook (Attendance Master.xlsx)",
+    )
+    parser.add_argument(
+        "--trials",
+        default=None,
+        help="Optional workbook with an UPCOMING TRIALS sheet",
+    )
     parser.add_argument("-o", "--output", required=True)
     args = parser.parse_args()
-    data = parse_workbook(Path(args.xlsx))
+    data = parse_workbooks(
+        Path(args.roster), Path(args.trials) if args.trials else None
+    )
     Path(args.output).write_text(emit_sql(data))
     print(
         f"Wrote {args.output}: "
