@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
+  ClipboardList,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -45,6 +46,12 @@ const LINKS = [
     href: "/admin/packages",
     label: "Packages",
     icon: Package,
+    exact: false,
+  },
+  {
+    href: "/coach",
+    label: "Today's sessions",
+    icon: ClipboardList,
     exact: false,
   },
 ] as const;

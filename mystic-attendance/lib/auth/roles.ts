@@ -8,6 +8,12 @@ export function isStaffRole(
   return role === "admin" || role === "coach";
 }
 
+export function isCoachAssignable(
+  role: string | null | undefined
+): boolean {
+  return role === "admin" || role === "coach";
+}
+
 export function homePathForRole(role: Profile["role"]): string {
   return role === "admin" ? "/admin" : "/coach";
 }
