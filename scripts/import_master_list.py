@@ -3,8 +3,9 @@
 
 Attendance Master.xlsx is the current weekly class list (Tue/Fri/Sat/Sun
 slots × class-type columns). Class names are the class type
-(e.g. Competitive Slalom). Venue in the column header (e.g. Basics Bukit Batok)
-is stored on venue_id, not in the title.
+(e.g. Competitive Slalom). Day headers and mid-sheet cells like
+\"Location: Stadium\" set venue_id; a venue in the column header
+(e.g. Basics Bukit Batok) still overrides that slot.
 
 Pass --trials to also import UPCOMING TRIALS from Attendance_Master_List.xlsx.
 """
@@ -94,6 +95,7 @@ DAY_RE = re.compile(
     r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I
 )
 VENUE_NAMES = ("Bukit Batok", "Boon Keng", "Khatib", "Stadium")
+LOCATION_RE = re.compile(r"location\s*:\s*(.+)", re.I)
 TRIALS_SHEET = "UPCOMING TRIALS"
 DEFAULT_VENUE = "Stadium"
 
@@ -131,16 +133,33 @@ def is_skip_name(name: str) -> bool:
     return not key or key in SKIP_STUDENT_NAMES
 
 
-def parse_venue_and_label(raw: str) -> tuple[str, str]:
+def match_venue_name(raw: str) -> str | None:
     text = re.sub(r"\s+", " ", raw).strip()
-    venue = DEFAULT_VENUE
     for name in VENUE_NAMES:
         if re.search(re.escape(name), text, re.I):
-            venue = name
-            text = re.sub(re.escape(name), "", text, flags=re.I)
-            text = re.sub(r"\s+", " ", text).strip(" -")
-            break
+            return name
+    return None
+
+
+def parse_venue_and_label(raw: str) -> tuple[str | None, str]:
+    text = re.sub(r"\s+", " ", raw).strip()
+    venue = match_venue_name(text)
+    if venue:
+        text = re.sub(re.escape(venue), "", text, flags=re.I)
+        text = re.sub(r"\s+", " ", text).strip(" -")
     return venue, text or "Class"
+
+
+def extract_row_location(ws, row: int) -> str | None:
+    for col in range(1, (ws.max_column or 1) + 1):
+        raw = ws.cell(row, col).value
+        if raw in (None, ""):
+            continue
+        m = LOCATION_RE.search(str(raw))
+        if not m:
+            continue
+        return match_venue_name(m.group(1)) or match_venue_name(str(raw))
+    return None
 
 
 def parse_attendance_master(
@@ -150,6 +169,7 @@ def parse_attendance_master(
     students: dict[str, dict] = {}
     enrolments: set[tuple[str, str]] = set()
     day: str | None = None
+    day_venue: str = DEFAULT_VENUE
     current_slots: dict[int, str] = {}
 
     for row in range(1, (ws.max_row or 1) + 1):
@@ -157,6 +177,9 @@ def parse_attendance_master(
         title_bits = " ".join(str(ws.cell(row, c).value or "") for c in range(1, 8))
         if re.search(r"legend", title_bits, re.I):
             break
+        row_venue = extract_row_location(ws, row)
+        if row_venue:
+            day_venue = row_venue
         day_match = DAY_RE.search(title_bits)
         if day_match and re.search(r"at+endance", title_bits, re.I):
             day = day_match.group(1).lower()
@@ -181,7 +204,8 @@ def parse_attendance_master(
                 label_raw = re.sub(r"\s+", " ", str(type_raw)).strip()
                 if not label_raw or NUMBERED_RE.match(label_raw):
                     continue
-                venue, label = parse_venue_and_label(label_raw)
+                header_venue, label = parse_venue_and_label(label_raw)
+                venue = header_venue or day_venue
                 key = (venue.casefold(), label.casefold())
                 slot_counts[key] = slot_counts.get(key, 0) + 1
                 n = slot_counts[key]
