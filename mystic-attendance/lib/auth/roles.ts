@@ -30,8 +30,10 @@ export function isCoachAssignable(role: string | null | undefined): boolean {
   return isStaffRole(role);
 }
 
+export const COACH_UNAVAILABLE_PATH = "/unavailable";
+
 export function homePathForRole(role: Profile["role"]): string {
-  return isAdminRole(role) ? "/admin" : "/coach";
+  return isAdminRole(role) ? "/admin" : COACH_UNAVAILABLE_PATH;
 }
 
 export function roleSatisfies(
