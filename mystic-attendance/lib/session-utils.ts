@@ -262,8 +262,8 @@ export function adminSessionHref(
   if (date && isValidCalendarDate(date)) params.set("date", date);
   const query = params.toString();
   return query
-    ? `/coach/sessions/${sessionId}?${query}`
-    : `/coach/sessions/${sessionId}`;
+    ? `/admin/sessions/${sessionId}?${query}`
+    : `/admin/sessions/${sessionId}`;
 }
 
 export function sessionDisplayName(

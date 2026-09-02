@@ -25,7 +25,11 @@ export default async function CoachSessionPage({ params }: SessionPageProps) {
 
   const { session, students, walkIns } = data;
 
-  if (session.coach_id && session.coach_id !== profile.id) {
+  if (
+    !isAdminRole(profile.role) &&
+    session.coach_id &&
+    session.coach_id !== profile.id
+  ) {
     notFound();
   }
 
