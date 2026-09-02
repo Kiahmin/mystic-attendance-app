@@ -1,33 +1,42 @@
-const COACH_TONES = [
-  {
-    swatch: "bg-primary",
+type CoachTone = {
+  swatch: string;
+  event: string;
+};
+
+const NAMED_COACH_TONES: Record<string, CoachTone> = {
+  lloyd: {
+    swatch: "bg-teal-500",
     event:
-      "border-l-primary bg-primary/15 text-foreground hover:bg-primary/20",
+      "border-l-teal-500 bg-teal-400/20 text-foreground hover:bg-teal-400/25",
   },
-  {
-    swatch: "bg-chart-3",
+  kiahmin: {
+    swatch: "bg-sky-300",
     event:
-      "border-l-chart-3 bg-chart-3/15 text-foreground hover:bg-chart-3/20",
+      "border-l-sky-400 bg-sky-200/40 text-foreground hover:bg-sky-200/50",
   },
-  {
-    swatch: "bg-sky-600",
-    event: "border-l-sky-600 bg-sky-500/15 text-foreground hover:bg-sky-500/20",
-  },
-  {
+  mabel: {
     swatch: "bg-violet-600",
     event:
       "border-l-violet-600 bg-violet-500/15 text-foreground hover:bg-violet-500/20",
   },
-  {
-    swatch: "bg-amber-600",
+  zaiyang: {
+    swatch: "bg-amber-800",
     event:
-      "border-l-amber-600 bg-amber-500/15 text-foreground hover:bg-amber-500/20",
+      "border-l-amber-800 bg-amber-700/15 text-foreground hover:bg-amber-700/20",
   },
-  {
-    swatch: "bg-rose-600",
+  jasmine: {
+    swatch: "bg-pink-400",
     event:
-      "border-l-rose-600 bg-rose-500/15 text-foreground hover:bg-rose-500/20",
+      "border-l-pink-400 bg-pink-300/25 text-foreground hover:bg-pink-300/35",
   },
+  seana: {
+    swatch: "bg-orange-300",
+    event:
+      "border-l-orange-400 bg-orange-200/40 text-foreground hover:bg-orange-200/50",
+  },
+};
+
+const FALLBACK_TONES: CoachTone[] = [
   {
     swatch: "bg-emerald-600",
     event:
@@ -38,13 +47,33 @@ const COACH_TONES = [
     event:
       "border-l-indigo-600 bg-indigo-500/15 text-foreground hover:bg-indigo-500/20",
   },
-] as const;
+  {
+    swatch: "bg-lime-600",
+    event:
+      "border-l-lime-600 bg-lime-500/15 text-foreground hover:bg-lime-500/20",
+  },
+  {
+    swatch: "bg-fuchsia-600",
+    event:
+      "border-l-fuchsia-600 bg-fuchsia-500/15 text-foreground hover:bg-fuchsia-500/20",
+  },
+  {
+    swatch: "bg-cyan-700",
+    event:
+      "border-l-cyan-700 bg-cyan-600/15 text-foreground hover:bg-cyan-600/20",
+  },
+  {
+    swatch: "bg-rose-700",
+    event:
+      "border-l-rose-700 bg-rose-600/15 text-foreground hover:bg-rose-600/20",
+  },
+];
 
-const UNASSIGNED_TONE = {
+const UNASSIGNED_TONE: CoachTone = {
   swatch: "bg-muted-foreground/50",
   event:
     "border-l-muted-foreground/50 bg-muted text-muted-foreground hover:bg-muted/80",
-} as const;
+};
 
 function hashCoachId(id: string) {
   let hash = 0;
@@ -54,27 +83,36 @@ function hashCoachId(id: string) {
   return hash;
 }
 
-export function coachToneIndex(
-  coachId: string,
-  coaches: { id: string }[]
-) {
-  const listed = coaches.findIndex((coach) => coach.id === coachId);
-  if (listed >= 0) return listed % COACH_TONES.length;
-  return hashCoachId(coachId) % COACH_TONES.length;
+function firstNameKey(fullName: string | null | undefined) {
+  const first = fullName?.trim().split(/\s+/)[0];
+  return first?.toLowerCase() ?? "";
+}
+
+type CoachRef = { id: string; full_name: string };
+
+function toneForCoach(
+  coachId: string | null | undefined,
+  coaches: CoachRef[]
+): CoachTone {
+  if (!coachId) return UNASSIGNED_TONE;
+
+  const coach = coaches.find((item) => item.id === coachId);
+  const named = NAMED_COACH_TONES[firstNameKey(coach?.full_name)];
+  if (named) return named;
+
+  return FALLBACK_TONES[hashCoachId(coachId) % FALLBACK_TONES.length];
 }
 
 export function coachEventTone(
   coachId: string | null | undefined,
-  coaches: { id: string }[]
+  coaches: CoachRef[]
 ) {
-  if (!coachId) return UNASSIGNED_TONE.event;
-  return COACH_TONES[coachToneIndex(coachId, coaches)].event;
+  return toneForCoach(coachId, coaches).event;
 }
 
 export function coachSwatchClass(
   coachId: string | null | undefined,
-  coaches: { id: string }[]
+  coaches: CoachRef[]
 ) {
-  if (!coachId) return UNASSIGNED_TONE.swatch;
-  return COACH_TONES[coachToneIndex(coachId, coaches)].swatch;
+  return toneForCoach(coachId, coaches).swatch;
 }
