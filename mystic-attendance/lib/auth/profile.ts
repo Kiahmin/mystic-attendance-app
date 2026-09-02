@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { bypassProfile, isLoginEnabled } from "@/lib/auth/config";
 import {
+  COACH_UNAVAILABLE_PATH,
   homePathForRole,
   isAdminRole,
   isStaffRole,
@@ -11,6 +12,7 @@ import type { Profile } from "@/lib/types";
 import { redirect } from "next/navigation";
 
 export {
+  COACH_UNAVAILABLE_PATH,
   homePathForRole,
   isAdminRole,
   isStaffRole,
@@ -84,7 +86,7 @@ export async function requireProfile(): Promise<Profile> {
 export async function requireRole(roles: Profile["role"][]): Promise<Profile> {
   const profile = await requireProfile();
   if (!roleSatisfies(roles, profile.role)) {
-    redirect(isAdminRole(profile.role) ? "/admin" : "/coach");
+    redirect(isAdminRole(profile.role) ? "/admin" : COACH_UNAVAILABLE_PATH);
   }
   return profile;
 }

@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/profile";
 import { getSessionCheckInList } from "@/lib/queries/sessions";
 import { adminCalendarHref, parseCalendarView } from "@/lib/session-utils";
@@ -20,11 +20,7 @@ export default async function AdminSessionPage({
 }: SessionPageProps) {
   const { id } = await params;
   const { week, weekend, view, date } = await searchParams;
-  const profile = await requireRole(["admin", "coach"]);
-
-  if (profile.role === "coach") {
-    redirect(`/coach/sessions/${id}`);
-  }
+  await requireRole(["admin"]);
 
   let data;
   try {
