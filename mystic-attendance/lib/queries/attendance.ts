@@ -177,6 +177,74 @@ function mapAttendanceRow(
   };
 }
 
+export type PackageChargedVisit = {
+  id: string;
+  sessionDate: string;
+  sessionName: string;
+  startTime: string;
+  studentName: string | null;
+  status: AttendanceStatus | null;
+};
+
+/** Attendance charged to one package, newest session first. */
+export async function listAttendanceChargedToPackage(
+  packageId: string
+): Promise<PackageChargedVisit[]> {
+  if (!packageId) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("attendance")
+    .select(
+      `
+      id,
+      status,
+      students (full_name),
+      sessions!inner (
+        session_date,
+        start_time,
+        name,
+        classes (name, start_time)
+      )
+    `
+    )
+    .eq("package_id", packageId)
+    .eq("deduct_credit", true);
+
+  if (error) throw error;
+
+  return ((data ?? []) as Array<{
+    id: string;
+    status: AttendanceStatus | null;
+    students?: Embedded<{ full_name: string | null }>;
+    sessions: Embedded<{
+      session_date: string;
+      start_time: string | null;
+      name: string | null;
+      classes?: Embedded<{ name: string | null; start_time: string | null }>;
+    }>;
+  }>)
+    .map((row) => {
+      const session = asSingle(row.sessions);
+      if (!session) return null;
+      const classGroup = asSingle(session.classes);
+      return {
+        id: row.id,
+        sessionDate: session.session_date,
+        sessionName: session.name ?? classGroup?.name ?? "Untitled",
+        startTime: session.start_time ?? classGroup?.start_time ?? "00:00:00",
+        studentName: asSingle(row.students)?.full_name ?? null,
+        status: row.status,
+      } satisfies PackageChargedVisit;
+    })
+    .filter((visit): visit is PackageChargedVisit => visit !== null)
+    .sort((a, b) => {
+      const byDate = b.sessionDate.localeCompare(a.sessionDate);
+      if (byDate !== 0) return byDate;
+      return b.startTime.localeCompare(a.startTime);
+    });
+}
+
 /** Every attendance row for a student, newest session first. */
 export async function listAttendanceForStudent(
   studentId: string
