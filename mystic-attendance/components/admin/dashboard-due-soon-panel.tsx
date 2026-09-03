@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { markPackageInformed } from "@/lib/actions/packages";
+import { useState } from "react";
 import { formatCalendarDate } from "@/lib/datetime";
 import type { DashboardQueueItem } from "@/lib/queries/dashboard";
+import { InformPackageDialog } from "@/components/admin/inform-package-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -33,40 +33,28 @@ function dueSoonWhy(item: DashboardQueueItem): string {
   return `${lessons} · ${last}`;
 }
 
-function InformButton({ packageId }: { packageId: string }) {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  const errorId = `inform-error-${packageId}`;
+function InformButton({ item }: { item: DashboardQueueItem }) {
+  const [open, setOpen] = useState(false);
 
   return (
-    <span className="inline-flex flex-col items-end">
+    <>
       <Button
         type="button"
         size="sm"
         variant="outline"
-        disabled={pending}
-        aria-busy={pending}
-        aria-describedby={error ? errorId : undefined}
-        onClick={() => {
-          setError(null);
-          startTransition(async () => {
-            const result = await markPackageInformed(packageId);
-            if (result.error) setError(result.error);
-          });
-        }}
+        onClick={() => setOpen(true)}
       >
-        {pending ? "Saving…" : "Inform"}
+        Inform
       </Button>
-      <span
-        id={errorId}
-        role="alert"
-        aria-live="assertive"
-        className="mt-1 max-w-40 text-right text-xs text-destructive empty:hidden"
-      >
-        {error}
-      </span>
-    </span>
+      <InformPackageDialog
+        packageId={item.packageId}
+        studentName={item.studentName}
+        packageLabel={item.packageLabel}
+        remainingCredits={item.remainingCredits}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
   );
 }
 
@@ -125,7 +113,7 @@ export function DashboardDueSoonPanel({
           why={dueSoonWhy(item)}
           actions={
             <div className="flex items-center justify-end gap-1.5">
-              <InformButton packageId={item.packageId} />
+              <InformButton item={item} />
               <AssignPackageLink
                 studentId={item.studentId}
                 studentName={item.studentName}

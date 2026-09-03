@@ -14,6 +14,7 @@ import {
   LOW_CREDIT_THRESHOLD,
   type PauseReasonValue,
 } from "@/lib/package-utils";
+import { listAttendanceChargedToPackage } from "@/lib/queries/attendance";
 import { getPackageProductById } from "@/lib/queries/packages";
 import { createClient } from "@/lib/supabase/server";
 import type { PaymentMethod } from "@/lib/types";
@@ -557,6 +558,24 @@ export async function markPackageInformed(packageId: string) {
     packageId
   );
   return { success: true as const };
+}
+
+export async function loadPackageChargedAttendance(packageId: string) {
+  await requireRole(["admin"]);
+
+  if (!packageId) return { error: "Package id is required." };
+
+  try {
+    const visits = await listAttendanceChargedToPackage(packageId);
+    return { visits };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not load classes for this package.",
+    };
+  }
 }
 
 export async function addPackageStudent(packageId: string, studentId: string) {
