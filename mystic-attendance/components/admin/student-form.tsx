@@ -209,15 +209,12 @@ export function StudentForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="date_of_birth">
-              Date of birth <span className="text-destructive">*</span>
-            </Label>
+            <Label htmlFor="date_of_birth">Date of birth</Label>
             <Input
               id="date_of_birth"
               type="date"
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
-              required={!student}
             />
           </div>
           <div className="space-y-2">
