@@ -11,6 +11,7 @@ import {
   formatSessionTime,
 } from "@/lib/attendance-utils";
 import { formatCalendarDate } from "@/lib/datetime";
+import { remainingCreditsLabel } from "@/lib/package-utils";
 import type { PackageChargedVisit } from "@/lib/queries/attendance";
 import type { DashboardQueueItem } from "@/lib/queries/dashboard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -46,14 +47,7 @@ export function InformPackageDialog({
   const [confirmPending, startConfirm] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [visits, setVisits] = useState<PackageChargedVisit[] | null>(null);
-  const remainingLabel =
-    remainingCredits < 0
-      ? Math.abs(remainingCredits) === 1
-        ? "1 extra lesson"
-        : `${Math.abs(remainingCredits)} extra lessons`
-      : remainingCredits === 1
-        ? "1 lesson left"
-        : `${Math.max(0, remainingCredits)} lessons left`;
+  const remainingLabel = remainingCreditsLabel(remainingCredits);
 
   function handleOpenChange(next: boolean) {
     if (!next) {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatCalendarDate } from "@/lib/datetime";
+import { remainingCreditsLabel } from "@/lib/package-utils";
 import type { DashboardQueueItem } from "@/lib/queries/dashboard";
 import { InformButton } from "@/components/admin/inform-package-dialog";
 import {
@@ -23,13 +24,10 @@ type DashboardDueSoonPanelProps = {
 };
 
 function dueSoonWhy(item: DashboardQueueItem): string {
-  const remaining = Math.max(0, item.remainingCredits);
-  const lessons =
-    remaining === 1 ? "1 lesson left" : `${remaining} lessons left`;
   const last = item.lastAttendedOn
     ? `last ${formatCalendarDate(item.lastAttendedOn)}`
     : "no attendance yet";
-  return `${lessons} · ${last}`;
+  return `${remainingCreditsLabel(item.remainingCredits)} · ${last}`;
 }
 
 export function DashboardDueSoonPanel({

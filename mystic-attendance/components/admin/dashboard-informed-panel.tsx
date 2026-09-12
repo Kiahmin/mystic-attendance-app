@@ -1,4 +1,5 @@
 import { formatSingaporeDateTime } from "@/lib/datetime";
+import { remainingCreditsLabel } from "@/lib/package-utils";
 import type { DashboardQueueItem } from "@/lib/queries/dashboard";
 import { Badge } from "@/components/ui/badge";
 import { DashboardQueuePanel } from "@/components/admin/dashboard-queue-panel";
@@ -16,9 +17,7 @@ function informedWhy(item: DashboardQueueItem): string {
     ? `Informed ${formatSingaporeDateTime(item.informedAt)}`
     : "Informed — awaiting renewal";
   if (item.status !== "overshot") return informed;
-  const extra = Math.max(0, -item.remainingCredits);
-  const extraLabel = extra === 1 ? "1 extra lesson" : `${extra} extra lessons`;
-  return `${informed} · ${extraLabel}`;
+  return `${informed} · ${remainingCreditsLabel(item.remainingCredits)}`;
 }
 
 export function DashboardInformedPanel({ items }: DashboardInformedPanelProps) {
