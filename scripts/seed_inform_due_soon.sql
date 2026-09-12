@@ -1,4 +1,4 @@
--- Seed data to test Due soon → Inform popup → Informed list.
+-- Seed data to test Due soon / Overshot → Inform popup → Informed list.
 -- Run in the Supabase SQL editor (or psql) as a role that bypasses RLS.
 -- Safe to re-run: previous rows tagged notes = 'inform-feature-seed' are removed first.
 --
@@ -6,8 +6,11 @@
 --   Due soon
 --     Inform Test Mei   — 8-credit pack, 2 left, 6 charged classes in the popup
 --     Inform Test Kai   — shared pack with Nora; popup lists both names
+--   Overshot
+--     Inform Test Rui   — 8-credit pack, 2 extra lessons; Inform then confirm
 --   Informed
---     Inform Test Priya — already marked informed (1 lesson left)
+--     Inform Test Priya — finishing pack, already informed (1 lesson left)
+--     Inform Test Lara  — overshot pack, already informed (Overshot badge)
 --   Not listed
 --     Inform Test Ben   — finishing pack, but a renewal pack is already assigned
 
@@ -44,14 +47,18 @@ where notes = 'inform-feature-seed';
 --  a0e10001-… Mei (solo due soon)
 --  a0e10002-… Kai (shared pack primary)
 --  a0e10003-… Nora (shared pack member)
---  a0e10004-… Priya (already informed)
+--  a0e10004-… Priya (already informed, finishing)
 --  a0e10005-… Ben (has renewal — hidden from due soon)
+--  a0e10006-… Rui (overshot, not informed)
+--  a0e10007-… Lara (overshot, already informed)
 -- Packages
 --  a0e20001-… Mei finishing
 --  a0e20002-… Kai/Nora finishing
 --  a0e20003-… Priya finishing + informed
 --  a0e20004-… Ben finishing
 --  a0e20005-… Ben renewal (8 remaining)
+--  a0e20006-… Rui overshot
+--  a0e20007-… Lara overshot + informed
 
 insert into payers (id, kind, display_name, phone, notes)
 values (
@@ -118,6 +125,28 @@ insert into students (
     null,
     '+65 8000 1005',
     'freestyle',
+    'inform-feature-seed',
+    'a0e30000-0000-4000-8000-000000000001'
+  ),
+  (
+    'a0e10006-0000-4000-8000-000000000006',
+    'Inform Test Rui',
+    '1997-01-14',
+    null,
+    null,
+    '+65 8000 1006',
+    'intermediate',
+    'inform-feature-seed',
+    'a0e30000-0000-4000-8000-000000000001'
+  ),
+  (
+    'a0e10007-0000-4000-8000-000000000007',
+    'Inform Test Lara',
+    '1993-05-21',
+    null,
+    null,
+    '+65 8000 1007',
+    'advanced',
     'inform-feature-seed',
     'a0e30000-0000-4000-8000-000000000001'
   );
@@ -204,6 +233,22 @@ from (
       null::date,
       null::date,
       null::timestamptz
+    ),
+    (
+      'a0e20006-0000-4000-8000-000000000006'::uuid,
+      'a0e10006-0000-4000-8000-000000000006'::uuid,
+      8,
+      (current_date - 77),
+      (current_date - 77 + 180),
+      null::timestamptz
+    ),
+    (
+      'a0e20007-0000-4000-8000-000000000007'::uuid,
+      'a0e10007-0000-4000-8000-000000000007'::uuid,
+      8,
+      (current_date - 84),
+      (current_date - 84 + 180),
+      now() - interval '2 hours'
     )
 ) as p(id, student_id, total_credits, first_lesson, expires_at, informed_at)
 cross join lateral (
@@ -247,7 +292,7 @@ from classes c
 join enrolments e
   on e.class_id = c.id
  and e.student_id = 'a0e10001-0000-4000-8000-000000000001'
-join generate_series(current_date - 80, current_date - 1, interval '1 day') d
+join generate_series(current_date - 120, current_date - 1, interval '1 day') d
   on extract(dow from d) = case c.day_of_week
     when 'sunday' then 0
     when 'monday' then 1
@@ -259,7 +304,7 @@ join generate_series(current_date - 80, current_date - 1, interval '1 day') d
   end
 on conflict (class_id, session_date) do nothing;
 
--- Newest 8 matching class days.
+-- Newest 12 matching class days (overshot packs need more than 8 charges).
 with class_days as (
   select s.id, s.session_date,
     row_number() over (order by s.session_date desc) as rn
@@ -274,7 +319,7 @@ with class_days as (
 picked as (
   select id, session_date, rn
   from class_days
-  where rn <= 8
+  where rn <= 12
 ),
 admin as (
   select id
@@ -347,6 +392,24 @@ cross join (
     'present'
   from picked p
   where p.rn between 3 and 8
+
+  union all
+  -- Rui: 10 present on 8-credit pack → 2 extra, not informed
+  select p.id, p.session_date,
+    'a0e10006-0000-4000-8000-000000000006'::uuid,
+    'a0e20006-0000-4000-8000-000000000006'::uuid,
+    'present'
+  from picked p
+  where p.rn between 1 and 10
+
+  union all
+  -- Lara: 9 present on 8-credit pack → 1 extra, already informed
+  select p.id, p.session_date,
+    'a0e10007-0000-4000-8000-000000000007'::uuid,
+    'a0e20007-0000-4000-8000-000000000007'::uuid,
+    'present'
+  from picked p
+  where p.rn between 2 and 10
 ) x
 on conflict (session_id, student_id) do update
 set
@@ -363,6 +426,7 @@ select
   st.full_name,
   pkg.id as package_id,
   pkg.remaining_credits,
+  pkg.status,
   pkg.informed_at is not null as informed,
   (
     select count(*)

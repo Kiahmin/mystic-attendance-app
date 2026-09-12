@@ -1,4 +1,5 @@
 import type { DashboardQueueItem } from "@/lib/queries/dashboard";
+import { InformButton } from "@/components/admin/inform-package-dialog";
 import { DashboardQueuePanel } from "@/components/admin/dashboard-queue-panel";
 import {
   AssignPackageLink,
@@ -18,7 +19,7 @@ export function DashboardOvershotPanel({ items }: DashboardOvershotPanelProps) {
   return (
     <DashboardQueuePanel
       title="Overshot"
-      description="More lessons attended than purchased. Assign a renewal."
+      description="More lessons attended than purchased. Inform them or assign a renewal."
       count={items.length}
       listLabel="Overshot students"
       emptyTitle="No overshot students"
@@ -34,10 +35,13 @@ export function DashboardOvershotPanel({ items }: DashboardOvershotPanelProps) {
           why={overshotWhy(item)}
           whyClassName="text-destructive"
           actions={
-            <AssignPackageLink
-              studentId={item.studentId}
-              studentName={item.studentName}
-            />
+            <div className="flex items-center justify-end gap-1.5">
+              <InformButton item={item} />
+              <AssignPackageLink
+                studentId={item.studentId}
+                studentName={item.studentName}
+              />
+            </div>
           }
         />
       ))}

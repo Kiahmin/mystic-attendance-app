@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { formatCalendarDate } from "@/lib/datetime";
 import type { DashboardQueueItem } from "@/lib/queries/dashboard";
-import { InformPackageDialog } from "@/components/admin/inform-package-dialog";
-import { Button } from "@/components/ui/button";
+import { InformButton } from "@/components/admin/inform-package-dialog";
 import {
   Select,
   SelectContent,
@@ -31,31 +30,6 @@ function dueSoonWhy(item: DashboardQueueItem): string {
     ? `last ${formatCalendarDate(item.lastAttendedOn)}`
     : "no attendance yet";
   return `${lessons} · ${last}`;
-}
-
-function InformButton({ item }: { item: DashboardQueueItem }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={() => setOpen(true)}
-      >
-        Inform
-      </Button>
-      <InformPackageDialog
-        packageId={item.packageId}
-        studentName={item.studentName}
-        packageLabel={item.packageLabel}
-        remainingCredits={item.remainingCredits}
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
-  );
 }
 
 export function DashboardDueSoonPanel({

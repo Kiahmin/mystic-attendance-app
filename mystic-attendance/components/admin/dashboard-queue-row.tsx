@@ -7,6 +7,7 @@ type DashboardQueueRowProps = {
   studentHref: string;
   why: string;
   whyClassName?: string;
+  badge?: React.ReactNode;
   actions: React.ReactNode;
 };
 
@@ -55,18 +56,22 @@ export function DashboardQueueRow({
   studentHref,
   why,
   whyClassName,
+  badge,
   actions,
 }: DashboardQueueRowProps) {
   return (
     <li className="flex flex-col gap-1.5 py-3 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-3">
-        <Link
-          href={studentHref}
-          aria-label={`Edit ${studentName}`}
-          className="min-w-0 truncate font-medium underline-offset-4 hover:underline"
-        >
-          {studentName}
-        </Link>
+        <div className="flex min-w-0 items-center gap-2">
+          <Link
+            href={studentHref}
+            aria-label={`Edit ${studentName}`}
+            className="min-w-0 truncate font-medium underline-offset-4 hover:underline"
+          >
+            {studentName}
+          </Link>
+          {badge}
+        </div>
         <div className="flex shrink-0 flex-col items-end gap-1">{actions}</div>
       </div>
       <p className={cn("text-sm text-muted-foreground", whyClassName)}>{why}</p>
