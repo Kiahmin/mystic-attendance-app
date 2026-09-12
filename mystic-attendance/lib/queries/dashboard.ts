@@ -29,6 +29,7 @@ export type DashboardQueueItem = {
   classIds: string[];
   classNames: string[];
   informedAt: string | null;
+  status: PackageStatus;
 };
 
 export type MonthlyVenueCheckIns = {
@@ -381,20 +382,32 @@ export async function getDashboardOperations(
         renewalSource
       )
   );
-  const informedRows = queuePackages.filter(
-    (pkg) =>
-      Boolean(pkg.informed_at) &&
-      Number(pkg.remaining_credits) > 0 &&
-      !membersHaveRenewal(
-        queueMembers(pkg).map((member) => member.id),
-        pkg.id,
-        renewalSource
-      )
-  );
+  const pendingOvershotRows = overshotRows.filter((pkg) => !pkg.informed_at);
+  const informedRows = [
+    ...queuePackages.filter(
+      (pkg) =>
+        Boolean(pkg.informed_at) &&
+        Number(pkg.remaining_credits) > 0 &&
+        !membersHaveRenewal(
+          queueMembers(pkg).map((member) => member.id),
+          pkg.id,
+          renewalSource
+        )
+    ),
+    ...overshotRows.filter(
+      (pkg) =>
+        Boolean(pkg.informed_at) &&
+        !membersHaveRenewal(
+          queueMembers(pkg).map((member) => member.id),
+          pkg.id,
+          renewalSource
+        )
+    ),
+  ];
 
   const studentIds = [
     ...new Set(
-      [...dueSoonRows, ...informedRows, ...overshotRows].flatMap((pkg) =>
+      [...dueSoonRows, ...informedRows, ...pendingOvershotRows].flatMap((pkg) =>
         queueMembers(pkg).map((member) => member.id)
       )
     ),
@@ -486,6 +499,7 @@ export async function getDashboardOperations(
       classIds,
       classNames,
       informedAt: pkg.informed_at,
+      status: pkg.status,
     };
   }
 
@@ -495,7 +509,7 @@ export async function getDashboardOperations(
   const informed = informedRows
     .map(toQueueItem)
     .sort((a, b) => (b.informedAt ?? "").localeCompare(a.informedAt ?? ""));
-  const overshot = overshotRows
+  const overshot = pendingOvershotRows
     .map(toQueueItem)
     .sort((a, b) => a.remainingCredits - b.remainingCredits);
 

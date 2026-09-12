@@ -1,4 +1,6 @@
 import type { DashboardQueueItem } from "@/lib/queries/dashboard";
+import { remainingCreditsLabel } from "@/lib/package-utils";
+import { InformButton } from "@/components/admin/inform-package-dialog";
 import { DashboardQueuePanel } from "@/components/admin/dashboard-queue-panel";
 import {
   AssignPackageLink,
@@ -9,16 +11,11 @@ type DashboardOvershotPanelProps = {
   items: DashboardQueueItem[];
 };
 
-function overshotWhy(item: DashboardQueueItem): string {
-  const extra = Math.max(0, -item.remainingCredits);
-  return extra === 1 ? "1 extra lesson" : `${extra} extra lessons`;
-}
-
 export function DashboardOvershotPanel({ items }: DashboardOvershotPanelProps) {
   return (
     <DashboardQueuePanel
       title="Overshot"
-      description="More lessons attended than purchased. Assign a renewal."
+      description="More lessons attended than purchased. Inform them or assign a renewal."
       count={items.length}
       listLabel="Overshot students"
       emptyTitle="No overshot students"
@@ -31,13 +28,16 @@ export function DashboardOvershotPanel({ items }: DashboardOvershotPanelProps) {
           key={item.packageId}
           studentName={item.studentName}
           studentHref={`/admin/students/${item.studentId}`}
-          why={overshotWhy(item)}
+          why={remainingCreditsLabel(item.remainingCredits)}
           whyClassName="text-destructive"
           actions={
-            <AssignPackageLink
-              studentId={item.studentId}
-              studentName={item.studentName}
-            />
+            <div className="flex items-center justify-end gap-1.5">
+              <InformButton item={item} />
+              <AssignPackageLink
+                studentId={item.studentId}
+                studentName={item.studentName}
+              />
+            </div>
           }
         />
       ))}

@@ -11,7 +11,9 @@ import {
   formatSessionTime,
 } from "@/lib/attendance-utils";
 import { formatCalendarDate } from "@/lib/datetime";
+import { remainingCreditsLabel } from "@/lib/package-utils";
 import type { PackageChargedVisit } from "@/lib/queries/attendance";
+import type { DashboardQueueItem } from "@/lib/queries/dashboard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,9 +47,7 @@ export function InformPackageDialog({
   const [confirmPending, startConfirm] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [visits, setVisits] = useState<PackageChargedVisit[] | null>(null);
-  const remaining = Math.max(0, remainingCredits);
-  const remainingLabel =
-    remaining === 1 ? "1 lesson left" : `${remaining} lessons left`;
+  const remainingLabel = remainingCreditsLabel(remainingCredits);
 
   function handleOpenChange(next: boolean) {
     if (!next) {
@@ -201,5 +201,30 @@ export function InformPackageDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+export function InformButton({ item }: { item: DashboardQueueItem }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => setOpen(true)}
+      >
+        Inform
+      </Button>
+      <InformPackageDialog
+        packageId={item.packageId}
+        studentName={item.studentName}
+        packageLabel={item.packageLabel}
+        remainingCredits={item.remainingCredits}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
   );
 }

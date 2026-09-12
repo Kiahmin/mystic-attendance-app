@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { formatCalendarDate } from "@/lib/datetime";
+import { remainingCreditsLabel } from "@/lib/package-utils";
 import type { DashboardQueueItem } from "@/lib/queries/dashboard";
-import { InformPackageDialog } from "@/components/admin/inform-package-dialog";
-import { Button } from "@/components/ui/button";
+import { InformButton } from "@/components/admin/inform-package-dialog";
 import {
   Select,
   SelectContent,
@@ -24,38 +24,10 @@ type DashboardDueSoonPanelProps = {
 };
 
 function dueSoonWhy(item: DashboardQueueItem): string {
-  const remaining = Math.max(0, item.remainingCredits);
-  const lessons =
-    remaining === 1 ? "1 lesson left" : `${remaining} lessons left`;
   const last = item.lastAttendedOn
     ? `last ${formatCalendarDate(item.lastAttendedOn)}`
     : "no attendance yet";
-  return `${lessons} · ${last}`;
-}
-
-function InformButton({ item }: { item: DashboardQueueItem }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={() => setOpen(true)}
-      >
-        Inform
-      </Button>
-      <InformPackageDialog
-        packageId={item.packageId}
-        studentName={item.studentName}
-        packageLabel={item.packageLabel}
-        remainingCredits={item.remainingCredits}
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
-  );
+  return `${remainingCreditsLabel(item.remainingCredits)} · ${last}`;
 }
 
 export function DashboardDueSoonPanel({

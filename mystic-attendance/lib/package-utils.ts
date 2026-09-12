@@ -80,6 +80,16 @@ export function extraCreditsUsed(pkg: {
   return Math.max(0, pkg.used_credits - pkg.total_credits);
 }
 
+/** Queue copy: leftover lessons, or extra lessons when remaining is negative. */
+export function remainingCreditsLabel(remainingCredits: number): string {
+  if (remainingCredits < 0) {
+    const extra = -remainingCredits;
+    return extra === 1 ? "1 extra lesson" : `${extra} extra lessons`;
+  }
+  const remaining = Math.max(0, remainingCredits);
+  return remaining === 1 ? "1 lesson left" : `${remaining} lessons left`;
+}
+
 export function isTrialProductType(productType: PackageProductType): boolean {
   return productType === "trial_group" || productType === "trial_private";
 }

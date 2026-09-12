@@ -536,11 +536,15 @@ export async function markPackageInformed(packageId: string) {
   if (existing.session_id) {
     return { error: "Event packages cannot be marked as informed." };
   }
-  if (existing.status !== "active") {
-    return { error: "Only active packages can be marked as informed." };
-  }
-  if (Number(existing.remaining_credits) > LOW_CREDIT_THRESHOLD) {
-    return { error: "Only packages with two or fewer lessons remaining can be informed." };
+  const isOvershot = existing.status === "overshot";
+  const isFinishingActive =
+    existing.status === "active" &&
+    Number(existing.remaining_credits) <= LOW_CREDIT_THRESHOLD;
+  if (!isOvershot && !isFinishingActive) {
+    return {
+      error:
+        "Only finishing (two or fewer lessons left) or overshot packages can be informed.",
+    };
   }
   if (existing.informed_at) {
     return { error: "This package is already on the informed list." };
