@@ -20,6 +20,7 @@ type ArchiveStudentButtonProps = {
   studentName: string;
   archived: boolean;
   variant?: "label" | "icon";
+  returnHref?: string;
 };
 
 export function ArchiveStudentButton({
@@ -27,6 +28,7 @@ export function ArchiveStudentButton({
   studentName,
   archived,
   variant = "label",
+  returnHref,
 }: ArchiveStudentButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -47,6 +49,11 @@ export function ArchiveStudentButton({
         return;
       }
       handleOpenChange(false);
+      if (returnHref && !archived) {
+        router.replace(returnHref);
+        router.refresh();
+        return;
+      }
       router.refresh();
     });
   }
@@ -93,6 +100,8 @@ export function ArchiveStudentButton({
         <DialogContent
           className="gap-0 overflow-hidden p-0 sm:max-w-lg"
           showCloseButton
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
         >
           <DialogHeader className="flex-row items-center gap-3 space-y-0 border-b px-5 py-4">
             <span

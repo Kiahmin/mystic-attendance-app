@@ -9,14 +9,29 @@ export function isNavActive(
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function studentListHref(options?: {
+export type StudentListQuery = {
   inactive?: boolean;
   q?: string;
-}): string {
+  page?: number;
+};
+
+function studentListSearchParams(options?: StudentListQuery) {
   const params = new URLSearchParams();
   if (options?.inactive) params.set("inactive", "1");
   const q = options?.q?.trim();
   if (q) params.set("q", q);
-  const qs = params.toString();
+  if (options?.page != null && options.page > 1) {
+    params.set("page", String(options.page));
+  }
+  return params;
+}
+
+export function studentListHref(options?: StudentListQuery): string {
+  const qs = studentListSearchParams(options).toString();
   return qs ? `/admin/students?${qs}` : "/admin/students";
+}
+
+export function studentDetailHref(id: string, list?: StudentListQuery): string {
+  const qs = studentListSearchParams(list).toString();
+  return qs ? `/admin/students/${id}?${qs}` : `/admin/students/${id}`;
 }
