@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { studentListHref } from "@/lib/navigation";
+import { studentDetailHref, studentListHref } from "@/lib/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -87,6 +87,7 @@ type StudentListProps = {
   classes: StudentListClass[];
   initialSearch?: string;
   initialInactive?: boolean;
+  initialPage?: number;
 };
 
 type RosterTab = "active" | "archived";
@@ -301,6 +302,7 @@ export function StudentList({
   classes,
   initialSearch = "",
   initialInactive = false,
+  initialPage = 1,
 }: StudentListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -311,6 +313,16 @@ export function StudentList({
   const [inactiveOnly, setInactiveOnlyState] = useState(
     urlInactive || initialInactive
   );
+  const urlPage = Number(searchParams.get("page"));
+  const [page, setPage] = useState(() => {
+    if (Number.isFinite(urlPage) && urlPage > 0) return urlPage;
+    return Math.max(1, initialPage);
+  });
+  const [skillFilters, setSkillFilters] = useState<SkillFilter[]>([]);
+  const [statusFilters, setStatusFilters] = useState<PackageFilter[]>([]);
+  const [classFilters, setClassFilters] = useState<ClassFilter[]>([]);
+  const [productFilters, setProductFilters] = useState<ProductFilter[]>([]);
+  const [sort, setSort] = useState<StudentSort>(DEFAULT_SORT);
 
   useEffect(() => {
     const fromLocation =
@@ -319,22 +331,33 @@ export function StudentList({
     setInactiveOnlyState(fromLocation || urlInactive);
   }, [urlInactive, searchParams]);
 
+  function listHref(next?: {
+    inactive?: boolean;
+    q?: string;
+    page?: number;
+  }) {
+    return studentListHref({
+      inactive: next?.inactive ?? inactiveOnly,
+      q: next?.q ?? search,
+      page: next?.page ?? page,
+    });
+  }
+
+  function resetPage() {
+    setPage(1);
+  }
+
   function setInactiveOnly(next: boolean) {
     setInactiveOnlyState(next);
-    router.replace(studentListHref({ inactive: next, q: search }), {
+    router.replace(listHref({ inactive: next, page: 1 }), {
       scroll: false,
     });
     resetPage();
   }
-  const [skillFilters, setSkillFilters] = useState<SkillFilter[]>([]);
-  const [statusFilters, setStatusFilters] = useState<PackageFilter[]>([]);
-  const [classFilters, setClassFilters] = useState<ClassFilter[]>([]);
-  const [productFilters, setProductFilters] = useState<ProductFilter[]>([]);
-  const [sort, setSort] = useState<StudentSort>(DEFAULT_SORT);
-  const [page, setPage] = useState(1);
 
-  function resetPage() {
-    setPage(1);
+  function goToPage(next: number) {
+    setPage(next);
+    router.replace(listHref({ page: next }), { scroll: false });
   }
 
   const classFilterOptions = useMemo(
@@ -656,20 +679,24 @@ export function StudentList({
                     const contact = contactSubline(student);
 
                     return (
-                      <li key={student.id}>
-                        <Link
-                          href={
-                            inactiveOnly
-                              ? `/admin/students/${student.id}?inactive=1`
-                              : `/admin/students/${student.id}`
-                          }
+                      <li key={student.id} className="relative">
+                        <div
                           className={cn(
                             "grid gap-3 px-5 py-4 transition-colors hover:bg-muted/40 lg:items-start",
                             ROSTER_GRID,
                             archived && "opacity-70 hover:opacity-100"
                           )}
                         >
-                          <div className="min-w-0">
+                          <Link
+                            href={studentDetailHref(student.id, {
+                              inactive: inactiveOnly,
+                              q: search,
+                              page: currentPage,
+                            })}
+                            className="absolute inset-0 z-0"
+                            aria-label={student.full_name}
+                          />
+                          <div className="relative z-10 min-w-0 pointer-events-none">
                             <p className="truncate">{student.full_name}</p>
                             {age != null ? (
                               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -699,7 +726,7 @@ export function StudentList({
                             </div>
                           </div>
 
-                          <div>
+                          <div className="relative z-10 pointer-events-none">
                             <span className="lg:hidden text-xs text-muted-foreground">
                               Payer:{" "}
                             </span>
@@ -712,28 +739,28 @@ export function StudentList({
                             </p>
                           </div>
 
-                          <div>
+                          <div className="relative z-10 pointer-events-none">
                             <span className="lg:hidden text-xs text-muted-foreground">
                               Venue:{" "}
                             </span>
                             <RosterVenueCell classes={student.classes} />
                           </div>
 
-                          <div>
+                          <div className="relative z-10 pointer-events-none">
                             <span className="lg:hidden text-xs text-muted-foreground">
                               Package:{" "}
                             </span>
                             <RosterPackageCell pkg={student.roster_package} />
                           </div>
 
-                          <div>
+                          <div className="relative z-10 pointer-events-none">
                             <span className="lg:hidden text-xs text-muted-foreground">
                               Validity:{" "}
                             </span>
                             <RosterValidityCell pkg={student.roster_package} />
                           </div>
 
-                          <div>
+                          <div className="relative z-10 pointer-events-none">
                             <span className="lg:hidden text-xs text-muted-foreground">
                               Status:{" "}
                             </span>
@@ -748,7 +775,7 @@ export function StudentList({
                             )}
                           </div>
 
-                          <span className="flex items-center justify-end gap-1 lg:pt-0.5">
+                          <span className="relative z-10 flex items-center justify-end gap-1 lg:pt-0.5">
                             <ArchiveStudentButton
                               studentId={student.id}
                               studentName={student.full_name}
@@ -757,7 +784,7 @@ export function StudentList({
                             />
                             <ChevronRight className="hidden size-4 text-muted-foreground lg:block" />
                           </span>
-                        </Link>
+                        </div>
                       </li>
                     );
                   })}
@@ -777,7 +804,7 @@ export function StudentList({
                   size="icon-sm"
                   disabled={currentPage <= 1}
                   aria-label="Previous page"
-                  onClick={() => setPage((value) => Math.max(1, value - 1))}
+                  onClick={() => goToPage(Math.max(1, currentPage - 1))}
                 >
                   <ChevronLeft className="size-5" />
                 </Button>
@@ -788,7 +815,7 @@ export function StudentList({
                   disabled={currentPage >= pageCount}
                   aria-label="Next page"
                   onClick={() =>
-                    setPage((value) => Math.min(pageCount, value + 1))
+                    goToPage(Math.min(pageCount, currentPage + 1))
                   }
                 >
                   <ChevronRight className="size-5" />

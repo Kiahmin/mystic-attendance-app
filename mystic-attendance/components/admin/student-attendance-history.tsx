@@ -14,7 +14,7 @@ import {
   attendanceCreditState,
   formatSessionTime,
 } from "@/lib/attendance-utils";
-import { formatCalendarDateLong } from "@/lib/datetime";
+import { formatCalendarDate, formatCalendarDateLong } from "@/lib/datetime";
 import type { AttendanceStatus, StudentAttendanceEntry } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,9 @@ type StudentAttendanceHistoryProps = {
 };
 
 type StatusFilter = AttendanceStatus | "unset";
+type PackageFilter = string;
+
+const NO_PACKAGE_FILTER = "none";
 
 type OptionalColumn = "coach" | "credit" | "markedBy";
 
@@ -66,6 +69,11 @@ const COLUMN_LAYOUT: { column: OptionalColumn | null; width: string }[] = [
 ];
 
 const DEFAULT_SORT: TableSort<"date"> = { column: "date", dir: "desc" };
+
+function packageDateHint(start: string, end: string) {
+  if (start === end) return formatCalendarDateLong(start);
+  return `${formatCalendarDate(start)}–${formatCalendarDateLong(end)}`;
+}
 
 function StatusPill({
   entry,
@@ -145,8 +153,56 @@ export function StudentAttendanceHistory({
 }: StudentAttendanceHistoryProps) {
   const [sort, setSort] = useState<TableSort<"date">>(DEFAULT_SORT);
   const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([]);
+  const [packageFilters, setPackageFilters] = useState<PackageFilter[]>([]);
   const [hiddenColumns, setHiddenColumns] = useState<OptionalColumn[]>([]);
   const [page, setPage] = useState(1);
+
+  const packageOptions = useMemo(() => {
+    const byId = new Map<
+      string,
+      { name: string; start: string; end: string }
+    >();
+    let hasNoPackage = false;
+
+    for (const entry of entries) {
+      if (!entry.package_id) {
+        hasNoPackage = true;
+        continue;
+      }
+      const name = entry.packageName ?? "Package";
+      const existing = byId.get(entry.package_id);
+      if (!existing) {
+        byId.set(entry.package_id, {
+          name,
+          start: entry.sessionDate,
+          end: entry.sessionDate,
+        });
+        continue;
+      }
+      if (entry.sessionDate < existing.start) existing.start = entry.sessionDate;
+      if (entry.sessionDate > existing.end) existing.end = entry.sessionDate;
+    }
+
+    const options = [...byId.entries()]
+      .map(([value, pkg]) => ({
+        value,
+        label: `${pkg.name} · ${packageDateHint(pkg.start, pkg.end)}`,
+        start: pkg.start,
+        name: pkg.name,
+      }))
+      .sort((a, b) => {
+        const byName = a.name.localeCompare(b.name);
+        if (byName !== 0) return byName;
+        return a.start.localeCompare(b.start);
+      })
+      .map(({ value, label }) => ({ value, label }));
+
+    if (hasNoPackage) {
+      options.push({ value: NO_PACKAGE_FILTER, label: "No package" });
+    }
+
+    return options;
+  }, [entries]);
 
   function isVisible(column: OptionalColumn) {
     return !hiddenColumns.includes(column);
@@ -164,9 +220,15 @@ export function StudentAttendanceHistory({
 
   const filtered = useMemo(() => {
     const rows = entries.filter((entry) => {
-      if (statusFilters.length === 0) return true;
-      const value: StatusFilter = entry.status ?? "unset";
-      return statusFilters.includes(value);
+      if (statusFilters.length > 0) {
+        const value: StatusFilter = entry.status ?? "unset";
+        if (!statusFilters.includes(value)) return false;
+      }
+      if (packageFilters.length > 0) {
+        const value: PackageFilter = entry.package_id ?? NO_PACKAGE_FILTER;
+        if (!packageFilters.includes(value)) return false;
+      }
+      return true;
     });
 
     return [...rows].sort((a, b) => {
@@ -175,7 +237,7 @@ export function StudentAttendanceHistory({
         byDate !== 0 ? byDate : a.startTime.localeCompare(b.startTime);
       return sort.dir === "asc" ? ascending : -ascending;
     });
-  }, [entries, statusFilters, sort]);
+  }, [entries, statusFilters, packageFilters, sort]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -267,7 +329,16 @@ export function StudentAttendanceHistory({
             }}
           />
           {isVisible("credit") ? (
-            <span className="hidden lg:inline">Credit</span>
+            <ColumnFilter
+              label="Package"
+              options={packageOptions}
+              selected={packageFilters}
+              onChange={(next) => {
+                setPackageFilters(next);
+                setPage(1);
+              }}
+              contentClassName="min-w-64"
+            />
           ) : null}
           {isVisible("markedBy") ? (
             <span className="hidden lg:inline">Marked by</span>

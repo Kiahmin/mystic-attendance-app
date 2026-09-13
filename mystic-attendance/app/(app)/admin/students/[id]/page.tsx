@@ -31,15 +31,17 @@ export default async function AdminStudentDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ inactive?: string; q?: string }>;
+  searchParams: Promise<{ inactive?: string; q?: string; page?: string }>;
 }) {
   await requireRole(["admin"]);
   const { id } = await params;
   const listQuery = await searchParams;
   const inactive = listQuery.inactive === "1";
+  const page = Number(listQuery.page);
   const studentsHref = studentListHref({
     inactive,
     q: listQuery.q,
+    page: Number.isFinite(page) && page > 1 ? page : undefined,
   });
   const studentQuery = inactive ? "?inactive=1" : "";
 
@@ -75,6 +77,7 @@ export default async function AdminStudentDetailPage({
             studentId={student.id}
             studentName={student.full_name}
             archived={Boolean(student.archived_at)}
+            returnHref={studentsHref}
           />
         </div>
       </div>

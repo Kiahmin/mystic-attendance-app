@@ -111,7 +111,7 @@ export default async function AdminStudentAttendancePage({
         <CardHeader>
           <CardTitle>All Records</CardTitle>
           <CardDescription>
-            Filter by status, sort by date, and hide columns you do not need.
+            Filter by status or package, sort by date, and hide columns you do not need.
           </CardDescription>
         </CardHeader>
         <CardContent>

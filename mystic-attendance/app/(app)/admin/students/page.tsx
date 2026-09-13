@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/layout/page-header";
 export default async function AdminStudentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; inactive?: string }>;
+  searchParams: Promise<{ q?: string; inactive?: string; page?: string }>;
 }) {
   await requireRole(["admin"]);
   const params = await searchParams;
@@ -40,6 +40,7 @@ export default async function AdminStudentsPage({
         }))}
         initialSearch={params.q ?? ""}
         initialInactive={params.inactive === "1"}
+        initialPage={Number(params.page) || 1}
       />
     </div>
   );

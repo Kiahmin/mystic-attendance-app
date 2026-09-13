@@ -116,11 +116,13 @@ export function ColumnFilter<T extends string>({
   options,
   selected,
   onChange,
+  contentClassName,
 }: {
   label: string;
   options: { value: T; label: string }[];
   selected: T[];
   onChange: (next: T[]) => void;
+  contentClassName?: string;
 }) {
   const selectedSet = new Set(selected);
   const allSelected = selected.length === options.length;
@@ -160,7 +162,7 @@ export function ColumnFilter<T extends string>({
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
+      <DropdownMenuContent align="start" className={contentClassName}>
         <DropdownMenuLabel>Select one or more</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <FilterCheckbox
