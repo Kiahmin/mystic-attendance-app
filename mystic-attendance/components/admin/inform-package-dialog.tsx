@@ -95,9 +95,23 @@ export function InformPackageDialog({
   const showStudentNames =
     new Set(visits?.map((visit) => visit.studentName).filter(Boolean)).size > 1;
 
+  function visitWhen(visit: PackageChargedVisit) {
+    const date = formatCalendarDate(visit.sessionDate);
+    return visit.startTime
+      ? `${date} ${formatSessionTime(visit.startTime)}`
+      : date;
+  }
+
+  function visitStatus(visit: PackageChargedVisit) {
+    return visit.status ? ATTENDANCE_STATUS_LABELS[visit.status] : "—";
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg" showCloseButton>
+      <DialogContent
+        className="max-h-[90dvh] overflow-hidden sm:max-w-lg"
+        showCloseButton
+      >
         <DialogHeader>
           <DialogTitle>Inform {studentName}</DialogTitle>
           <DialogDescription>
@@ -128,8 +142,31 @@ export function InformPackageDialog({
             </p>
           </div>
         ) : visits ? (
-          <div className="rounded-lg border border-border">
-            <table className="w-full text-left text-sm">
+          <div className="max-h-[min(50vh,20rem)] overflow-y-auto rounded-lg border border-border">
+            <ul
+              className="sm:hidden"
+              aria-label="Classes charged to this finishing package"
+            >
+              {visits.map((visit) => (
+                <li
+                  key={visit.id}
+                  className="border-b border-border px-3 py-2 last:border-b-0"
+                >
+                  <p className="min-w-0 break-words font-medium">
+                    {visit.sessionName}
+                  </p>
+                  <p className="mt-0.5 min-w-0 break-words text-xs text-muted-foreground">
+                    {visitWhen(visit)}
+                    {" · "}
+                    {visitStatus(visit)}
+                    {showStudentNames
+                      ? ` · ${visit.studentName ?? "—"}`
+                      : null}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <table className="hidden w-full text-left text-sm sm:table">
               <caption className="sr-only">
                 Classes charged to this finishing package
               </caption>
@@ -158,16 +195,13 @@ export function InformPackageDialog({
                     className="border-b border-border last:border-b-0"
                   >
                     <td className="whitespace-nowrap px-3 py-1 text-muted-foreground">
-                      {formatCalendarDate(visit.sessionDate)}
-                      {visit.startTime
-                        ? ` ${formatSessionTime(visit.startTime)}`
-                        : ""}
+                      {visitWhen(visit)}
                     </td>
-                    <td className="px-3 py-1">{visit.sessionName}</td>
+                    <td className="min-w-0 break-words px-3 py-1">
+                      {visit.sessionName}
+                    </td>
                     <td className="whitespace-nowrap px-3 py-1 text-muted-foreground">
-                      {visit.status
-                        ? ATTENDANCE_STATUS_LABELS[visit.status]
-                        : "—"}
+                      {visitStatus(visit)}
                     </td>
                     {showStudentNames ? (
                       <td className="whitespace-nowrap px-3 py-1 text-muted-foreground">
