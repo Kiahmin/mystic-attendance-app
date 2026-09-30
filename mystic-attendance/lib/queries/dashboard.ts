@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { DAYS_OF_WEEK } from "@/lib/admin-utils";
+import { DAYS_OF_WEEK, isInactiveForSixMonths } from "@/lib/admin-utils";
 import {
   endOfMonth,
   startOfMonth,
@@ -9,7 +9,6 @@ import { packageLabel, LOW_CREDIT_THRESHOLD, packageStudentNames } from "@/lib/p
 import type {
   ClassGroup,
   DayOfWeek,
-  PackageMember,
   PackageProduct,
   PackageSession,
   PackageStatus,
@@ -84,13 +83,15 @@ const DASHBOARD_QUEUE_SELECT = `
           students!packages_student_id_fkey!inner (
             id,
             full_name,
+            created_at,
             archived_at
           ),
           package_students (
             student_id,
             students!package_students_student_id_fkey (
               id,
-              full_name
+              full_name,
+              created_at
             )
           )
         `;
@@ -272,6 +273,8 @@ export async function getDashboardOperations(
     );
   }
 
+  type QueueStudent = Pick<Student, "id" | "full_name"> & { created_at: string };
+
   type QueueRow = {
     id: string;
     student_id: string;
@@ -287,30 +290,26 @@ export async function getDashboardOperations(
       | Pick<PackageProduct, "product_type" | "label" | "total_credits">[]
       | null;
     sessions: PackageSession | PackageSession[] | null;
-    students: Pick<Student, "id" | "full_name"> | Pick<Student, "id" | "full_name">[] | null;
+    students: QueueStudent | QueueStudent[] | null;
     package_students?:
       | {
           student_id: string;
-          students?:
-            | Pick<Student, "id" | "full_name">
-            | Pick<Student, "id" | "full_name">[]
-            | null;
+          students?: QueueStudent | QueueStudent[] | null;
         }
       | {
           student_id: string;
-          students?:
-            | Pick<Student, "id" | "full_name">
-            | Pick<Student, "id" | "full_name">[]
-            | null;
+          students?: QueueStudent | QueueStudent[] | null;
         }[]
       | null;
   };
+
+  type QueueMember = QueueStudent;
 
   const queuePackages = (queueResult.data ?? []) as QueueRow[];
   const exhaustedQueueRows = (exhaustedQueueResult.data ?? []) as QueueRow[];
   const overshotRows = (overshotResult.data ?? []) as QueueRow[];
 
-  function queueMembers(pkg: QueueRow): PackageMember[] {
+  function queueMembers(pkg: QueueRow): QueueMember[] {
     const nested = Array.isArray(pkg.package_students)
       ? pkg.package_students
       : pkg.package_students
@@ -318,7 +317,7 @@ export async function getDashboardOperations(
         : [];
     const members = nested
       .map((row) => asSingle(row.students))
-      .filter((item): item is Pick<Student, "id" | "full_name"> => Boolean(item));
+      .filter((item): item is QueueMember => Boolean(item));
     const primary = asSingle(pkg.students);
     if (primary && !members.some((member) => member.id === primary.id)) {
       members.unshift(primary);
@@ -445,6 +444,19 @@ export async function getDashboardOperations(
     }
   }
 
+  function exhaustedMembersInactive(pkg: QueueRow): boolean {
+    const members = queueMembers(pkg);
+    return (
+      members.length > 0 &&
+      members.every((member) =>
+        isInactiveForSixMonths(
+          lastAttendedByStudent.get(member.id) ?? null,
+          member.created_at
+        )
+      )
+    );
+  }
+
   function toQueueItem(pkg: QueueRow): DashboardQueueItem {
     const student = asSingle(pkg.students);
     const product = asSingle(pkg.package_products);
@@ -489,9 +501,10 @@ export async function getDashboardOperations(
     };
   }
 
-  const dueSoon = dueSoonRows.map(toQueueItem).sort((a, b) =>
-    a.studentName.localeCompare(b.studentName)
-  );
+  const dueSoon = dueSoonRows
+    .filter((pkg) => pkg.status !== "exhausted" || !exhaustedMembersInactive(pkg))
+    .map(toQueueItem)
+    .sort((a, b) => a.studentName.localeCompare(b.studentName));
   const informed = informedRows
     .map(toQueueItem)
     .sort((a, b) => (b.informedAt ?? "").localeCompare(a.informedAt ?? ""));
