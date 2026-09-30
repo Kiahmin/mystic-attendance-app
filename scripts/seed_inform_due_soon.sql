@@ -1,11 +1,12 @@
--- Seed data to test Due soon / Overshot → Inform popup → Informed list.
+-- Seed data to test Needs renewal / Overshot → Inform popup → Informed list.
 -- Run in the Supabase SQL editor (or psql) as a role that bypasses RLS.
 -- Safe to re-run: previous rows tagged notes = 'inform-feature-seed' are removed first.
 --
 -- What you should see on Admin dashboard:
---   Due soon
+--   Needs renewal
 --     Inform Test Mei   — 8-credit pack, 2 left, 6 charged classes in the popup
 --     Inform Test Kai   — shared pack with Nora; popup lists both names
+--     Inform Test Lina  — 8-credit pack, exactly finished (0 left)
 --   Overshot
 --     Inform Test Rui   — 8-credit pack, 2 extra lessons; Inform then confirm
 --   Informed
@@ -51,6 +52,7 @@ where notes = 'inform-feature-seed';
 --  a0e10005-… Ben (has renewal — hidden from due soon)
 --  a0e10006-… Rui (overshot, not informed)
 --  a0e10007-… Lara (overshot, already informed)
+--  a0e10008-… Lina (exhausted, not informed)
 -- Packages
 --  a0e20001-… Mei finishing
 --  a0e20002-… Kai/Nora finishing
@@ -59,6 +61,7 @@ where notes = 'inform-feature-seed';
 --  a0e20005-… Ben renewal (8 remaining)
 --  a0e20006-… Rui overshot
 --  a0e20007-… Lara overshot + informed
+--  a0e20008-… Lina exhausted
 
 insert into payers (id, kind, display_name, phone, notes)
 values (
@@ -147,6 +150,17 @@ insert into students (
     null,
     '+65 8000 1007',
     'advanced',
+    'inform-feature-seed',
+    'a0e30000-0000-4000-8000-000000000001'
+  ),
+  (
+    'a0e10008-0000-4000-8000-000000000008',
+    'Inform Test Lina',
+    '1995-08-03',
+    null,
+    null,
+    '+65 8000 1008',
+    'beginner',
     'inform-feature-seed',
     'a0e30000-0000-4000-8000-000000000001'
   );
@@ -249,6 +263,14 @@ from (
       (current_date - 84),
       (current_date - 84 + 180),
       now() - interval '2 hours'
+    ),
+    (
+      'a0e20008-0000-4000-8000-000000000008'::uuid,
+      'a0e10008-0000-4000-8000-000000000008'::uuid,
+      8,
+      (current_date - 70),
+      (current_date - 70 + 180),
+      null::timestamptz
     )
 ) as p(id, student_id, total_credits, first_lesson, expires_at, informed_at)
 cross join lateral (
@@ -410,6 +432,15 @@ cross join (
     'present'
   from picked p
   where p.rn between 2 and 10
+
+  union all
+  -- Lina: 8 present on 8-credit pack → exhausted, not informed
+  select p.id, p.session_date,
+    'a0e10008-0000-4000-8000-000000000008'::uuid,
+    'a0e20008-0000-4000-8000-000000000008'::uuid,
+    'present'
+  from picked p
+  where p.rn between 1 and 8
 ) x
 on conflict (session_id, student_id) do update
 set

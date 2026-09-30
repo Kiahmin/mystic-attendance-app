@@ -61,6 +61,40 @@ function asSingle<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
+const DASHBOARD_QUEUE_SELECT = `
+          id,
+          student_id,
+          remaining_credits,
+          total_credits,
+          used_credits,
+          bonus_credits,
+          status,
+          informed_at,
+          session_id,
+          package_products (
+            product_type,
+            label,
+            total_credits
+          ),
+          sessions (
+            id,
+            name,
+            session_date
+          ),
+          students!packages_student_id_fkey!inner (
+            id,
+            full_name,
+            archived_at
+          ),
+          package_students (
+            student_id,
+            students!package_students_student_id_fkey (
+              id,
+              full_name
+            )
+          )
+        `;
+
 function membersHaveRenewal(
   memberIds: string[],
   currentPackageId: string,
@@ -92,6 +126,7 @@ export async function getDashboardOperations(
     activeResult,
     exhaustedResult,
     queueResult,
+    exhaustedQueueResult,
     overshotResult,
     sessionsResult,
     renewalResult,
@@ -117,41 +152,7 @@ export async function getDashboardOperations(
         .is("students.archived_at", null),
       supabase
         .from("packages")
-        .select(
-          `
-          id,
-          student_id,
-          remaining_credits,
-          total_credits,
-          used_credits,
-          bonus_credits,
-          status,
-          informed_at,
-          session_id,
-          package_products (
-            product_type,
-            label,
-            total_credits
-          ),
-          sessions (
-            id,
-            name,
-            session_date
-          ),
-          students!packages_student_id_fkey!inner (
-            id,
-            full_name,
-            archived_at
-          ),
-          package_students (
-            student_id,
-            students!package_students_student_id_fkey (
-              id,
-              full_name
-            )
-          )
-        `
-        )
+        .select(DASHBOARD_QUEUE_SELECT)
         .is("session_id", null)
         .eq("status", "active")
         .gt("remaining_credits", 0)
@@ -161,41 +162,13 @@ export async function getDashboardOperations(
         .is("students.archived_at", null),
       supabase
         .from("packages")
-        .select(
-          `
-          id,
-          student_id,
-          remaining_credits,
-          total_credits,
-          used_credits,
-          bonus_credits,
-          status,
-          informed_at,
-          session_id,
-          package_products (
-            product_type,
-            label,
-            total_credits
-          ),
-          sessions (
-            id,
-            name,
-            session_date
-          ),
-          students!packages_student_id_fkey!inner (
-            id,
-            full_name,
-            archived_at
-          ),
-          package_students (
-            student_id,
-            students!package_students_student_id_fkey (
-              id,
-              full_name
-            )
-          )
-        `
-        )
+        .select(DASHBOARD_QUEUE_SELECT)
+        .is("session_id", null)
+        .eq("status", "exhausted")
+        .is("students.archived_at", null),
+      supabase
+        .from("packages")
+        .select(DASHBOARD_QUEUE_SELECT)
         .is("session_id", null)
         .eq("status", "overshot")
         .is("students.archived_at", null),
@@ -265,6 +238,18 @@ export async function getDashboardOperations(
         .join(" — ") || "Failed to load package queue"
     );
   }
+  if (exhaustedQueueResult.error) {
+    throw new Error(
+      [
+        exhaustedQueueResult.error.message,
+        exhaustedQueueResult.error.hint,
+        exhaustedQueueResult.error.details,
+        exhaustedQueueResult.error.code,
+      ]
+        .filter(Boolean)
+        .join(" — ") || "Failed to load exhausted packages for queue"
+    );
+  }
   if (overshotResult.error) {
     throw new Error(
       [overshotResult.error.message, overshotResult.error.hint, overshotResult.error.details, overshotResult.error.code]
@@ -322,6 +307,7 @@ export async function getDashboardOperations(
   };
 
   const queuePackages = (queueResult.data ?? []) as QueueRow[];
+  const exhaustedQueueRows = (exhaustedQueueResult.data ?? []) as QueueRow[];
   const overshotRows = (overshotResult.data ?? []) as QueueRow[];
 
   function queueMembers(pkg: QueueRow): PackageMember[] {
@@ -372,36 +358,36 @@ export async function getDashboardOperations(
     }
   );
 
-  const dueSoonRows = queuePackages.filter(
-    (pkg) =>
-      Number(pkg.remaining_credits) <= LOW_CREDIT_THRESHOLD &&
-      !pkg.informed_at &&
-      !membersHaveRenewal(
-        queueMembers(pkg).map((member) => member.id),
-        pkg.id,
-        renewalSource
-      )
-  );
+  function withoutRenewal(pkg: QueueRow): boolean {
+    return !membersHaveRenewal(
+      queueMembers(pkg).map((member) => member.id),
+      pkg.id,
+      renewalSource
+    );
+  }
+
+  const dueSoonRows = [
+    ...queuePackages.filter(
+      (pkg) =>
+        Number(pkg.remaining_credits) <= LOW_CREDIT_THRESHOLD &&
+        !pkg.informed_at &&
+        withoutRenewal(pkg)
+    ),
+    ...exhaustedQueueRows.filter((pkg) => !pkg.informed_at && withoutRenewal(pkg)),
+  ];
   const pendingOvershotRows = overshotRows.filter((pkg) => !pkg.informed_at);
   const informedRows = [
     ...queuePackages.filter(
       (pkg) =>
         Boolean(pkg.informed_at) &&
         Number(pkg.remaining_credits) > 0 &&
-        !membersHaveRenewal(
-          queueMembers(pkg).map((member) => member.id),
-          pkg.id,
-          renewalSource
-        )
+        withoutRenewal(pkg)
+    ),
+    ...exhaustedQueueRows.filter(
+      (pkg) => Boolean(pkg.informed_at) && withoutRenewal(pkg)
     ),
     ...overshotRows.filter(
-      (pkg) =>
-        Boolean(pkg.informed_at) &&
-        !membersHaveRenewal(
-          queueMembers(pkg).map((member) => member.id),
-          pkg.id,
-          renewalSource
-        )
+      (pkg) => Boolean(pkg.informed_at) && withoutRenewal(pkg)
     ),
   ];
 

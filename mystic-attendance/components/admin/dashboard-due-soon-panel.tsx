@@ -43,26 +43,28 @@ export function DashboardDueSoonPanel({
 
   return (
     <DashboardQueuePanel
-      title="Due soon"
-      description="Two or fewer lessons left."
+      title="Needs renewal"
+      description="Finished, or two or fewer lessons left."
       count={filtered.length}
-      listLabel="Students due soon"
+      listLabel="Students who need renewal"
       emptyTitle={
-        classFiltered ? "No students due at this class" : "No students due soon"
+        classFiltered
+          ? "No students need renewal at this class"
+          : "No students need renewal"
       }
       emptyDescription={
         classFiltered
           ? "Try another class, or choose All classes."
-          : "Packages with two or fewer lessons remaining will appear here."
+          : "Finished packages, or packages with two or fewer lessons remaining, will appear here."
       }
-      footerHref="/admin/packages?filter=finishing"
-      footerLabel="View finishing packages →"
+      footerHref="/admin/packages?filter=finishing,finished"
+      footerLabel="View finishing and finished packages →"
       filter={
         <Select value={classId} onValueChange={setClassId}>
           <SelectTrigger
             size="sm"
             className="w-full"
-            aria-label="Filter due soon by class"
+            aria-label="Filter needs renewal by class"
           >
             <SelectValue placeholder="All classes" />
           </SelectTrigger>
