@@ -68,6 +68,8 @@ const DASHBOARD_QUEUE_SELECT = `
           used_credits,
           bonus_credits,
           status,
+          first_lesson_date,
+          created_at,
           informed_at,
           session_id,
           package_products (
@@ -283,6 +285,8 @@ export async function getDashboardOperations(
     used_credits: number;
     bonus_credits: number | null;
     status: PackageStatus;
+    first_lesson_date: string | null;
+    created_at: string;
     informed_at: string | null;
     session_id: string | null;
     package_products:
@@ -457,6 +461,36 @@ export async function getDashboardOperations(
     );
   }
 
+  function memberSetKey(pkg: QueueRow): string {
+    return (
+      queueMembers(pkg)
+        .map((member) => member.id)
+        .sort()
+        .join(",") || pkg.student_id
+    );
+  }
+
+  function packRecency(pkg: QueueRow): string {
+    return `${pkg.first_lesson_date ?? "0000-00-00"}T${pkg.created_at}`;
+  }
+
+  function preferCurrentDueSoon(a: QueueRow, b: QueueRow): QueueRow {
+    const aFinishing = a.status === "active";
+    const bFinishing = b.status === "active";
+    if (aFinishing !== bFinishing) return aFinishing ? a : b;
+    return packRecency(a) >= packRecency(b) ? a : b;
+  }
+
+  function latestDueSoonPerMembers(rows: QueueRow[]): QueueRow[] {
+    const best = new Map<string, QueueRow>();
+    for (const pkg of rows) {
+      const key = memberSetKey(pkg);
+      const current = best.get(key);
+      best.set(key, current ? preferCurrentDueSoon(current, pkg) : pkg);
+    }
+    return [...best.values()];
+  }
+
   function toQueueItem(pkg: QueueRow): DashboardQueueItem {
     const student = asSingle(pkg.students);
     const product = asSingle(pkg.package_products);
@@ -501,8 +535,11 @@ export async function getDashboardOperations(
     };
   }
 
-  const dueSoon = dueSoonRows
-    .filter((pkg) => pkg.status !== "exhausted" || !exhaustedMembersInactive(pkg))
+  const dueSoon = latestDueSoonPerMembers(
+    dueSoonRows.filter(
+      (pkg) => pkg.status !== "exhausted" || !exhaustedMembersInactive(pkg)
+    )
+  )
     .map(toQueueItem)
     .sort((a, b) => a.studentName.localeCompare(b.studentName));
   const informed = informedRows
