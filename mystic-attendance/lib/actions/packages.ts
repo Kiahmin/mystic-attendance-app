@@ -537,13 +537,14 @@ export async function markPackageInformed(packageId: string) {
     return { error: "Event packages cannot be marked as informed." };
   }
   const isOvershot = existing.status === "overshot";
+  const isExhausted = existing.status === "exhausted";
   const isFinishingActive =
     existing.status === "active" &&
     Number(existing.remaining_credits) <= LOW_CREDIT_THRESHOLD;
-  if (!isOvershot && !isFinishingActive) {
+  if (!isOvershot && !isExhausted && !isFinishingActive) {
     return {
       error:
-        "Only finishing (two or fewer lessons left) or overshot packages can be informed.",
+        "Only finishing (two or fewer lessons left), finished, or overshot packages can be informed.",
     };
   }
   if (existing.informed_at) {
