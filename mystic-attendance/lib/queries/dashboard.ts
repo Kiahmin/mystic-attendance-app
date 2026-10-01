@@ -118,6 +118,29 @@ function membersHaveRenewal(
   );
 }
 
+function packRecencyKey(firstLessonDate: string | null, createdAt: string): string {
+  return `${firstLessonDate ?? createdAt.slice(0, 10)}T${createdAt}`;
+}
+
+function membersHaveLaterClassPackage(
+  memberIds: string[],
+  currentPackageId: string,
+  currentRecency: string,
+  packages: Array<{
+    id: string;
+    memberIds: string[];
+    recency: string;
+  }>
+): boolean {
+  const members = new Set(memberIds);
+  return packages.some(
+    (pkg) =>
+      pkg.id !== currentPackageId &&
+      pkg.recency > currentRecency &&
+      pkg.memberIds.some((id) => members.has(id))
+  );
+}
+
 export async function getDashboardOperations(
   reportMonth: string
 ): Promise<DashboardOperations> {
@@ -133,6 +156,7 @@ export async function getDashboardOperations(
     overshotResult,
     sessionsResult,
     renewalResult,
+    openSuccessorResult,
   ] =
     await Promise.all([
       supabase
@@ -205,6 +229,8 @@ export async function getDashboardOperations(
           id,
           remaining_credits,
           status,
+          first_lesson_date,
+          created_at,
           students!packages_student_id_fkey!inner (
             id,
             archived_at
@@ -217,6 +243,27 @@ export async function getDashboardOperations(
         .is("session_id", null)
         .eq("status", "active")
         .gt("remaining_credits", LOW_CREDIT_THRESHOLD)
+        .is("students.archived_at", null),
+      supabase
+        .from("packages")
+        .select(
+          `
+          id,
+          remaining_credits,
+          status,
+          first_lesson_date,
+          created_at,
+          students!packages_student_id_fkey!inner (
+            id,
+            archived_at
+          ),
+          package_students (
+            student_id
+          )
+        `
+        )
+        .is("session_id", null)
+        .in("status", ["paused", "unpaid"])
         .is("students.archived_at", null),
     ]);
 
@@ -274,6 +321,18 @@ export async function getDashboardOperations(
         .join(" — ") || "Failed to load renewal packages"
     );
   }
+  if (openSuccessorResult.error) {
+    throw new Error(
+      [
+        openSuccessorResult.error.message,
+        openSuccessorResult.error.hint,
+        openSuccessorResult.error.details,
+        openSuccessorResult.error.code,
+      ]
+        .filter(Boolean)
+        .join(" — ") || "Failed to load later packages"
+    );
+  }
 
   type QueueStudent = Pick<Student, "id" | "full_name"> & { created_at: string };
 
@@ -329,10 +388,12 @@ export async function getDashboardOperations(
     return members;
   }
 
-  type RenewalRow = {
+  type SuccessorRow = {
     id: string;
     remaining_credits: number;
     status: PackageStatus;
+    first_lesson_date: string | null;
+    created_at: string;
     students: Pick<Student, "id"> | Pick<Student, "id">[] | null;
     package_students?:
       | { student_id: string }
@@ -340,32 +401,63 @@ export async function getDashboardOperations(
       | null;
   };
 
-  const renewalSource = ((renewalResult.data ?? []) as RenewalRow[]).map(
-    (pkg) => {
-      const nested = Array.isArray(pkg.package_students)
-        ? pkg.package_students
-        : pkg.package_students
-          ? [pkg.package_students]
-          : [];
-      const memberIds = nested.map((row) => row.student_id);
-      const primary = asSingle(pkg.students);
-      if (primary && !memberIds.includes(primary.id)) {
-        memberIds.unshift(primary.id);
-      }
-      return {
-        id: pkg.id,
-        memberIds,
-        status: pkg.status,
-        remaining_credits: Number(pkg.remaining_credits),
-      };
+  function successorMembers(pkg: SuccessorRow | QueueRow): string[] {
+    const nested = Array.isArray(pkg.package_students)
+      ? pkg.package_students
+      : pkg.package_students
+        ? [pkg.package_students]
+        : [];
+    const memberIds = nested.map((row) => row.student_id);
+    const primary = asSingle(pkg.students);
+    if (primary && !memberIds.includes(primary.id)) {
+      memberIds.unshift(primary.id);
     }
+    return memberIds;
+  }
+
+  function toSuccessor(pkg: SuccessorRow | QueueRow) {
+    return {
+      id: pkg.id,
+      memberIds: successorMembers(pkg),
+      status: pkg.status,
+      remaining_credits: Number(pkg.remaining_credits),
+      recency: packRecencyKey(pkg.first_lesson_date, pkg.created_at),
+    };
+  }
+
+  const renewalSource = ((renewalResult.data ?? []) as SuccessorRow[]).map(
+    toSuccessor
   );
+
+  const successorById = new Map<
+    string,
+    ReturnType<typeof toSuccessor>
+  >();
+  for (const pkg of [
+    ...renewalSource,
+    ...((openSuccessorResult.data ?? []) as SuccessorRow[]).map(toSuccessor),
+    ...queuePackages.map(toSuccessor),
+    ...exhaustedQueueRows.map(toSuccessor),
+    ...overshotRows.map(toSuccessor),
+  ]) {
+    successorById.set(pkg.id, pkg);
+  }
+  const successorSource = [...successorById.values()];
 
   function withoutRenewal(pkg: QueueRow): boolean {
     return !membersHaveRenewal(
       queueMembers(pkg).map((member) => member.id),
       pkg.id,
       renewalSource
+    );
+  }
+
+  function withoutLaterClassPackage(pkg: QueueRow): boolean {
+    return !membersHaveLaterClassPackage(
+      queueMembers(pkg).map((member) => member.id),
+      pkg.id,
+      packRecencyKey(pkg.first_lesson_date, pkg.created_at),
+      successorSource
     );
   }
 
@@ -376,7 +468,12 @@ export async function getDashboardOperations(
         !pkg.informed_at &&
         withoutRenewal(pkg)
     ),
-    ...exhaustedQueueRows.filter((pkg) => !pkg.informed_at && withoutRenewal(pkg)),
+    ...exhaustedQueueRows.filter(
+      (pkg) =>
+        !pkg.informed_at &&
+        withoutRenewal(pkg) &&
+        withoutLaterClassPackage(pkg)
+    ),
   ];
   const pendingOvershotRows = overshotRows.filter((pkg) => !pkg.informed_at);
   const informedRows = [
@@ -471,7 +568,7 @@ export async function getDashboardOperations(
   }
 
   function packRecency(pkg: QueueRow): string {
-    return `${pkg.first_lesson_date ?? "0000-00-00"}T${pkg.created_at}`;
+    return packRecencyKey(pkg.first_lesson_date, pkg.created_at);
   }
 
   function preferCurrentDueSoon(a: QueueRow, b: QueueRow): QueueRow {
