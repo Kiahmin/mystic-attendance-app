@@ -14,6 +14,7 @@ import { formatCalendarDate } from "@/lib/datetime";
 import { remainingCreditsLabel } from "@/lib/package-utils";
 import type { PackageChargedVisit } from "@/lib/queries/attendance";
 import type { DashboardQueueItem } from "@/lib/queries/dashboard";
+import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -106,13 +107,20 @@ export function InformPackageDialog({
     return visit.status ? ATTENDANCE_STATUS_LABELS[visit.status] : "—";
   }
 
+  const rowClassName = cn(
+    "grid min-h-0 min-w-0 items-center gap-x-2 overflow-hidden px-3",
+    showStudentNames
+      ? "grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_auto_minmax(0,1fr)]"
+      : "grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_auto]"
+  );
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="max-h-[90dvh] overflow-hidden sm:max-w-lg"
+        className="flex max-h-dvh flex-col overflow-hidden sm:max-w-lg"
         showCloseButton
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>Inform {studentName}</DialogTitle>
           <DialogDescription>
             Classes charged to {packageLabel} ({remainingLabel}).
@@ -120,14 +128,14 @@ export function InformPackageDialog({
         </DialogHeader>
 
         {error ? (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="shrink-0">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
 
         {visits === null && !error ? (
           <div
-            className="rounded-lg border border-border"
+            className="shrink-0 rounded-lg border border-border"
             aria-busy="true"
             aria-live="polite"
           >
@@ -136,86 +144,71 @@ export function InformPackageDialog({
             </p>
           </div>
         ) : visits && visits.length === 0 ? (
-          <div className="rounded-lg border border-border" aria-live="polite">
+          <div
+            className="shrink-0 rounded-lg border border-border"
+            aria-live="polite"
+          >
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">
               No classes have been charged to this package yet.
             </p>
           </div>
         ) : visits ? (
-          <div className="max-h-[min(50vh,20rem)] overflow-y-auto rounded-lg border border-border">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border">
+            <div
+              className={cn(
+                rowClassName,
+                "shrink-0 border-b border-border bg-muted/50 py-1.5 text-xs font-medium text-muted-foreground"
+              )}
+              role="row"
+            >
+              <span className="truncate">Date</span>
+              <span className="truncate">Class</span>
+              <span className="shrink-0">Status</span>
+              {showStudentNames ? (
+                <span className="truncate">Student</span>
+              ) : null}
+            </div>
             <ul
-              className="sm:hidden"
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
               aria-label="Classes charged to this finishing package"
             >
-              {visits.map((visit) => (
-                <li
-                  key={visit.id}
-                  className="border-b border-border px-3 py-2 last:border-b-0"
-                >
-                  <p className="min-w-0 break-words font-medium">
-                    {visit.sessionName}
-                  </p>
-                  <p className="mt-0.5 min-w-0 break-words text-xs text-muted-foreground">
-                    {visitWhen(visit)}
-                    {" · "}
-                    {visitStatus(visit)}
-                    {showStudentNames
-                      ? ` · ${visit.studentName ?? "—"}`
-                      : null}
-                  </p>
-                </li>
-              ))}
-            </ul>
-            <table className="hidden w-full text-left text-sm sm:table">
-              <caption className="sr-only">
-                Classes charged to this finishing package
-              </caption>
-              <thead className="border-b border-border bg-muted/50 text-xs font-medium text-muted-foreground">
-                <tr>
-                  <th scope="col" className="px-3 py-1.5 font-medium">
-                    Date
-                  </th>
-                  <th scope="col" className="px-3 py-1.5 font-medium">
-                    Class
-                  </th>
-                  <th scope="col" className="px-3 py-1.5 font-medium">
-                    Status
-                  </th>
-                  {showStudentNames ? (
-                    <th scope="col" className="px-3 py-1.5 font-medium">
-                      Student
-                    </th>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody>
-                {visits.map((visit) => (
-                  <tr
+              {visits.map((visit) => {
+                const when = visitWhen(visit);
+                const status = visitStatus(visit);
+                const student = visit.studentName ?? "—";
+                return (
+                  <li
                     key={visit.id}
-                    className="border-b border-border last:border-b-0"
+                    className={cn(
+                      rowClassName,
+                      "flex-1 border-b border-border py-0.5 text-sm last:border-b-0"
+                    )}
                   >
-                    <td className="whitespace-nowrap px-3 py-1 text-muted-foreground">
-                      {visitWhen(visit)}
-                    </td>
-                    <td className="min-w-0 break-words px-3 py-1">
+                    <span className="truncate text-muted-foreground" title={when}>
+                      {when}
+                    </span>
+                    <span
+                      className="truncate font-medium"
+                      title={visit.sessionName}
+                    >
                       {visit.sessionName}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-1 text-muted-foreground">
-                      {visitStatus(visit)}
-                    </td>
+                    </span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {status}
+                    </span>
                     {showStudentNames ? (
-                      <td className="whitespace-nowrap px-3 py-1 text-muted-foreground">
-                        {visit.studentName ?? "—"}
-                      </td>
+                      <span className="truncate text-muted-foreground" title={student}>
+                        {student}
+                      </span>
                     ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         ) : null}
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button
             type="button"
             variant="outline"
