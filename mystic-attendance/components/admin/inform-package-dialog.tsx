@@ -110,8 +110,8 @@ export function InformPackageDialog({
   const rowClassName = cn(
     "grid min-h-0 min-w-0 items-center gap-x-2 overflow-hidden px-3",
     showStudentNames
-      ? "grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_auto_minmax(0,1fr)]"
-      : "grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_auto]"
+      ? "grid-cols-[minmax(0,1.4fr)_auto_minmax(0,1fr)]"
+      : "grid-cols-[minmax(0,1fr)_auto]"
   );
 
   return (
@@ -162,7 +162,6 @@ export function InformPackageDialog({
               role="row"
             >
               <span className="truncate">Date</span>
-              <span className="truncate">Class</span>
               <span className="shrink-0">Status</span>
               {showStudentNames ? (
                 <span className="truncate">Student</span>
@@ -186,12 +185,6 @@ export function InformPackageDialog({
                   >
                     <span className="truncate text-muted-foreground" title={when}>
                       {when}
-                    </span>
-                    <span
-                      className="truncate font-medium"
-                      title={visit.sessionName}
-                    >
-                      {visit.sessionName}
                     </span>
                     <span className="shrink-0 text-muted-foreground">
                       {status}
