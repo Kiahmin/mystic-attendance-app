@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { GenerateSessionsButton } from "@/components/admin/generate-sessions-button";
-import { EventFormDialog } from "@/components/admin/event-form-dialog";
+import { ScheduleCreateDialog } from "@/components/admin/schedule-create-dialog";
 import { ScheduleMonthGrid } from "@/components/admin/schedule-month-grid";
 import { ScheduleTimeGrid } from "@/components/admin/schedule-time-grid";
 import { NavigationProgressBar } from "@/components/layout/navigation-progress";
@@ -65,6 +65,7 @@ export function DashboardCalendar({
     date: string;
     startTime: string;
     endTime: string;
+    venueId: string;
   } | null>(null);
   const requested = useRef({ view: range.view, date: range.date });
   const today = todayInSingapore();
@@ -119,6 +120,7 @@ export function DashboardCalendar({
       date: next.date,
       startTime,
       endTime: next.endTime ?? addOneHour(startTime),
+      venueId: venueFilter === "all" ? "" : venueFilter,
     });
     setCreateOpen(true);
   }
@@ -249,12 +251,10 @@ export function DashboardCalendar({
         />
       )}
       </div>
-      <EventFormDialog
+      <ScheduleCreateDialog
         coaches={coaches}
         venues={venues}
-        defaultDate={draft?.date ?? display.date}
-        defaultStartTime={draft?.startTime}
-        defaultEndTime={draft?.endTime}
+        draft={draft}
         open={createOpen}
         onOpenChange={setCreateOpen}
       />

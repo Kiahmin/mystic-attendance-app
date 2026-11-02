@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createEvent,
@@ -55,6 +55,33 @@ type EventFormDialogProps = {
   onOpenChange?: (open: boolean) => void;
 };
 
+type ScheduleSharedFields = {
+  name: string;
+  venueId: string;
+  startTime: string;
+  endTime: string;
+  coachId: string;
+};
+
+type EventFormProps = {
+  coaches: Pick<Profile, "id" | "full_name">[];
+  venues: Venue[];
+  defaultDate: string;
+  defaultStartTime?: string;
+  defaultEndTime?: string;
+  defaultName?: string;
+  defaultVenueId?: string;
+  defaultCoachId?: string;
+  defaultRequiresAttendance?: boolean;
+  event?: EventFormValues | null;
+  onCancel: () => void;
+  onSuccess?: () => void;
+  onSharedChange?: (fields: ScheduleSharedFields) => void;
+  onDateChange?: (date: string) => void;
+  onRequiresAttendanceChange?: (required: boolean) => void;
+  onVenueCreated?: (venue: Venue) => void;
+};
+
 function toTimeInputValue(time: string | null | undefined): string {
   if (!time) return "";
   return time.slice(0, 5);
@@ -82,80 +109,65 @@ function addHoursToTime(time: string, hours: number): string {
   return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
 }
 
-export function EventFormDialog({
+export function EventForm({
   coaches,
   venues: initialVenues,
   defaultDate,
   defaultStartTime,
   defaultEndTime,
+  defaultName = "",
+  defaultVenueId = "",
+  defaultCoachId = "",
+  defaultRequiresAttendance = true,
   event,
-  open: openProp,
-  onOpenChange,
-}: EventFormDialogProps) {
+  onCancel,
+  onSuccess,
+  onSharedChange,
+  onDateChange,
+  onRequiresAttendanceChange,
+  onVenueCreated,
+}: EventFormProps) {
   const router = useRouter();
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  const isControlled = openProp !== undefined;
-  const open = isControlled ? openProp : uncontrolledOpen;
   const isEditing = Boolean(event);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [sessionDate, setSessionDate] = useState(defaultDate);
+  const [name, setName] = useState(event?.name ?? defaultName);
+  const [sessionDate, setSessionDate] = useState(
+    event?.session_date ?? defaultDate
+  );
   const initialStart =
-    toTimeInputValue(defaultStartTime) || DEFAULT_START_TIME;
+    toTimeInputValue(event?.start_time) ||
+    toTimeInputValue(defaultStartTime) ||
+    DEFAULT_START_TIME;
   const [startTime, setStartTime] = useState(initialStart);
   const [endTime, setEndTime] = useState(
-    toTimeInputValue(defaultEndTime) || addHoursToTime(initialStart, 1)
+    toTimeInputValue(event?.end_time) ||
+      toTimeInputValue(defaultEndTime) ||
+      addHoursToTime(initialStart, 1)
   );
-  const [coachId, setCoachId] = useState("");
-  const [venueId, setVenueId] = useState("");
+  const [coachId, setCoachId] = useState(event?.coach_id ?? defaultCoachId);
+  const [venueId, setVenueId] = useState(event?.venue_id ?? defaultVenueId);
   const [venues, setVenues] = useState(initialVenues);
-  const [requiresAttendance, setRequiresAttendance] = useState(true);
+  const [requiresAttendance, setRequiresAttendance] = useState(
+    event?.requires_attendance ?? defaultRequiresAttendance
+  );
 
-  useEffect(() => {
-    if (!open) return;
-    setError(null);
-    setName(event?.name ?? "");
-    setSessionDate(event?.session_date ?? defaultDate);
-    const start =
-      toTimeInputValue(event?.start_time) ||
-      toTimeInputValue(defaultStartTime) ||
-      DEFAULT_START_TIME;
-    setStartTime(start);
-    setEndTime(
-      toTimeInputValue(event?.end_time) ||
-        toTimeInputValue(defaultEndTime) ||
-        addHoursToTime(start, 1)
-    );
-    setCoachId(event?.coach_id ?? "");
-    setVenueId(event?.venue_id ?? "");
-    setRequiresAttendance(event?.requires_attendance ?? true);
-  }, [
-    open,
-    defaultDate,
-    defaultStartTime,
-    defaultEndTime,
-    event?.id,
-    event?.name,
-    event?.session_date,
-    event?.start_time,
-    event?.end_time,
-    event?.coach_id,
-    event?.venue_id,
-    event?.requires_attendance,
-  ]);
-
-  function handleOpenChange(next: boolean) {
-    if (!next) setError(null);
-    if (!isControlled) setUncontrolledOpen(next);
-    onOpenChange?.(next);
+  function emitShared(next: Partial<ScheduleSharedFields>) {
+    onSharedChange?.({
+      name,
+      venueId,
+      startTime,
+      endTime,
+      coachId,
+      ...next,
+    });
   }
 
   function handleStartTimeChange(value: string) {
+    const nextEnd = isEditing ? endTime : addHoursToTime(value, 1);
     setStartTime(value);
-    if (!isEditing) {
-      setEndTime(addHoursToTime(value, 1));
-    }
+    if (!isEditing) setEndTime(nextEnd);
+    emitShared({ startTime: value, endTime: nextEnd });
   }
 
   function handleSubmit(formEvent: React.FormEvent<HTMLFormElement>) {
@@ -184,22 +196,12 @@ export function EventFormDialog({
         setError(result.error);
         return;
       }
-      handleOpenChange(false);
+      onSuccess?.();
       router.refresh();
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg" showCloseButton>
-        <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit event" : "Add event"}</DialogTitle>
-          <DialogDescription>
-            {isEditing
-              ? "Update this one-off plan on the schedule."
-              : "Add a one-off plan such as an event. It appears on the schedule immediately."}
-          </DialogDescription>
-        </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error ? (
             <Alert variant="destructive">
@@ -212,7 +214,10 @@ export function EventFormDialog({
             <Input
               id="event_name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                emitShared({ name: e.target.value });
+              }}
               required
             />
           </div>
@@ -223,7 +228,10 @@ export function EventFormDialog({
               id="event_date"
               type="date"
               value={sessionDate}
-              onChange={(e) => setSessionDate(e.target.value)}
+              onChange={(e) => {
+                setSessionDate(e.target.value);
+                onDateChange?.(e.target.value);
+              }}
               required
             />
           </div>
@@ -243,8 +251,11 @@ export function EventFormDialog({
               <Label htmlFor="event_end_time">End</Label>
               <TimePicker
                 id="event_end_time"
-                value={endTime}
-                onChange={setEndTime}
+              value={endTime}
+              onChange={(value) => {
+                setEndTime(value);
+                emitShared({ endTime: value });
+              }}
                 required
                 aria-label="End time"
               />
@@ -259,14 +270,18 @@ export function EventFormDialog({
               id="event_venue"
               venues={venues}
               value={venueId}
-              onChange={setVenueId}
-              onCreated={(venue) =>
+              onChange={(value) => {
+                setVenueId(value);
+                emitShared({ venueId: value });
+              }}
+              onCreated={(venue) => {
                 setVenues((current) =>
                   current.some((item) => item.id === venue.id)
                     ? current
                     : [...current, venue]
-                )
-              }
+                );
+                onVenueCreated?.(venue);
+              }}
               required
             />
           </div>
@@ -275,9 +290,11 @@ export function EventFormDialog({
             <Label htmlFor="event_coach_id">Coach</Label>
             <Select
               value={coachId || "__none__"}
-              onValueChange={(value) =>
-                setCoachId(value === "__none__" ? "" : value)
-              }
+              onValueChange={(value) => {
+                const next = value === "__none__" ? "" : value;
+                setCoachId(next);
+                emitShared({ coachId: next });
+              }}
             >
               <SelectTrigger id="event_coach_id" className="w-full">
                 <SelectValue placeholder="Assign a coach" />
@@ -301,7 +318,10 @@ export function EventFormDialog({
             <Switch
               id="event_requires_attendance"
               checked={requiresAttendance}
-              onCheckedChange={setRequiresAttendance}
+              onCheckedChange={(checked) => {
+                setRequiresAttendance(checked);
+                onRequiresAttendanceChange?.(checked);
+              }}
             />
           </Label>
 
@@ -309,7 +329,7 @@ export function EventFormDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => handleOpenChange(false)}
+              onClick={onCancel}
               disabled={pending}
             >
               Cancel
@@ -325,6 +345,53 @@ export function EventFormDialog({
             </Button>
           </DialogFooter>
         </form>
+  );
+}
+
+export function EventFormDialog({
+  coaches,
+  venues,
+  defaultDate,
+  defaultStartTime,
+  defaultEndTime,
+  event,
+  open: openProp,
+  onOpenChange,
+}: EventFormDialogProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : uncontrolledOpen;
+  const isEditing = Boolean(event);
+
+  function handleOpenChange(next: boolean) {
+    if (!isControlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-lg" showCloseButton>
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit event" : "Add event"}</DialogTitle>
+          <DialogDescription>
+            {isEditing
+              ? "Update this one-off plan on the schedule."
+              : "Add a one-off plan such as an event."}
+          </DialogDescription>
+        </DialogHeader>
+        {open ? (
+          <EventForm
+            key={event?.id ?? `${defaultDate}-${defaultStartTime ?? ""}-${defaultEndTime ?? ""}`}
+            coaches={coaches}
+            venues={venues}
+            defaultDate={defaultDate}
+            defaultStartTime={defaultStartTime}
+            defaultEndTime={defaultEndTime}
+            event={event}
+            onCancel={() => handleOpenChange(false)}
+            onSuccess={() => handleOpenChange(false)}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   );
