@@ -146,7 +146,7 @@ export async function markAttendance(
     return { error: error.message };
   }
 
-  revalidateSessionAttendance(sessionId);
+  revalidateSessionAttendance(sessionId, studentId);
   return { success: true };
 }
 
@@ -201,7 +201,7 @@ export async function markWalkIn(
     return { error: error.message };
   }
 
-  revalidateSessionAttendance(sessionId);
+  revalidateSessionAttendance(sessionId, studentId);
   return { success: true };
 }
 
@@ -233,6 +233,6 @@ export async function clearAttendance(sessionId: string, studentId: string) {
     return { error: error.message };
   }
 
-  revalidateSessionAttendance(sessionId);
+  revalidateSessionAttendance(sessionId, studentId);
   return { success: true };
 }
