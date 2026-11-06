@@ -1,7 +1,9 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useState, useOptimistic, useTransition } from "react";
 import { Check, UserMinus, UserRound, UserX, X } from "lucide-react";
+import { markStudentGearOrderGiven } from "@/lib/actions/student-gear";
+import { gearOrderCheckInLine, rentalSummary } from "@/lib/gear-utils";
 import type { AttendanceStatus, CheckInStudent } from "@/lib/types";
 import {
   ATTENDANCE_STATUS_LABELS,
@@ -59,10 +61,34 @@ export function StudentCheckInRow({
   removePending,
 }: StudentCheckInRowProps) {
   const [pending, startTransition] = useTransition();
+  const [gearPending, startGearTransition] = useTransition();
+  const [givenOrderIds, setGivenOrderIds] = useState<string[]>([]);
+  const [gearError, setGearError] = useState<string | null>(null);
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(
     entry.attendance?.status
   );
   const warning = packageWarning(entry.package);
+  const rentalLine = rentalSummary(entry.student);
+  const openOrders = (entry.gearOrders ?? []).filter(
+    (order) => !givenOrderIds.includes(order.id)
+  );
+
+  function handleGiven(orderId: string) {
+    setGearError(null);
+    setGivenOrderIds((ids) => [...ids, orderId]);
+    startGearTransition(async () => {
+      try {
+        const result = await markStudentGearOrderGiven(orderId, sessionId);
+        if (result.error) {
+          setGivenOrderIds((ids) => ids.filter((id) => id !== orderId));
+          setGearError(result.error);
+        }
+      } catch {
+        setGivenOrderIds((ids) => ids.filter((id) => id !== orderId));
+        setGearError("Could not mark this item given.");
+      }
+    });
+  }
 
   function handleMark(status: AttendanceStatus) {
     startTransition(async () => {
@@ -103,6 +129,7 @@ export function StudentCheckInRow({
               {entry.isWalkIn ? (
                 <Badge variant="warning">Walk-in</Badge>
               ) : null}
+              {rentalLine ? <Badge variant="warning">Rental</Badge> : null}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {entry.package ? (
@@ -160,6 +187,38 @@ export function StudentCheckInRow({
           ) : null}
         </div>
       </div>
+
+      {rentalLine || openOrders.length > 0 ? (
+        <div className="mb-3 space-y-1.5">
+          {rentalLine ? (
+            <p className="text-sm text-muted-foreground">{rentalLine}</p>
+          ) : null}
+          {openOrders.map((order) => (
+            <div
+              key={order.id}
+              className="flex items-center justify-between gap-2"
+            >
+              <p className="min-w-0 text-sm">{gearOrderCheckInLine(order)}</p>
+              {order.status === "ready" ? (
+                <Button
+                  type="button"
+                  size="xs"
+                  disabled={disabled || gearPending}
+                  aria-label={`Mark ${order.item_name} given for ${entry.student.full_name}`}
+                  onClick={() => handleGiven(order.id)}
+                >
+                  Mark given
+                </Button>
+              ) : null}
+            </div>
+          ))}
+          {gearError ? (
+            <p className="text-xs text-destructive" role="alert">
+              {gearError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {warning !== "none" ? (
         <p

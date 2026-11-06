@@ -8,10 +8,12 @@ import { requireRole } from "@/lib/auth/profile";
 import { isValidYearMonth, todayInSingapore } from "@/lib/datetime";
 import { listClasses } from "@/lib/queries/classes";
 import { getDashboardOperations } from "@/lib/queries/dashboard";
+import { getGearDashboard } from "@/lib/queries/student-gear";
 import { getSessionsForDashboardRange } from "@/lib/queries/sessions";
 import { countInactiveStudents } from "@/lib/queries/students";
 import { weekDatesContaining } from "@/lib/session-utils";
 import { DashboardDueSoonPanel } from "@/components/admin/dashboard-due-soon-panel";
+import { DashboardGearPanel } from "@/components/admin/dashboard-gear-panel";
 import { DashboardInformedPanel } from "@/components/admin/dashboard-informed-panel";
 import { DashboardOvershotPanel } from "@/components/admin/dashboard-overshot-panel";
 import { DashboardMonthlyAttendance } from "@/components/admin/dashboard-monthly-attendance";
@@ -36,12 +38,14 @@ export default async function AdminDashboardPage({
   const reportMonth = parseReportMonth(params.reportMonth, today);
   const thisWeek = weekDatesContaining(today);
 
-  const [weekSessions, inactiveCount, operations, classes] = await Promise.all([
-    getSessionsForDashboardRange(thisWeek.monday, thisWeek.sunday),
-    countInactiveStudents(),
-    getDashboardOperations(reportMonth),
-    listClasses({ activeOnly: true }),
-  ]);
+  const [weekSessions, inactiveCount, operations, classes, gear] =
+    await Promise.all([
+      getSessionsForDashboardRange(thisWeek.monday, thisWeek.sunday),
+      countInactiveStudents(),
+      getDashboardOperations(reportMonth),
+      listClasses({ activeOnly: true }),
+      getGearDashboard(today),
+    ]);
 
   const todaySessions = weekSessions.filter(
     (item) => item.session.session_date === today
@@ -114,6 +118,16 @@ export default async function AdminDashboardPage({
           href="/admin/packages?filter=active"
         />
       </div>
+
+      <section className="space-y-4" aria-labelledby="dashboard-gear">
+        <h2
+          id="dashboard-gear"
+          className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
+        >
+          Gear
+        </h2>
+        <DashboardGearPanel gear={gear} />
+      </section>
 
       <section className="space-y-4" aria-labelledby="dashboard-queues">
         <h2

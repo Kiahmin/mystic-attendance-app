@@ -1,8 +1,12 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
-import { createPayer, type PayerInput } from "@/lib/actions/payers";
+import { Check, ChevronsUpDown, Pencil, Plus } from "lucide-react";
+import {
+  createPayer,
+  updatePayer,
+  type PayerInput,
+} from "@/lib/actions/payers";
 import {
   PAYER_KIND_LABELS,
   PAYER_KINDS,
@@ -33,6 +37,7 @@ type PayerPickerProps = {
   value: string;
   onChange: (payerId: string) => void;
   onCreated?: (payer: Payer) => void;
+  onUpdated?: (payer: Payer) => void;
   allowNone?: boolean;
   noneLabel?: string;
 };
@@ -43,12 +48,14 @@ export function PayerPicker({
   value,
   onChange,
   onCreated,
+  onUpdated,
   allowNone = true,
   noneLabel = "No payer",
 }: PayerPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Payer | null>(null);
   const [kind, setKind] = useState<PayerKind>("person");
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
@@ -65,34 +72,64 @@ export function PayerPicker({
     });
   }, [payers, query]);
 
-  function handleCreate(event: React.FormEvent) {
+  function resetForm() {
+    setDisplayName("");
+    setPhone("");
+    setKind("person");
+    setEditing(null);
+    setError(null);
+  }
+
+  function openCreate() {
+    resetForm();
+    setDialogOpen(true);
+  }
+
+  function openEdit() {
+    if (!selected) return;
+    setEditing(selected);
+    setKind(selected.kind);
+    setDisplayName(selected.display_name ?? "");
+    setPhone(selected.phone ?? "");
+    setError(null);
+    setDialogOpen(true);
+    setOpen(false);
+  }
+
+  function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
     const input: PayerInput = {
       kind,
       display_name: displayName,
       phone,
+      notes: editing?.notes ?? null,
     };
+    const editingId = editing?.id ?? null;
     startTransition(async () => {
-      const result = await createPayer(input);
+      const result = editingId
+        ? await updatePayer(editingId, input)
+        : await createPayer(input);
       if ("error" in result && result.error) {
         setError(result.error);
         return;
       }
       if (result.payer) {
-        onCreated?.(result.payer);
-        onChange(result.payer.id);
+        if (editingId) {
+          onUpdated?.(result.payer);
+        } else {
+          onCreated?.(result.payer);
+          onChange(result.payer.id);
+        }
       }
-      setDisplayName("");
-      setPhone("");
-      setKind("person");
-      setCreateOpen(false);
+      setDialogOpen(false);
       setOpen(false);
     });
   }
 
   return (
     <div className="space-y-2">
+      <div className="flex gap-2">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -101,7 +138,7 @@ export function PayerPicker({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="h-9 w-full justify-between font-normal"
+            className="h-9 min-w-0 flex-1 justify-between font-normal"
           >
             <span className="truncate">
               {selected ? payerLabel(selected) : noneLabel}
@@ -171,26 +208,44 @@ export function PayerPicker({
             type="button"
             variant="ghost"
             className="mt-2 w-full justify-start"
-            onClick={() => {
-              setError(null);
-              setCreateOpen(true);
-            }}
+            onClick={openCreate}
           >
             <Plus className="size-4" />
             Add payer
           </Button>
         </PopoverContent>
       </Popover>
+      {selected ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-lg"
+          className="shrink-0"
+          aria-label={`Edit ${payerLabel(selected)}`}
+          onClick={openEdit}
+        >
+          <Pencil className="size-4" />
+        </Button>
+      ) : null}
+      </div>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(next) => {
+          setDialogOpen(next);
+          if (!next) resetForm();
+        }}
+      >
         <DialogContent className="sm:max-w-md" showCloseButton>
           <DialogHeader>
-            <DialogTitle>Add payer</DialogTitle>
+            <DialogTitle>{editing ? "Edit payer" : "Add payer"}</DialogTitle>
             <DialogDescription>
-              Parent, company, or a phone number if the name is not on file.
+              {editing
+                ? "Changes apply everywhere this payer is used."
+                : "Parent, company, or a phone number if the name is not on file."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>Type</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -237,13 +292,17 @@ export function PayerPicker({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setCreateOpen(false)}
+                onClick={() => setDialogOpen(false)}
                 disabled={pending}
               >
                 Cancel
               </Button>
               <Button type="submit" disabled={pending}>
-                {pending ? "Adding…" : "Add payer"}
+                {pending
+                  ? "Saving…"
+                  : editing
+                    ? "Save changes"
+                    : "Add payer"}
               </Button>
             </DialogFooter>
           </form>

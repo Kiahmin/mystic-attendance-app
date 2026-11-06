@@ -28,7 +28,10 @@ const STUDENT_COLUMNS = `
   skill_level,
   notes,
   is_trial,
-  archived_at
+  archived_at,
+  needs_rental_skates,
+  needs_rental_gear,
+  rental_note
 `;
 
 function asSingle<T>(value: T | T[] | null | undefined): T | null {

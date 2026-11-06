@@ -77,6 +77,11 @@ export function MarkPackagePaidForm({
                 : [...current, payer]
             )
           }
+          onUpdated={(payer) =>
+            setPayers((current) =>
+              current.map((item) => (item.id === payer.id ? payer : item))
+            )
+          }
           allowNone={false}
           noneLabel="Select a payer"
         />
