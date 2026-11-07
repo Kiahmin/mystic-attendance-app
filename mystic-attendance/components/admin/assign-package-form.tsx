@@ -513,6 +513,7 @@ export function AssignPackageForm({
                 }
                 allowNone={!isPaid}
                 noneLabel="Use student default / none"
+                excludeStudentId={studentId || undefined}
               />
             </div>
             <div className="space-y-2">

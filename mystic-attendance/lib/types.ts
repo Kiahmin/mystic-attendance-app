@@ -53,6 +53,7 @@ export interface Payer {
   phone: string | null;
   notes: string | null;
   created_at: string;
+  used_by?: { id: string; full_name: string }[];
 }
 
 export type PayerRef = Pick<Payer, "id" | "kind" | "display_name" | "phone">;

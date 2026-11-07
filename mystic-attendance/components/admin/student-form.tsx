@@ -443,6 +443,7 @@ export function StudentForm({
           noneLabel={
             needsTrialPackage && trialPaid ? "Select a payer" : "No payer"
           }
+          excludeStudentId={student?.id}
         />
       </section>
 

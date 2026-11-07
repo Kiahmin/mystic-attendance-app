@@ -16,7 +16,7 @@ import type {
 } from "@/lib/types";
 import { mapVenueRef } from "@/lib/venue-utils";
 
-const STUDENT_COLUMNS = `
+const STUDENT_COLUMNS_BASE = `
   id,
   full_name,
   date_of_birth,
@@ -28,11 +28,30 @@ const STUDENT_COLUMNS = `
   skill_level,
   notes,
   is_trial,
-  archived_at,
+  archived_at
+`;
+
+const STUDENT_COLUMNS = `
+  ${STUDENT_COLUMNS_BASE},
   needs_rental_skates,
   needs_rental_gear,
   rental_note
 `;
+
+function isUndefinedColumn(error: { code?: string } | null) {
+  return error?.code === "42703";
+}
+
+function withRentalDefaults<T extends { needs_rental_skates?: boolean; needs_rental_gear?: boolean; rental_note?: string | null }>(
+  student: T
+) {
+  return {
+    ...student,
+    needs_rental_skates: student.needs_rental_skates ?? false,
+    needs_rental_gear: student.needs_rental_gear ?? false,
+    rental_note: student.rental_note ?? null,
+  };
+}
 
 function asSingle<T>(value: T | T[] | null | undefined): T | null {
   if (value == null) return null;
@@ -194,7 +213,48 @@ export async function listStudents(
     query = query.ilike("full_name", `%${trimmed}%`);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
+  if (isUndefinedColumn(error)) {
+    let fallback = supabase
+      .from("students")
+      .select(
+        `
+        ${STUDENT_COLUMNS_BASE},
+        created_at,
+        payers (
+          id,
+          kind,
+          display_name,
+          phone
+        ),
+        enrolments (
+          class_id,
+          classes (
+            id,
+            name,
+            venue_id,
+            venues (id, name),
+            day_of_week,
+            start_time,
+            end_time,
+            is_active
+          )
+        )
+      `
+      )
+      .order("full_name");
+    if (trimmed) {
+      fallback = fallback.ilike("full_name", `%${trimmed}%`);
+    }
+    const retry = await fallback;
+    data = (retry.data ?? []).map((row) => ({
+      ...row,
+      needs_rental_skates: false,
+      needs_rental_gear: false,
+      rental_note: null,
+    }));
+    error = retry.error;
+  }
   if (error) throw error;
 
   const rows = data ?? [];
@@ -283,7 +343,7 @@ export async function listStudents(
     const classIds = enrolmentRows.map((enrolment) => enrolment.class_id);
     const payer = asSingle(payers);
     return {
-      ...(student as Student & { created_at: string }),
+      ...withRentalDefaults(student as Student & { created_at: string }),
       payer_id: (student as Student).payer_id ?? payer?.id ?? null,
       payer,
       last_attended_on: lastAttendedByStudent.get(student.id as string) ?? null,
@@ -348,7 +408,7 @@ export async function getStudentById(
 ): Promise<StudentWithEnrolments | null> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("students")
     .select(
       `
@@ -380,6 +440,50 @@ export async function getStudentById(
     )
     .eq("id", id)
     .maybeSingle();
+
+  if (isUndefinedColumn(error)) {
+    const retry = await supabase
+      .from("students")
+      .select(
+        `
+        ${STUDENT_COLUMNS_BASE},
+        payers (
+          id,
+          kind,
+          display_name,
+          phone
+        ),
+        enrolments (
+          id,
+          student_id,
+          class_id,
+          enrolled_at,
+          classes (
+            id,
+            name,
+            venue_id,
+            venues (id, name),
+            day_of_week,
+            start_time,
+            end_time,
+            coach_id,
+            is_active
+          )
+        )
+      `
+      )
+      .eq("id", id)
+      .maybeSingle();
+    data = retry.data
+      ? {
+          ...retry.data,
+          needs_rental_skates: false,
+          needs_rental_gear: false,
+          rental_note: null,
+        }
+      : null;
+    error = retry.error;
+  }
 
   if (error) throw error;
   if (!data) return null;
@@ -422,7 +526,7 @@ export async function getStudentById(
   );
 
   return {
-    ...student,
+    ...withRentalDefaults(student),
     payer_id: student.payer_id ?? asSingle(payers)?.id ?? null,
     payer: asSingle(payers),
     enrolments: typedEnrolments,

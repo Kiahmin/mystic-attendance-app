@@ -84,6 +84,7 @@ export function MarkPackagePaidForm({
           }
           allowNone={false}
           noneLabel="Select a payer"
+          excludeStudentId={studentId}
         />
       </div>
 

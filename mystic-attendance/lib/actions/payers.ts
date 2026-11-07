@@ -58,3 +58,26 @@ export async function createPayer(input: PayerInput) {
   revalidatePayerPaths();
   return { success: true as const, payer: data as Payer };
 }
+
+export async function updatePayer(id: string, input: PayerInput) {
+  await requireRole(["admin"]);
+
+  if (!id) return { error: "Missing payer." };
+
+  const validationError = validatePayerInput(input);
+  if (validationError) return { error: validationError };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("payers")
+    .update(toPayerRow(input))
+    .eq("id", id)
+    .select("id, kind, display_name, phone, notes, created_at")
+    .single();
+
+  if (error) return { error: error.message };
+  if (!data) return { error: "Payer not found." };
+
+  revalidatePayerPaths();
+  return { success: true as const, payer: data as Payer };
+}

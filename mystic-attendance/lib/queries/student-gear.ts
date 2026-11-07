@@ -41,6 +41,7 @@ export async function listGearOrdersForStudent(
     .eq("student_id", studentId)
     .order("created_at", { ascending: false });
 
+  if (isMissingGearTable(error)) return [];
   if (error) throw error;
   return (data ?? []).map((row) =>
     mapGearOrder(row as unknown as Record<string, unknown>)
@@ -59,6 +60,7 @@ export async function listOpenGearOrdersForStudents(
     .neq("status", "given")
     .order("created_at", { ascending: true });
 
+  if (isMissingGearTable(error)) return [];
   if (error) throw error;
   return (data ?? []).map((row) =>
     mapGearOrder(row as unknown as Record<string, unknown>)
@@ -112,6 +114,10 @@ type SessionGearRow = {
     | null;
 };
 
+function isMissingGearTable(error: { code?: string } | null) {
+  return error?.code === "PGRST205" || error?.code === "42P01";
+}
+
 function asSingle<T>(value: T | T[] | null | undefined): T | null {
   if (value == null) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
@@ -159,6 +165,9 @@ export async function getGearDashboard(
   ]);
 
   if (sessionsResult.error) throw sessionsResult.error;
+  if (isMissingGearTable(ordersResult.error)) {
+    return { bringToday: [], openOrders: [] };
+  }
   if (ordersResult.error) throw ordersResult.error;
 
   const sessionRows = (sessionsResult.data ?? []) as SessionGearRow[];
