@@ -434,10 +434,16 @@ export function StudentForm({
                 : [...current, payer]
             )
           }
+          onUpdated={(payer) =>
+            setPayers((current) =>
+              current.map((item) => (item.id === payer.id ? payer : item))
+            )
+          }
           allowNone={!(needsTrialPackage && trialPaid)}
           noneLabel={
             needsTrialPackage && trialPaid ? "Select a payer" : "No payer"
           }
+          excludeStudentId={student?.id}
         />
       </section>
 

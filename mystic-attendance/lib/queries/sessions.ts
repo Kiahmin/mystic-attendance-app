@@ -1,4 +1,5 @@
 import { todayInSingapore } from "@/lib/datetime";
+import { listOpenGearOrdersForStudents } from "@/lib/queries/student-gear";
 import { createClient } from "@/lib/supabase/server";
 import { pickChargeablePackage } from "@/lib/package-utils";
 import {
@@ -418,7 +419,7 @@ export async function getSessionCheckInList(
     ...new Set(classMemberships.map((row) => row.package_id)),
   ];
 
-  const [studentsResult, packagesResult] = await Promise.all([
+  const [studentsResult, packagesResult, gearOrders] = await Promise.all([
     studentIds.length === 0
       ? Promise.resolve({ data: [] as Student[], error: null })
       : supabase.from("students").select("*").in("id", studentIds),
@@ -435,6 +436,7 @@ export async function getSessionCheckInList(
             .select(CHECKIN_PACKAGE_SELECT)
             .in("id", classPackageIds)
             .is("session_id", null),
+    listOpenGearOrdersForStudents(studentIds),
   ]);
 
   if (studentsResult.error) throw studentsResult.error;
@@ -446,6 +448,12 @@ export async function getSessionCheckInList(
   const mappedPackages = (packagesResult.data ?? []).map((row) =>
     mapPackageRow(row as unknown as Record<string, unknown>)
   );
+  const gearOrdersByStudent = new Map<string, CheckInStudent["gearOrders"]>();
+  for (const order of gearOrders) {
+    const list = gearOrdersByStudent.get(order.student_id);
+    if (list) list.push(order);
+    else gearOrdersByStudent.set(order.student_id, [order]);
+  }
   const packagesByStudent = isEvent
     ? groupByStudentId(mappedPackages)
     : groupPackagesByMembership(mappedPackages, classMemberships);
@@ -476,6 +484,7 @@ export async function getSessionCheckInList(
         (attendanceByStudent.get(student.id) as CheckInStudent["attendance"])
           ?.attendee_source === "walk_in",
       rosterSource,
+      gearOrders: gearOrdersByStudent.get(student.id) ?? [],
     };
   }
 

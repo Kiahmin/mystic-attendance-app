@@ -8,9 +8,11 @@ import { requireRole } from "@/lib/auth/profile";
 import { payerLabel } from "@/lib/payer-utils";
 import { listClasses } from "@/lib/queries/classes";
 import { listPackagesForStudent, listPackageCreditTransfers } from "@/lib/queries/packages";
+import { listGearOrdersForStudent } from "@/lib/queries/student-gear";
 import { getStudentById, listStudentDirectory } from "@/lib/queries/students";
 import { listPayers } from "@/lib/queries/payers";
 import { ArchiveStudentButton } from "@/components/admin/archive-student-button";
+import { StudentGearCard } from "@/components/admin/student-gear-card";
 import { EnrolmentManager } from "@/components/admin/enrolment-manager";
 import { StudentForm } from "@/components/admin/student-form";
 import { StudentPackages } from "@/components/admin/student-packages";
@@ -45,13 +47,15 @@ export default async function AdminStudentDetailPage({
   });
   const studentQuery = inactive ? "?inactive=1" : "";
 
-  const [student, classes, packages, payers, students] = await Promise.all([
-    getStudentById(id),
-    listClasses({ activeOnly: true }),
-    listPackagesForStudent(id),
-    listPayers(),
-    listStudentDirectory(),
-  ]);
+  const [student, classes, packages, payers, students, gearOrders] =
+    await Promise.all([
+      getStudentById(id),
+      listClasses({ activeOnly: true }),
+      listPackagesForStudent(id),
+      listPayers(),
+      listStudentDirectory(),
+      listGearOrdersForStudent(id),
+    ]);
 
   if (!student) notFound();
 
@@ -160,6 +164,8 @@ export default async function AdminStudentDetailPage({
             />
           </CardContent>
         </Card>
+
+        <StudentGearCard student={student} orders={gearOrders} />
 
         <Card className="xl:col-span-2">
           <CardHeader>

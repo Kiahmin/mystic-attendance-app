@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { studentNeedsRental } from "@/lib/gear-utils";
 import { studentDetailHref, studentListHref } from "@/lib/navigation";
 import {
   ChevronLeft,
@@ -711,6 +712,9 @@ export function StudentList({
                             <div className="mt-1.5 flex flex-wrap items-center gap-2">
                               {student.is_trial ? (
                                 <Badge variant="warning">Trial</Badge>
+                              ) : null}
+                              {studentNeedsRental(student) ? (
+                                <Badge variant="warning">Rental</Badge>
                               ) : null}
                               {inactive ? (
                                 <Badge variant="outline">

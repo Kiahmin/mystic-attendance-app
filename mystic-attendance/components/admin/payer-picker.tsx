@@ -1,31 +1,17 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
-import { createPayer, type PayerInput } from "@/lib/actions/payers";
+import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
-  PAYER_KIND_LABELS,
-  PAYER_KINDS,
-  payerLabel,
-} from "@/lib/payer-utils";
-import type { Payer, PayerKind } from "@/lib/types";
+  createPayer,
+  updatePayer,
+  type PayerInput,
+} from "@/lib/actions/payers";
+import { payerLabel } from "@/lib/payer-utils";
+import type { Payer } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 
 type PayerPickerProps = {
   id?: string;
@@ -33,9 +19,26 @@ type PayerPickerProps = {
   value: string;
   onChange: (payerId: string) => void;
   onCreated?: (payer: Payer) => void;
+  onUpdated?: (payer: Payer) => void;
   allowNone?: boolean;
   noneLabel?: string;
+  excludeStudentId?: string;
 };
+
+type Committed = {
+  id: string;
+  name: string;
+  phone: string;
+};
+
+function alsoUsedLabel(names: string[]): string | null {
+  if (names.length === 0) return null;
+  if (names.length === 1) return `Also used by ${names[0]}`;
+  if (names.length === 2) {
+    return `Also used by ${names[0]} and ${names[1]}`;
+  }
+  return `Also used by ${names[0]}, ${names[1]}, and ${names.length - 2} more`;
+}
 
 export function PayerPicker({
   id,
@@ -43,212 +46,284 @@ export function PayerPicker({
   value,
   onChange,
   onCreated,
+  onUpdated,
   allowNone = true,
-  noneLabel = "No payer",
+  excludeStudentId,
 }: PayerPickerProps) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
-  const [kind, setKind] = useState<PayerKind>("person");
-  const [displayName, setDisplayName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
   const selected = payers.find((payer) => payer.id === value) ?? null;
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return payers;
-    return payers.filter((payer) => {
-      const haystacks = [payer.display_name, payer.phone];
-      return haystacks.some((item) => item?.toLowerCase().includes(q));
-    });
-  }, [payers, query]);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [name, setName] = useState(selected?.display_name ?? "");
+  const [phone, setPhone] = useState(selected?.phone ?? "");
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const nameRef = useRef(name);
+  const phoneRef = useRef(phone);
+  const committedRef = useRef<Committed>({
+    id: value,
+    name: selected?.display_name ?? "",
+    phone: selected?.phone ?? "",
+  });
+  const lockRef = useRef<Promise<boolean> | null>(null);
+  const dirtyRef = useRef(false);
 
-  function handleCreate(event: React.FormEvent) {
-    event.preventDefault();
+  nameRef.current = name;
+  phoneRef.current = phone;
+  dirtyRef.current =
+    name.trim() !== committedRef.current.name ||
+    phone.trim() !== committedRef.current.phone;
+
+  useEffect(() => {
+    const next = payers.find((payer) => payer.id === value) ?? null;
+    const nextName = next?.display_name ?? "";
+    const nextPhone = next?.phone ?? "";
+    committedRef.current = { id: value, name: nextName, phone: nextPhone };
+    setName(nextName);
+    setPhone(nextPhone);
     setError(null);
-    const input: PayerInput = {
-      kind,
-      display_name: displayName,
-      phone,
+    setOpen(false);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps -- reset only when the linked payer changes
+
+  const commitRef = useRef<() => Promise<boolean>>(async () => true);
+
+  useEffect(() => {
+    const form = rootRef.current?.closest("form");
+    if (!form) return;
+    const onSubmit = (event: Event) => {
+      if (!dirtyRef.current && !lockRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void (async () => {
+        const ok = await commitRef.current();
+        if (ok) form.requestSubmit();
+      })();
     };
-    startTransition(async () => {
-      const result = await createPayer(input);
-      if ("error" in result && result.error) {
-        setError(result.error);
-        return;
+    form.addEventListener("submit", onSubmit, true);
+    return () => form.removeEventListener("submit", onSubmit, true);
+  }, []);
+
+  const query = name.trim().toLowerCase();
+  const suggestions = query
+    ? payers
+        .filter((payer) => {
+          if (payer.id === value) return false;
+          return [payer.display_name, payer.phone].some((item) =>
+            item?.toLowerCase().includes(query)
+          );
+        })
+        .slice(0, 8)
+    : [];
+
+  const savedName = (selected?.display_name ?? "").trim();
+  const renaming = Boolean(selected) && name.trim() !== savedName;
+  const otherNames = (selected?.used_by ?? [])
+    .filter((student) => student.id !== excludeStudentId)
+    .map((student) => student.full_name);
+  const sharedWarning = renaming ? alsoUsedLabel(otherNames) : null;
+
+  function applyCommitted(next: Committed) {
+    committedRef.current = next;
+    dirtyRef.current = false;
+    setName(next.name);
+    setPhone(next.phone);
+  }
+
+  function linkPayer(payer: Payer) {
+    const next = {
+      id: payer.id,
+      name: payer.display_name ?? "",
+      phone: payer.phone ?? "",
+    };
+    flushSync(() => {
+      onChange(payer.id);
+    });
+    applyCommitted(next);
+    setError(null);
+    setOpen(false);
+  }
+
+  async function commit(): Promise<boolean> {
+    if (lockRef.current) return lockRef.current;
+    const promise = persist();
+    lockRef.current = promise;
+    try {
+      return await promise;
+    } finally {
+      lockRef.current = null;
+    }
+  }
+
+  commitRef.current = commit;
+
+  async function persist(): Promise<boolean> {
+    const trimmedName = nameRef.current.trim();
+    const trimmedPhone = phoneRef.current.trim();
+    const committed = committedRef.current;
+    if (
+      trimmedName === committed.name &&
+      trimmedPhone === committed.phone
+    ) {
+      return true;
+    }
+
+    setError(null);
+
+    if (!trimmedName && !trimmedPhone) {
+      if (!allowNone) {
+        setError("Enter a payer name.");
+        return false;
       }
-      if (result.payer) {
+      flushSync(() => {
+        onChange("");
+      });
+      applyCommitted({ id: "", name: "", phone: "" });
+      return true;
+    }
+
+    const exact = trimmedName
+      ? payers.filter(
+          (payer) =>
+            (payer.display_name ?? "").trim().toLowerCase() ===
+            trimmedName.toLowerCase()
+        )
+      : [];
+    const current = payers.find((payer) => payer.id === committed.id) ?? null;
+
+    if (current && trimmedName !== committed.name) {
+      const otherExact = exact.filter((payer) => payer.id !== current.id);
+      if (otherExact.length === 1) {
+        linkPayer(otherExact[0]);
+        return true;
+      }
+    }
+
+    if (!current && exact.length === 1) {
+      linkPayer(exact[0]);
+      return true;
+    }
+    if (!current && exact.length > 1) {
+      setError("Several payers use this name. Choose one from the list.");
+      setOpen(true);
+      return false;
+    }
+
+    const input: PayerInput = current
+      ? {
+          kind: current.kind,
+          display_name: trimmedName,
+          phone: trimmedPhone,
+          notes: current.notes,
+        }
+      : {
+          kind: "person",
+          display_name: trimmedName,
+          phone: trimmedPhone,
+        };
+
+    setPending(true);
+    const result = current
+      ? await updatePayer(current.id, input)
+      : await createPayer(input);
+    setPending(false);
+
+    if ("error" in result && result.error) {
+      setError(result.error);
+      return false;
+    }
+    if (!result.payer) {
+      setError("Could not save the payer.");
+      return false;
+    }
+
+    const saved: Committed = {
+      id: result.payer.id,
+      name: result.payer.display_name ?? "",
+      phone: result.payer.phone ?? "",
+    };
+    flushSync(() => {
+      if (current) {
+        onUpdated?.({ ...result.payer, used_by: current.used_by });
+      } else {
         onCreated?.(result.payer);
         onChange(result.payer.id);
       }
-      setDisplayName("");
-      setPhone("");
-      setKind("person");
-      setCreateOpen(false);
-      setOpen(false);
     });
+    applyCommitted(saved);
+    return true;
   }
 
-  return (
-    <div className="space-y-2">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            id={id}
-            type="button"
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="h-9 w-full justify-between font-normal"
-          >
-            <span className="truncate">
-              {selected ? payerLabel(selected) : noneLabel}
-            </span>
-            <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2" align="start">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name or phone…"
-            className="mb-2 h-8"
-          />
-          <div className="max-h-56 overflow-y-auto">
-            {allowNone ? (
-              <button
-                type="button"
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                  !value
-                    ? "bg-accent text-accent-foreground"
-                    : "hover:bg-muted"
-                )}
-                onClick={() => {
-                  onChange("");
-                  setOpen(false);
-                }}
-              >
-                <Check
-                  className={cn("size-4", value ? "opacity-0" : "opacity-100")}
-                />
-                {noneLabel}
-              </button>
-            ) : null}
-            {filtered.map((payer) => (
-              <button
-                key={payer.id}
-                type="button"
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                  payer.id === value
-                    ? "bg-accent text-accent-foreground"
-                    : "hover:bg-muted"
-                )}
-                onClick={() => {
-                  onChange(payer.id);
-                  setOpen(false);
-                }}
-              >
-                <Check
-                  className={cn(
-                    "size-4",
-                    payer.id === value ? "opacity-100" : "opacity-0"
-                  )}
-                />
-                <span className="min-w-0 truncate">{payerLabel(payer)}</span>
-              </button>
-            ))}
-            {filtered.length === 0 ? (
-              <p className="px-2 py-3 text-sm text-muted-foreground">
-                No matching payers.
-              </p>
-            ) : null}
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            className="mt-2 w-full justify-start"
-            onClick={() => {
-              setError(null);
-              setCreateOpen(true);
-            }}
-          >
-            <Plus className="size-4" />
-            Add payer
-          </Button>
-        </PopoverContent>
-      </Popover>
+  function handleBlur(event: React.FocusEvent) {
+    const next = event.relatedTarget;
+    if (next instanceof Node && rootRef.current?.contains(next)) return;
+    setOpen(false);
+    void commit();
+  }
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md" showCloseButton>
-          <DialogHeader>
-            <DialogTitle>Add payer</DialogTitle>
-            <DialogDescription>
-              Parent, company, or a phone number if the name is not on file.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {PAYER_KINDS.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setKind(option)}
-                    className={cn(
-                      "rounded-lg border px-3 py-2 text-sm font-medium",
-                      kind === option
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border text-muted-foreground hover:border-primary/40"
-                    )}
-                  >
-                    {PAYER_KIND_LABELS[option]}
-                  </button>
-                ))}
-              </div>
+  const phoneId = id ? `${id}_phone` : undefined;
+
+  return (
+    <div ref={rootRef} className="space-y-2" onBlur={handleBlur}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor={id} className="sr-only">
+            Payer name
+          </Label>
+          <div className="relative">
+          <Input
+            id={id}
+            value={name}
+            disabled={pending}
+            placeholder="Payer name"
+            autoComplete="off"
+            role="combobox"
+            aria-expanded={open && suggestions.length > 0}
+            aria-autocomplete="list"
+            onFocus={() => setOpen(true)}
+            onChange={(event) => {
+              setName(event.target.value);
+              setOpen(true);
+              setError(null);
+            }}
+          />
+          {open && suggestions.length > 0 ? (
+            <div className="absolute top-full z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md">
+              {suggestions.map((payer) => (
+                <button
+                  key={payer.id}
+                  type="button"
+                  className="flex w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => linkPayer(payer)}
+                >
+                  <span className="min-w-0 truncate">{payerLabel(payer)}</span>
+                </button>
+              ))}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="payer_display_name">Name</Label>
-              <Input
-                id="payer_display_name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder={
-                  kind === "company" ? "Fufu Technologies PTE LTD" : "Koh Soon Peng"
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="payer_phone">Phone</Label>
-              <Input
-                id="payer_phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="9029 4474"
-              />
-            </div>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCreateOpen(false)}
-                disabled={pending}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={pending}>
-                {pending ? "Adding…" : "Add payer"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          ) : null}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={phoneId} className="sr-only">
+            Payer phone
+          </Label>
+          <Input
+            id={phoneId}
+            type="tel"
+            value={phone}
+            disabled={pending}
+            placeholder="Phone"
+            autoComplete="off"
+            onChange={(event) => {
+              setPhone(event.target.value);
+              setError(null);
+            }}
+          />
+        </div>
+      </div>
+      {sharedWarning ? (
+        <p className={cn("text-sm text-muted-foreground")}>{sharedWarning}</p>
+      ) : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
     </div>
   );
 }

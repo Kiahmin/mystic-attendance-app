@@ -506,8 +506,14 @@ export function AssignPackageForm({
                       : [...current, payer]
                   )
                 }
+                onUpdated={(payer) =>
+                  setPayers((current) =>
+                    current.map((item) => (item.id === payer.id ? payer : item))
+                  )
+                }
                 allowNone={!isPaid}
                 noneLabel="Use student default / none"
+                excludeStudentId={studentId || undefined}
               />
             </div>
             <div className="space-y-2">

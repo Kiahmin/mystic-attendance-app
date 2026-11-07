@@ -53,6 +53,7 @@ export interface Payer {
   phone: string | null;
   notes: string | null;
   created_at: string;
+  used_by?: { id: string; full_name: string }[];
 }
 
 export type PayerRef = Pick<Payer, "id" | "kind" | "display_name" | "phone">;
@@ -105,6 +106,23 @@ export interface Student {
   notes: string | null;
   is_trial: boolean;
   archived_at: string | null;
+  needs_rental_skates: boolean;
+  needs_rental_gear: boolean;
+  rental_note: string | null;
+}
+
+export type GearOrderStatus = "to_order" | "ordered" | "ready" | "given";
+
+export interface StudentGearOrder {
+  id: string;
+  student_id: string;
+  item_name: string;
+  size: string | null;
+  notes: string | null;
+  status: GearOrderStatus;
+  created_at: string;
+  updated_at: string;
+  given_at: string | null;
 }
 
 export type StudentSearchHit = Pick<
@@ -291,6 +309,8 @@ export interface CheckInStudent {
   isWalkIn: boolean;
   /** Present for expected roster rows and former recorded attendees; null for walk-ins. */
   rosterSource: CheckInRosterSource | null;
+  /** Purchases not yet handed over. */
+  gearOrders: StudentGearOrder[];
 }
 
 export interface DashboardSession {
