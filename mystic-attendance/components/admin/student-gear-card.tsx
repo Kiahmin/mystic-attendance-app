@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import { useState, useTransition } from "react";
 import {
   createStudentGearOrder,
@@ -12,6 +13,7 @@ import {
   gearOrderItemLabel,
 } from "@/lib/gear-utils";
 import type { Student, StudentGearOrder } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { GearOrderStatusButtons } from "@/components/gear/gear-order-controls";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -34,19 +36,35 @@ export function StudentGearCard({
   student: Student;
   orders: StudentGearOrder[];
 }) {
+  const [open, setOpen] = useState(false);
   const openOrders = orders.filter((order) => order.status !== "given");
   const givenOrders = orders.filter((order) => order.status === "given");
 
   return (
     <Card className="xl:col-span-2">
       <CardHeader>
-        <CardTitle>Rentals and orders</CardTitle>
-        <CardDescription>
-          Rentals are packed for every class until you turn them off. Purchases
-          stay on the bring list until they are marked given.
-        </CardDescription>
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+          className="flex w-full items-start gap-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <span className="min-w-0 flex-1">
+            <CardTitle>Rentals and orders</CardTitle>
+            <CardDescription>
+              Rentals are packed for every class until you turn them off.
+              Purchases stay on the bring list until they are marked given.
+            </CardDescription>
+          </span>
+          <ChevronDown
+            className={cn(
+              "mt-1 size-4 shrink-0 text-muted-foreground transition-transform",
+              open && "rotate-180"
+            )}
+          />
+        </button>
       </CardHeader>
-      <CardContent className="space-y-8">
+      <CardContent className={cn("space-y-8", !open && "hidden")}>
         <RentalForm student={student} />
         <div className="space-y-4 border-t pt-6">
           <h3 className="font-heading text-base font-medium">Purchases</h3>
