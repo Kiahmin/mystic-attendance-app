@@ -51,10 +51,6 @@ export function StudentGearCard({
         >
           <span className="min-w-0 flex-1">
             <CardTitle>Rentals and orders</CardTitle>
-            <CardDescription>
-              Rentals are packed for every class until you turn them off.
-              Purchases stay on the bring list until they are marked given.
-            </CardDescription>
           </span>
           <ChevronDown
             className={cn(
